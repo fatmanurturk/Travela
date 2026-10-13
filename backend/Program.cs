@@ -1,4 +1,13 @@
+using Microsoft.EntityFrameworkCore;
+using Travela.API.Data;
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDbContext<TravelaDbContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection")
+    )
+);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -53,6 +62,30 @@ app.MapGet("/api/test", () =>
         success = true,
         message = "Travela API başarıyla çalışıyor!"
     });
+});
+app.MapGet("/api/db-test", async (TravelaDbContext db) =>
+{
+    try
+    {
+        bool connected = await db.Database.CanConnectAsync();
+
+        if (connected)
+        {
+            return Results.Ok(new
+            {
+                success = true,
+                message = "TravelaDB bağlantısı başarılı!"
+            });
+        }
+
+        return Results.Problem(
+            "Veritabanına bağlantı kurulamadı.");
+    }
+    catch
+    {
+        return Results.Problem(
+            "Veritabanı bağlantısı sırasında hata oluştu.");
+    }
 });
 
 app.Run();
