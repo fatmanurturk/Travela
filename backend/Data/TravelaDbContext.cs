@@ -1,12 +1,16 @@
 using Microsoft.EntityFrameworkCore;
+using Travela.Models;
 
-namespace Travela.API.Data;
-
-public class TravelaDbContext : DbContext
+namespace Travela.Data
 {
-    public TravelaDbContext(
-        DbContextOptions<TravelaDbContext> options)
-        : base(options)
+    public class TravelaDbContext : DbContext
     {
+        public TravelaDbContext(
+            DbContextOptions<TravelaDbContext> options)
+            : base(options)
+        {
+        }
+
+        public DbSet<User> Users { get; set; }
     }
 }
