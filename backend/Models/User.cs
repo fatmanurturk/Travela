@@ -12,6 +12,8 @@ namespace Travela.Models
 
         public string Role { get; set; } = "Passenger";
 
+        public int? CompanyId { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }
