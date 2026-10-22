@@ -17,6 +17,9 @@ namespace Travela.Data
         public DbSet<Bus> Buses { get; set; }
        public DbSet<Travela.Api.Models.Route> Routes { get; set; }
         public DbSet<Trip> Trips { get; set; }
+        public DbSet<Role> Roles { get; set; }
+        public DbSet<Permission> Permissions { get; set; }
+        public DbSet<RolePermission> RolePermissions { get; set; }
       
       protected override void OnModelCreating(ModelBuilder modelBuilder)
 {
@@ -31,6 +34,22 @@ namespace Travela.Data
         .WithMany()
         .HasForeignKey(t => t.CompanyId)
         .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<RolePermission>()
+    .HasOne(rp => rp.Role)
+    .WithMany()
+    .HasForeignKey(rp => rp.RoleId)
+    .OnDelete(DeleteBehavior.Cascade);
+
+modelBuilder.Entity<RolePermission>()
+    .HasOne(rp => rp.Permission)
+    .WithMany()
+    .HasForeignKey(rp => rp.PermissionId)
+    .OnDelete(DeleteBehavior.Cascade);
+
+modelBuilder.Entity<RolePermission>()
+    .HasIndex(rp => new { rp.RoleId, rp.PermissionId })
+    .IsUnique();
 
     modelBuilder.Entity<Trip>()
         .HasOne(t => t.Bus)

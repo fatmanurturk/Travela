@@ -158,12 +158,13 @@ return Ok(new
     tokenType = "Bearer",
     expiresIn = 7200,
     user = new
-    {
-        user.Id,
-        user.FullName,
-        user.Email,
-        user.Role
-    }
+{
+    user.Id,
+    user.FullName,
+    user.Email,
+    user.Role,
+    user.CompanyId
+}
 });
 }
     }

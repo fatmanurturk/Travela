@@ -3,6 +3,9 @@ using Travela.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Microsoft.OpenApi;
+using Microsoft.AspNetCore.Authorization;
+using Travela.Api.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 var jwtKey = builder.Configuration["Jwt:Key"]
@@ -13,6 +16,10 @@ var jwtIssuer = builder.Configuration["Jwt:Issuer"]
 
 var jwtAudience = builder.Configuration["Jwt:Audience"]
     ?? throw new InvalidOperationException("JWT Audience bulunamadı.");
+
+    builder.Services.AddScoped<
+    IAuthorizationHandler,
+    PermissionAuthorizationHandler>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -35,8 +42,24 @@ builder.Services
             ClockSkew = TimeSpan.Zero
         };
     });
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("bus.create", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.Requirements.Add(
+            new PermissionRequirement("bus.create"));
+    });
 
-builder.Services.AddAuthorization();
+    options.AddPolicy("bus.view", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.Requirements.Add(
+            new PermissionRequirement("bus.view"));
+    });
+});
+
+
 builder.Services.AddControllers();
 
 builder.Services.AddDbContext<TravelaDbContext>(options =>
@@ -48,7 +71,22 @@ builder.Services.AddDbContext<TravelaDbContext>(options =>
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "JWT token giriniz."
+    });
 
+    options.AddSecurityRequirement(document =>
+        new OpenApiSecurityRequirement
+        {
+            [new OpenApiSecuritySchemeReference("Bearer", document)] = []
+        });
+});
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("TravelaFrontend", policy =>
@@ -66,6 +104,8 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
