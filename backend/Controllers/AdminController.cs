@@ -305,6 +305,11 @@ public async Task<IActionResult> UpdateCompany(
     company.Address = string.IsNullOrWhiteSpace(dto.Address)
         ? null : dto.Address.Trim();
 
+// Firma aktif/pasif durumunu güncelle
+if (dto.IsActive.HasValue)
+{
+    company.IsActive = dto.IsActive.Value;
+}
     await _context.SaveChangesAsync();
 
     return Ok(new
@@ -320,6 +325,37 @@ public async Task<IActionResult> UpdateCompany(
             company.CreatedAt,
             company.IsActive
         }
+    });
+}
+
+[HttpPatch("companies/{id:int}/status")]
+public async Task<IActionResult> UpdateCompanyStatus(int id)
+{
+    var company = await _context.Companies
+        .FirstOrDefaultAsync(c => c.Id == id);
+
+    if (company == null)
+    {
+        return NotFound(new
+        {
+            message = "Firma bulunamadı."
+        });
+    }
+
+    // Mevcut durumu tersine çevir
+    company.IsActive = !company.IsActive;
+
+    await _context.SaveChangesAsync();
+
+    return Ok(new
+    {
+        message = company.IsActive
+            ? "Firma başarıyla aktif edildi."
+            : "Firma başarıyla pasif edildi.",
+
+        company.Id,
+        company.Name,
+        company.IsActive
     });
 }
     }

@@ -36,6 +36,7 @@ function CompanyManagement() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [isActive, setIsActive] = useState(true);
 
   // Formu temizle
   const resetForm = () => {
@@ -44,6 +45,7 @@ function CompanyManagement() {
     setPhone("");
     setAddress("");
     setEditingCompany(null);
+    setIsActive(true);
   };
 
   // Firmaları getir
@@ -146,12 +148,13 @@ function CompanyManagement() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim() || null,
-          phone: phone.trim() || null,
-          address: address.trim() || null,
-        }),
+       body: JSON.stringify({
+  name: name.trim(),
+  email: email.trim() || null,
+  phone: phone.trim() || null,
+  address: address.trim() || null,
+  isActive: isActive,
+}),
       });
 
       if (!response.ok) {
@@ -211,6 +214,7 @@ function CompanyManagement() {
             email: email.trim() || null,
             phone: phone.trim() || null,
             address: address.trim() || null,
+            isActive: isActive,
           }),
         }
       );
@@ -386,6 +390,35 @@ function CompanyManagement() {
               />
             </div>
 
+{/* Firma durumu - yalnızca düzenleme sırasında */}
+{editingCompany && (
+  <div style={{ marginBottom: 16 }}>
+    <label htmlFor="company-status">
+      Firma Durumu
+    </label>
+
+    <select
+      id="company-status"
+      value={isActive ? "active" : "passive"}
+      onChange={(e) =>
+        setIsActive(e.target.value === "active")
+      }
+      disabled={saving}
+      style={{
+        display: "block",
+        width: "100%",
+        padding: "12px",
+        marginTop: "6px",
+        borderRadius: "8px",
+        border: "1px solid #d1d5db",
+        boxSizing: "border-box",
+      }}
+    >
+      <option value="active">Aktif</option>
+      <option value="passive">Pasif</option>
+    </select>
+  </div>
+)}
             {/* Form butonları */}
             <div
               style={{
@@ -513,6 +546,7 @@ function CompanyManagement() {
           </div>
         )}
       </section>
+      
     </div>
   );
 }
