@@ -7,6 +7,7 @@ import Admin from "./pages/Admin";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "./components/admin/AdminLayout";
 import CompanyManagement from "./pages/admin/CompanyManagement";
+import CompanyDetails from "./pages/admin/CompanyDetails";
 import UserManagement from "./pages/admin/UserManagement";
 import BusManagement from "./pages/admin/BusManagement";
 
@@ -180,6 +181,7 @@ const isLoggedIn = Boolean(token && user);
 >
   <Route index element={<Admin />} />
   <Route path="companies" element={<CompanyManagement />} />
+  <Route path="companies/:id" element={<CompanyDetails />} />
   <Route path="users" element={<UserManagement />} />
   <Route path="buses" element={<BusManagement />} />
 </Route>

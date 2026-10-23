@@ -58,6 +58,78 @@ public async Task<IActionResult> GetCompanies()
     return Ok(companies);
 }
 
+[HttpGet("companies/{id:int}")]
+public async Task<IActionResult> GetCompanyDetails(int id)
+{
+    var company = await _context.Companies
+        .AsNoTracking()
+        .Where(c => c.Id == id)
+        .Select(c => new
+        {
+            c.Id,
+            c.Name,
+            c.Email,
+            c.Phone,
+            c.Address,
+            c.CreatedAt,
+            c.IsActive
+        })
+        .FirstOrDefaultAsync();
+
+    if (company == null)
+    {
+        return NotFound(new
+        {
+            message = "Firma bulunamadı."
+        });
+    }
+
+    var users = await _context.Users
+        .AsNoTracking()
+        .Where(u => u.CompanyId == id)
+        .OrderBy(u => u.FullName)
+        .Select(u => new
+        {
+            u.Id,
+            u.FullName,
+            u.Email,
+            u.Role,
+            u.CreatedAt
+        })
+        .ToListAsync();
+
+    var buses = await _context.Buses
+        .AsNoTracking()
+        .Where(b => b.CompanyId == id)
+        .OrderBy(b => b.PlateNumber)
+        .Select(b => new
+        {
+            b.Id,
+            b.PlateNumber,
+            b.Brand,
+            b.Model,
+            b.SeatCapacity,
+            b.IsActive,
+            b.CreatedAt
+        })
+        .ToListAsync();
+
+    return Ok(new
+    {
+        company.Id,
+        company.Name,
+        company.Email,
+        company.Phone,
+        company.Address,
+        company.CreatedAt,
+        company.IsActive,
+        TotalUsers = users.Count,
+        TotalBuses = buses.Count,
+        Users = users,
+        Buses = buses
+    });
+}
+
 
 [HttpGet("users")]
 public async Task<IActionResult> GetUsers()

@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 
 const API_URL = "http://localhost:5062/api/admin/companies";
 
@@ -15,6 +16,8 @@ type Company = {
 };
 
 function CompanyManagement() {
+  const navigate = useNavigate();
+
   // Firma listesi
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -528,6 +531,14 @@ function CompanyManagement() {
 
                     {/* Firma işlemleri */}
                     <td>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(`/admin/companies/${company.id}`)
+                        }
+                      >
+                        Detay
+                      </button>
                       <button
                         type="button"
                         onClick={() =>
