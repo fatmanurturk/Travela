@@ -1,11 +1,11 @@
-using Microsoft.EntityFrameworkCore;
-using Travela.Data;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
 using System.Text;
-using Microsoft.OpenApi;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Travela.Api.Authorization;
+using Travela.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 var jwtKey = builder.Configuration["Jwt:Key"]
@@ -17,9 +17,7 @@ var jwtIssuer = builder.Configuration["Jwt:Issuer"]
 var jwtAudience = builder.Configuration["Jwt:Audience"]
     ?? throw new InvalidOperationException("JWT Audience bulunamadı.");
 
-    builder.Services.AddScoped<
-    IAuthorizationHandler,
-    PermissionAuthorizationHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -31,76 +29,48 @@ builder.Services
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-
             ValidIssuer = jwtIssuer,
             ValidAudience = jwtAudience,
-
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtKey)
-            ),
-
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
             ClockSkew = TimeSpan.Zero
         };
     });
+
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("bus.create", policy =>
     {
         policy.RequireAuthenticatedUser();
-        policy.Requirements.Add(
-            new PermissionRequirement("bus.create"));
+        policy.Requirements.Add(new PermissionRequirement("bus.create"));
     });
 
     options.AddPolicy("bus.view", policy =>
     {
         policy.RequireAuthenticatedUser();
-        policy.Requirements.Add(
-            new PermissionRequirement("bus.view"));
+        policy.Requirements.Add(new PermissionRequirement("bus.view"));
     });
 });
-
 
 builder.Services.AddControllers();
 
 builder.Services.AddDbContext<TravelaDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection")
-    )
-);
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
-builder.Services.AddSwaggerGen(options =>
-{
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        Description = "JWT token giriniz."
-    });
+builder.Services.AddSwaggerGen();
 
-    options.AddSecurityRequirement(document =>
-        new OpenApiSecurityRequirement
-        {
-            [new OpenApiSecuritySchemeReference("Bearer", document)] = []
-        });
-});
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("TravelaFrontend", policy =>
     {
         policy.WithOrigins("http://localhost:5173")
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
 });
 
-
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -111,60 +81,72 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors("TravelaFrontend");
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
 app.MapGet("/weatherforecast", () =>
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
+    var summaries = new[]
+    {
+        "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
+    };
+
+    var forecast = Enumerable.Range(1, 5).Select(index =>
+        new WeatherForecast(
             DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
             Random.Shared.Next(-20, 55),
             summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
+        )).ToArray();
+
     return forecast;
-})
-.WithName("GetWeatherForecast");
+}).WithName("GetWeatherForecast");
 
+app.MapGet("/api/test", () => Results.Ok(new { success = true, message = "Travela API başarıyla çalışıyor!" }));
 
-app.MapGet("/api/test", () =>
-{
-    return Results.Ok(new
-    {
-        success = true,
-        message = "Travela API başarıyla çalışıyor!"
-    });
-});
 app.MapGet("/api/db-test", async (TravelaDbContext db) =>
 {
     try
     {
         bool connected = await db.Database.CanConnectAsync();
-
-        if (connected)
-        {
-            return Results.Ok(new
-            {
-                success = true,
-                message = "TravelaDB bağlantısı başarılı!"
-            });
-        }
-
-        return Results.Problem(
-            "Veritabanına bağlantı kurulamadı.");
+        return connected
+            ? Results.Ok(new { success = true, message = "TravelaDB bağlantısı başarılı!" })
+            : Results.Problem("Veritabanına bağlantı kurulamadı.");
     }
     catch
     {
-        return Results.Problem(
-            "Veritabanı bağlantısı sırasında hata oluştu.");
+        return Results.Problem("Veritabanı bağlantısı sırasında hata oluştu.");
     }
 });
 
 app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    if (context.User.Identity?.IsAuthenticated == true)
+    {
+        var userIdClaim = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (int.TryParse(userIdClaim, out var userId))
+        {
+            var db = context.RequestServices.GetRequiredService<TravelaDbContext>();
+            var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
+            if (user == null)
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new { message = "Kullanıcı bulunamadı." });
+                return;
+            }
+
+            var tokenRole = context.User.FindFirstValue(ClaimTypes.Role);
+            var tokenVersionClaim = context.User.FindFirstValue("security_version");
+            var tokenVersion = int.TryParse(tokenVersionClaim, out var version) ? version : -1;
+
+            if (!user.IsActive || user.Role != tokenRole || user.SecurityVersion != tokenVersion)
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new { message = "Hesabınız pasif veya oturumunuz geçersiz kılındı." });
+                return;
+            }
+        }
+    }
+
+    await next();
+});
 app.UseAuthorization();
 app.MapControllers();
 app.Run();

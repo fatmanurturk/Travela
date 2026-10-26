@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "./Admin.css";
 
 type DashboardStats = {
@@ -8,6 +9,7 @@ type DashboardStats = {
 };
 
 function Admin() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -26,6 +28,13 @@ function Admin() {
           }
         );
 
+        if (response.status === 401) {
+          sessionStorage.removeItem("travela_token");
+          sessionStorage.removeItem("travela_user");
+          navigate("/login", { replace: true });
+          return;
+        }
+
         if (!response.ok) {
           throw new Error(`Dashboard verileri alınamadı: ${response.status}`);
         }
@@ -42,7 +51,7 @@ function Admin() {
     };
 
     void loadDashboard();
-  }, []);
+  }, [navigate]);
 
   const statistics = [
     { title: "Toplam Firma", value: stats?.totalCompanies },

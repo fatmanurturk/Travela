@@ -25,6 +25,16 @@ namespace Travela.Data
 {
     base.OnModelCreating(modelBuilder);
 
+    modelBuilder.Entity<User>()
+        .HasIndex(u => u.Email)
+        .IsUnique();
+
+    modelBuilder.Entity<User>()
+        .HasOne<Company>()
+        .WithMany()
+        .HasForeignKey(u => u.CompanyId)
+        .OnDelete(DeleteBehavior.SetNull);
+
     modelBuilder.Entity<Trip>()
         .Property(t => t.Price)
         .HasPrecision(18, 2);
@@ -35,21 +45,21 @@ namespace Travela.Data
         .HasForeignKey(t => t.CompanyId)
         .OnDelete(DeleteBehavior.NoAction);
 
-        modelBuilder.Entity<RolePermission>()
-    .HasOne(rp => rp.Role)
-    .WithMany()
-    .HasForeignKey(rp => rp.RoleId)
-    .OnDelete(DeleteBehavior.Cascade);
+    modelBuilder.Entity<RolePermission>()
+        .HasOne(rp => rp.Role)
+        .WithMany()
+        .HasForeignKey(rp => rp.RoleId)
+        .OnDelete(DeleteBehavior.Cascade);
 
-modelBuilder.Entity<RolePermission>()
-    .HasOne(rp => rp.Permission)
-    .WithMany()
-    .HasForeignKey(rp => rp.PermissionId)
-    .OnDelete(DeleteBehavior.Cascade);
+    modelBuilder.Entity<RolePermission>()
+        .HasOne(rp => rp.Permission)
+        .WithMany()
+        .HasForeignKey(rp => rp.PermissionId)
+        .OnDelete(DeleteBehavior.Cascade);
 
-modelBuilder.Entity<RolePermission>()
-    .HasIndex(rp => new { rp.RoleId, rp.PermissionId })
-    .IsUnique();
+    modelBuilder.Entity<RolePermission>()
+        .HasIndex(rp => new { rp.RoleId, rp.PermissionId })
+        .IsUnique();
 
     modelBuilder.Entity<Trip>()
         .HasOne(t => t.Bus)

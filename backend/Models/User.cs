@@ -14,6 +14,20 @@ namespace Travela.Models
 
         public int? CompanyId { get; set; }
 
+        public bool IsActive { get; set; } = true;
+
+        public int SecurityVersion { get; set; } = 1;
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        public DateTime? UpdatedAt { get; set; }
+
+        public DateTime? LastLoginAt { get; set; }
+
+        public string? PasswordResetTokenHash { get; set; }
+
+        public DateTime? PasswordResetTokenExpiresAt { get; set; }
+
+        public DateTime? PasswordResetTokenUsedAt { get; set; }
     }
 }
