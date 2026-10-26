@@ -45,16 +45,28 @@ namespace Travela.API.Migrations
                     b.Property<string>("Model")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("NormalizedPlateNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<string>("PlateNumber")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<int>("SeatCapacity")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CompanyId");
+
+                    b.HasIndex("NormalizedPlateNumber")
+                        .IsUnique();
 
                     b.ToTable("Buses");
                 });
@@ -141,6 +153,16 @@ namespace Travela.API.Migrations
                     b.Property<int>("BusId")
                         .HasColumnType("int");
 
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CancelledByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int>("CompanyId")
                         .HasColumnType("int");
 
@@ -161,13 +183,18 @@ namespace Travela.API.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("BusId");
+                    b.HasIndex("CancelledByUserId");
 
                     b.HasIndex("CompanyId");
 
                     b.HasIndex("RouteId");
+
+                    b.HasIndex("BusId", "DepartureTime");
 
                     b.ToTable("Trips");
                 });
@@ -317,6 +344,11 @@ namespace Travela.API.Migrations
                         .HasForeignKey("BusId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
+
+                    b.HasOne("Travela.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("CancelledByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Travela.Api.Models.Company", "Company")
                         .WithMany()

@@ -40,6 +40,25 @@ namespace Travela.Data
         .HasPrecision(18, 2);
 
     modelBuilder.Entity<Trip>()
+        .Property(t => t.CancellationReason)
+        .HasMaxLength(500);
+
+    modelBuilder.Entity<Trip>()
+        .HasIndex(t => new { t.BusId, t.DepartureTime });
+
+    modelBuilder.Entity<Bus>()
+        .Property(b => b.PlateNumber)
+        .HasMaxLength(20);
+
+    modelBuilder.Entity<Bus>()
+        .Property(b => b.NormalizedPlateNumber)
+        .HasMaxLength(20);
+
+    modelBuilder.Entity<Bus>()
+        .HasIndex(b => b.NormalizedPlateNumber)
+        .IsUnique();
+
+    modelBuilder.Entity<Trip>()
         .HasOne(t => t.Company)
         .WithMany()
         .HasForeignKey(t => t.CompanyId)
@@ -72,6 +91,12 @@ namespace Travela.Data
         .WithMany()
         .HasForeignKey(t => t.RouteId)
         .OnDelete(DeleteBehavior.NoAction);
+
+    modelBuilder.Entity<Trip>()
+        .HasOne<User>()
+        .WithMany()
+        .HasForeignKey(t => t.CancelledByUserId)
+        .OnDelete(DeleteBehavior.SetNull);
 }
     }
 }

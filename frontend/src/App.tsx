@@ -10,6 +10,7 @@ import CompanyManagement from "./pages/admin/CompanyManagement";
 import CompanyDetails from "./pages/admin/CompanyDetails";
 import UserManagement from "./pages/admin/UserManagement";
 import BusManagement from "./pages/admin/BusManagement";
+import TripManagement from "./pages/admin/TripManagement";
 
 function App() {
 
@@ -169,6 +170,14 @@ const isLoggedIn = Boolean(token && user);
     </ProtectedRoute>
   }
 />
+     <Route
+       path="/company/trips"
+       element={
+         <ProtectedRoute allowedRole="Company">
+           <TripManagement />
+         </ProtectedRoute>
+       }
+     />
 
 
 <Route
@@ -184,6 +193,7 @@ const isLoggedIn = Boolean(token && user);
   <Route path="companies/:id" element={<CompanyDetails />} />
   <Route path="users" element={<UserManagement />} />
   <Route path="buses" element={<BusManagement />} />
+  <Route path="trips" element={<TripManagement />} />
 </Route>
 
 

@@ -328,3 +328,171 @@ select:focus {
     grid-template-columns: 1fr;
   }
 }
+
+.bus-page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.bus-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.bus-filters {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sort-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.bus-data-table {
+  min-width: 1000px;
+}
+
+.bus-detail-modal {
+  max-height: min(90vh, 900px);
+  overflow-y: auto;
+}
+
+.bus-detail-modal h4 {
+  margin: 4px 0 12px;
+  color: #1f2937;
+}
+
+.bus-trip-table {
+  min-width: 620px;
+  margin-bottom: 20px;
+}
+
+.trip-page-heading,
+.trip-form-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.trip-stats {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.trip-filters {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.trip-data-table {
+  min-width: 1420px;
+}
+
+.trip-status {
+  white-space: nowrap;
+}
+
+.trip-status.scheduled {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
+.trip-status.inprogress {
+  background: rgba(249, 115, 22, 0.14);
+  color: #c2410c;
+}
+
+.trip-status.completed {
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+}
+
+.trip-status.cancelled {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+.trip-cancel-link {
+  color: #b91c1c;
+}
+
+.trip-form-grid textarea,
+.trip-cancel-modal textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  color: #111827;
+  font: inherit;
+  resize: vertical;
+}
+
+.trip-selection-info,
+.trip-helper {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 14px;
+}
+
+.trip-helper {
+  margin: 0 0 16px;
+}
+
+.danger-button {
+  background: #dc2626;
+}
+
+.danger-button:hover {
+  background: #b91c1c;
+}
+
+.trip-detail-modal {
+  max-height: min(90vh, 900px);
+  overflow-y: auto;
+}
+
+.trip-detail-modal .detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .bus-stats,
+  .bus-filters,
+  .trip-stats,
+  .trip-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .bus-page-heading {
+    flex-direction: column;
+  }
+
+  .bus-stats,
+  .bus-filters,
+  .trip-stats,
+  .trip-filters,
+  .trip-detail-modal .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bus-page-heading .primary-button,
+  .trip-page-heading .primary-button {
+    width: 100%;
+  }
+
+  .trip-page-heading,
+  .trip-form-heading {
+    flex-direction: column;
+  }
+}

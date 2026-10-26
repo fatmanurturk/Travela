@@ -49,6 +49,30 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser();
         policy.Requirements.Add(new PermissionRequirement("bus.view"));
     });
+
+    options.AddPolicy("bus.update", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.Requirements.Add(new PermissionRequirement("bus.update"));
+    });
+
+    options.AddPolicy("trip.view", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.Requirements.Add(new PermissionRequirement("trip.view"));
+    });
+
+    options.AddPolicy("trip.create", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.Requirements.Add(new PermissionRequirement("trip.create"));
+    });
+
+    options.AddPolicy("trip.update", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.Requirements.Add(new PermissionRequirement("trip.update"));
+    });
 });
 
 builder.Services.AddControllers();
@@ -63,9 +87,13 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("TravelaFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+        policy.SetIsOriginAllowed(origin =>
+        {
+            if (string.IsNullOrWhiteSpace(origin)) return false;
+            return origin.Contains("localhost") || origin.Contains("127.0.0.1");
+        })
+        .AllowAnyHeader()
+        .AllowAnyMethod();
     });
 });
 

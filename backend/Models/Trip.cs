@@ -22,6 +22,14 @@ namespace Travela.Api.Models
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        public DateTime? UpdatedAt { get; set; }
+
+        public string? CancellationReason { get; set; }
+
+        public DateTime? CancelledAt { get; set; }
+
+        public int? CancelledByUserId { get; set; }
+
         public Company Company { get; set; } = null!;
 
         public Bus Bus { get; set; } = null!;

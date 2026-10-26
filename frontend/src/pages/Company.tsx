@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const API_URL = "http://localhost:5062/api/buses";
 
@@ -13,6 +14,7 @@ type Bus = {
 };
 
 function Company() {
+  const navigate = useNavigate();
   const [buses, setBuses] = useState<Bus[]>([]);
   const [plateNumber, setPlateNumber] = useState("");
   const [brand, setBrand] = useState("");
@@ -104,6 +106,9 @@ function Company() {
   return (
     <div style={{ padding: "30px", maxWidth: "1100px", margin: "auto" }}>
       <h1>Travela - Firma Paneli</h1>
+      <button type="button" onClick={() => navigate("/company/trips")}>
+        Sefer Yönetimi
+      </button>
       <h2>Otobüs Yönetimi</h2>
 
       <form

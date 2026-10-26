@@ -8,6 +8,8 @@ namespace Travela.Api.Models
 
         public string PlateNumber { get; set; } = string.Empty;
 
+        public string NormalizedPlateNumber { get; set; } = string.Empty;
+
         public string? Brand { get; set; }
 
         public string? Model { get; set; }
@@ -17,6 +19,8 @@ namespace Travela.Api.Models
         public bool IsActive { get; set; } = true;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        public DateTime? UpdatedAt { get; set; }
 
         public Company? Company { get; set; }
     }
