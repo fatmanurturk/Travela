@@ -78,8 +78,23 @@ const emptyForm: BusFormState = {
   isActive: true,
 };
 
+type SessionUser = {
+  role?: string;
+  companyName?: string;
+};
+
+function getSessionUser(): SessionUser | null {
+  try {
+    return JSON.parse(sessionStorage.getItem("travela_user") || "null") as SessionUser | null;
+  } catch {
+    return null;
+  }
+}
+
 function BusManagement() {
   const navigate = useNavigate();
+  const currentUser = getSessionUser();
+  const isAdmin = currentUser?.role === "Admin";
   const [buses, setBuses] = useState<Bus[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [summary, setSummary] = useState<BusSummary | null>(null);
@@ -137,7 +152,7 @@ function BusManagement() {
       });
 
       if (search.trim()) params.set("search", search.trim());
-      if (companyFilter) params.set("companyId", companyFilter);
+      if (isAdmin && companyFilter) params.set("companyId", companyFilter);
       if (statusFilter) params.set("isActive", String(statusFilter === "active"));
       if (brandFilter.trim()) params.set("brand", brandFilter.trim());
       if (minCapacity) params.set("minCapacity", minCapacity);
@@ -185,7 +200,11 @@ function BusManagement() {
 
   const loadCompanies = async () => {
     try {
-      const response = await fetch(`${ADMIN_API_URL}/companies`, {
+      const url = isAdmin
+        ? `${ADMIN_API_URL}/companies`
+        : "http://localhost:5062/api/company/profile";
+
+      const response = await fetch(url, {
         headers: getHeaders(),
       });
       if (response.status === 401) {
@@ -195,8 +214,8 @@ function BusManagement() {
       if (!response.ok) {
         throw new Error(await readError(response, "Firmalar alınamadı"));
       }
-      const data: Company[] = await response.json();
-      setCompanies(data);
+      const data = await response.json();
+      setCompanies(isAdmin ? data as Company[] : [data as Company]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Firmalar yüklenemedi.");
     }
@@ -227,7 +246,9 @@ function BusManagement() {
   const startCreate = () => {
     setShowForm(true);
     setEditingBus(null);
-    setForm(emptyForm);
+    setForm({
+      ...emptyForm,
+    });
     setError("");
     setMessage("");
   };
@@ -283,7 +304,7 @@ function BusManagement() {
           method: editingBus ? "PUT" : "POST",
           headers: getHeaders(true),
           body: JSON.stringify({
-            companyId: Number(form.companyId),
+            companyId: isAdmin ? Number(form.companyId) : null,
             plateNumber: form.plateNumber,
             brand: form.brand,
             model: form.model,
@@ -426,21 +447,28 @@ function BusManagement() {
                   placeholder="34 ABC 123"
                 />
               </label>
-              <label>
-                Firma *
-                <select
-                  required
-                  value={form.companyId}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, companyId: event.target.value }))
-                  }
-                >
-                  <option value="">Firma seçin</option>
-                  {companies.filter((company) => company.isActive || company.id === editingBus?.companyId).map((company) => (
-                    <option key={company.id} value={company.id}>{company.name}</option>
-                  ))}
-                </select>
-              </label>
+              {isAdmin ? (
+                <label>
+                  Firma *
+                  <select
+                    required
+                    value={form.companyId}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, companyId: event.target.value }))
+                    }
+                  >
+                    <option value="">Firma seçin</option>
+                    {companies.filter((company) => company.isActive || company.id === editingBus?.companyId).map((company) => (
+                      <option key={company.id} value={company.id}>{company.name}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <label>
+                  Firma
+                  <input value={companies[0]?.name || currentUser?.companyName || "Firma bilgisi yükleniyor..."} readOnly />
+                </label>
+              )}
               <label>
                 Marka
                 <input
@@ -524,21 +552,23 @@ function BusManagement() {
                 placeholder="Otobüs ara..."
               />
             </label>
-            <label>
-              Firma
-              <select
-                value={companyFilter}
-                onChange={(event) => {
-                  setCompanyFilter(event.target.value);
-                  setPageNumber(1);
-                }}
-              >
-                <option value="">Tüm firmalar</option>
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>{company.name}</option>
-                ))}
-              </select>
-            </label>
+            {isAdmin && (
+              <label>
+                Firma
+                <select
+                  value={companyFilter}
+                  onChange={(event) => {
+                    setCompanyFilter(event.target.value);
+                    setPageNumber(1);
+                  }}
+                >
+                  <option value="">Tüm firmalar</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>{company.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label>
               Durum
               <select

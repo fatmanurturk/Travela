@@ -112,8 +112,6 @@ const emptyRouteForm: RouteForm = {
 
 type SessionUser = {
   role?: string;
-  companyId?: number | null;
-  companyName?: string;
 };
 
 function getSessionUser(): SessionUser | null {
@@ -158,10 +156,8 @@ function TripManagement() {
   const navigate = useNavigate();
   const currentUser = getSessionUser();
   const isAdmin = currentUser?.role === "Admin";
-  const currentCompanyId = currentUser?.companyId;
   const createEmptyTripForm = (): TripForm => ({
     ...emptyTripForm,
-    companyId: !isAdmin && currentCompanyId ? String(currentCompanyId) : "",
   });
   const [trips, setTrips] = useState<Trip[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -186,6 +182,7 @@ function TripManagement() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [summaryError, setSummaryError] = useState("");
   const [message, setMessage] = useState("");
   const [showTripForm, setShowTripForm] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
@@ -230,7 +227,10 @@ function TripManagement() {
         isAdmin
           ? request(COMPANIES_API_URL, { headers: requestHeaders() })
           : Promise.resolve(null),
-        request(BUSES_API_URL, { headers: requestHeaders() }),
+        request(
+          `${BUSES_API_URL}?pageNumber=1&pageSize=100`,
+          { headers: requestHeaders() }
+        ),
         request(ROUTES_API_URL, { headers: requestHeaders() }),
       ]);
 
@@ -242,34 +242,31 @@ function TripManagement() {
 
       const [adminCompanyData, busData, routeData] = await Promise.all([
         companyResponse ? companyResponse.json() as Promise<Company[]> : Promise.resolve([]),
-        busResponse.json() as Promise<Bus[]>,
-        routeResponse.json() as Promise<Route[]>,
+        busResponse.json() as Promise<Bus[] | { items?: Bus[] }>,
+        routeResponse.json() as Promise<Route[] | { items?: Route[] }>,
       ]);
+
+      const normalizedBuses = Array.isArray(busData) ? busData : (busData as { items?: Bus[] }).items ?? [];
+      const normalizedRoutes = Array.isArray(routeData) ? routeData : (routeData as { items?: Route[] }).items ?? [];
+
       if (isAdmin) {
         setCompanies(adminCompanyData);
-      } else if (currentCompanyId) {
-        setCompanies([{
-          id: currentCompanyId,
-          name: busData[0]?.companyName || currentUser?.companyName || `Firma #${currentCompanyId}`,
-          isActive: null,
-        }]);
-      } else {
-        throw new Error("Kullanıcı hesabına bağlı firma bilgisi bulunamadı.");
       }
-      setBuses(busData);
-      setRoutes(routeData);
+      setBuses(normalizedBuses);
+      setRoutes(normalizedRoutes);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Seçim verileri yüklenemedi.");
     }
   };
 
   const loadSummary = async () => {
+    setSummaryError("");
     try {
       const response = await request(`${API_URL}/summary`, { headers: requestHeaders() });
       if (!response.ok) throw new Error(await readError(response, "Sefer istatistikleri alınamadı"));
       setSummary(await response.json());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sefer istatistikleri yüklenemedi.");
+      setSummaryError(err instanceof Error ? err.message : "Sefer istatistikleri yüklenemedi.");
     }
   };
 
@@ -284,7 +281,7 @@ function TripManagement() {
         sortDirection,
       });
       if (search.trim()) params.set("search", search.trim());
-      if (companyFilter) params.set("companyId", companyFilter);
+      if (isAdmin && companyFilter) params.set("companyId", companyFilter);
       if (departureCityFilter.trim()) params.set("departureCity", departureCityFilter.trim());
       if (arrivalCityFilter.trim()) params.set("arrivalCity", arrivalCityFilter.trim());
       if (departureFrom) params.set("departureFrom", `${departureFrom}T00:00:00Z`);
@@ -297,6 +294,9 @@ function TripManagement() {
       const response = await request(`${API_URL}?${params}`, { headers: requestHeaders() });
       if (!response.ok) throw new Error(await readError(response, "Seferler alınamadı"));
       const data: ListResponse = await response.json();
+      if (!Array.isArray(data.items) || typeof data.totalCount !== "number" || typeof data.totalPages !== "number") {
+        throw new Error("Sefer listesi API yanıtı beklenen biçimde değil.");
+      }
       setTrips(data.items);
       setTotalCount(data.totalCount);
       setTotalPages(Math.max(data.totalPages, 1));
@@ -393,7 +393,7 @@ function TripManagement() {
           method: editingTrip ? "PUT" : "POST",
           headers: requestHeaders(true),
           body: JSON.stringify({
-            companyId: tripForm.companyId ? Number(tripForm.companyId) : null,
+            companyId: isAdmin && tripForm.companyId ? Number(tripForm.companyId) : null,
             busId: Number(tripForm.busId),
             routeId: Number(tripForm.routeId),
             departureTime: new Date(tripForm.departureTime).toISOString(),
@@ -540,6 +540,7 @@ function TripManagement() {
         ))}
       </div>
 
+      {summaryError && <p className="form-alert error" role="alert">{summaryError}</p>}
       {error && <p className="form-alert error" role="alert">{error}</p>}
       {message && <p className="form-alert success" role="status">{message}</p>}
 
@@ -660,12 +661,14 @@ function TripManagement() {
             <label>Sefer ID, firma veya plaka
               <input type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPageNumber(1); }} placeholder="Ara..." />
             </label>
-            <label>Firma
-              <select value={companyFilter} onChange={(event) => { setCompanyFilter(event.target.value); setPageNumber(1); }}>
-                <option value="">Tüm firmalar</option>
-                {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
-              </select>
-            </label>
+            {isAdmin && (
+              <label>Firma
+                <select value={companyFilter} onChange={(event) => { setCompanyFilter(event.target.value); setPageNumber(1); }}>
+                  <option value="">Tüm firmalar</option>
+                  {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+                </select>
+              </label>
+            )}
             <label>Kalkış şehri
               <input value={departureCityFilter} onChange={(event) => { setDepartureCityFilter(event.target.value); setPageNumber(1); }} />
             </label>
