@@ -29,6 +29,10 @@ function ProtectedRoute({
     return <Navigate to="/" replace />;
   }
 
+  if (user.mustChangePassword) {
+    return <Navigate to="/first-login-password-change" replace />;
+  }
+
   return <>{children}</>;
 }
 

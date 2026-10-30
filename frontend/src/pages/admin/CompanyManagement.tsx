@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiUrl } from "../../api";
 
-const API_URL = "http://localhost:5062/api/admin/companies";
+const API_URL = apiUrl("/api/admin/companies");
 
 type Company = {
   id: number;

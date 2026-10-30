@@ -3,7 +3,6 @@ import { Routes, Route } from "react-router-dom";
 import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Admin from "./pages/Admin";
-import { useNavigate } from "react-router-dom";
 import AdminLayout from "./components/admin/AdminLayout";
 import CompanyManagement from "./pages/admin/CompanyManagement";
 import CompanyDetails from "./pages/admin/CompanyDetails";
@@ -15,153 +14,22 @@ import CompanyOverview from "./pages/company/CompanyOverview";
 import CompanyReservations from "./pages/company/CompanyReservations";
 import CompanyReports from "./pages/company/CompanyReports";
 import CompanyProfile from "./pages/company/CompanyProfile";
+import HomePage from "./pages/HomePage";
+import SearchResultsPage from "./pages/SearchResultsPage";
+import PublicTripDetailsPage from "./pages/PublicTripDetailsPage";
+import Register from "./pages/Register";
+import FirstLoginPasswordChange from "./pages/FirstLoginPasswordChange";
+import "./Site.css";
 
 function App() {
-  const navigate = useNavigate();
-
-  const storedUser = sessionStorage.getItem("travela_user");
-  const token = sessionStorage.getItem("travela_token");
-
-  let user = null;
-
-  try {
-    user = storedUser ? JSON.parse(storedUser) : null;
-  } catch {
-    user = null;
-  }
-
-  const isLoggedIn = Boolean(token && user);
-
   return (
     <Routes>
-      <Route
-        path="/"
-        element={
-          <div className="app">
-            <header className="navbar">
-              <div className="logo">Travela</div>
-
-              <nav className="nav-links">
-                <a href="/">Ana Sayfa</a>
-                <a href="#sefer-ara">Sefer Ara</a>
-              </nav>
-
-              <div className="nav-actions">
-                {isLoggedIn ? (
-                  <>
-                    {user.role === "Admin" && (
-                      <button
-                        type="button"
-                        className="login-btn"
-                        onClick={() => navigate("/admin")}
-                      >
-                        Yönetici Paneli
-                      </button>
-                    )}
-
-                    {user.role === "Company" && (
-                      <button
-                        type="button"
-                        className="login-btn"
-                        onClick={() => navigate("/company")}
-                      >
-                        Firma Paneli
-                      </button>
-                    )}
-
-                    {user.role === "Passenger" && (
-                      <button
-                        type="button"
-                        className="login-btn"
-                        onClick={() => navigate("/")}
-                      >
-                        Biletlerim
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      className="register-btn"
-                      onClick={() => {
-                        sessionStorage.removeItem("travela_token");
-                        sessionStorage.removeItem("travela_user");
-                        navigate("/login");
-                      }}
-                    >
-                      Çıkış Yap
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="login-btn"
-                      onClick={() => navigate("/login")}
-                    >
-                      Giriş Yap
-                    </button>
-
-                    <button
-                      type="button"
-                      className="register-btn"
-                      onClick={() => navigate("/register")}
-                    >
-                      Kayıt Ol
-                    </button>
-                  </>
-                )}
-              </div>
-            </header>
-
-            <main className="main-content" id="sefer-ara">
-              <h1>Yolculuğun Travela ile Başlasın!</h1>
-
-              <p>
-                Türkiye'nin dört bir yanına otobüs biletini kolayca bul.
-              </p>
-
-              <form
-                className="search-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  alert("Sefer arama özelliği yakında aktif olacak!");
-                }}
-              >
-                <div className="form-group">
-                  <label htmlFor="departure">Nereden</label>
-                  <input
-                    id="departure"
-                    type="text"
-                    placeholder="Kalkış şehri"
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="arrival">Nereye</label>
-                  <input
-                    id="arrival"
-                    type="text"
-                    placeholder="Varış şehri"
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="date">Gidiş Tarihi</label>
-                  <input id="date" type="date" required />
-                </div>
-
-                <button type="submit" className="search-btn">
-                  Sefer Ara
-                </button>
-              </form>
-            </main>
-          </div>
-        }
-      />
-
+      <Route path="/" element={<HomePage />} />
+      <Route path="/search" element={<SearchResultsPage />} />
+      <Route path="/trips/:id" element={<PublicTripDetailsPage />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/first-login-password-change" element={<FirstLoginPasswordChange />} />
 
       <Route
         path="/company"

@@ -23,6 +23,25 @@ namespace Travela.DTOs
         public bool IsActive { get; set; } = false;
     }
 
+    public class CreateCompanyUserDto
+    {
+        [Required]
+        [MaxLength(100)]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Required]
+        [MinLength(8)]
+        public string TemporaryPassword { get; set; } = string.Empty;
+
+        [Required]
+        [MinLength(8)]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+
     public class UserListDto
     {
         public int Id { get; set; }

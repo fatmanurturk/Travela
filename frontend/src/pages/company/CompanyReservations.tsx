@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiUrl } from "../../api";
 
 type TripItem = {
   id: number;
@@ -26,7 +27,7 @@ function CompanyReservations() {
   useEffect(() => {
     const loadTrips = async () => {
       try {
-        const response = await fetch("http://localhost:5062/api/trips?pageNumber=1&pageSize=100", {
+        const response = await fetch(`${apiUrl("/api/trips")}?pageNumber=1&pageSize=100`, {
           headers: getHeaders(),
         });
 

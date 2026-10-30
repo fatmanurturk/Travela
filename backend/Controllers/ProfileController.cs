@@ -149,6 +149,7 @@ namespace Travela.API.Controllers
             }
 
             user.PasswordHash = passwordHasher.HashPassword(user, dto.NewPassword);
+            user.MustChangePassword = false;
             user.UpdatedAt = DateTime.UtcNow;
             user.SecurityVersion += 1;
 

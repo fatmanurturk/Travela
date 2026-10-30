@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import type { ReactNode } from "react";
+import { apiUrl } from "../../api";
 import "./CompanyLayout.css";
 
-const COMPANY_PROFILE_API_URL = "http://localhost:5062/api/company/profile";
+const COMPANY_PROFILE_API_URL = apiUrl("/api/company/profile");
 
 type SessionUser = {
   name?: string;

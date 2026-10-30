@@ -14,5 +14,9 @@ namespace Travela.DTOs
         [Required(ErrorMessage = "Şifre zorunludur.")]
         [MinLength(8, ErrorMessage = "Şifre en az 8 karakter olmalıdır.")]
         public string Password { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Şifre tekrarı zorunludur.")]
+        [Compare(nameof(Password), ErrorMessage = "Şifre ile tekrarı eşleşmiyor.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
     }
 }

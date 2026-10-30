@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiUrl } from "../../api";
 import "../Admin.css";
 
-const API_URL = "http://localhost:5062/api/admin";
+const API_URL = apiUrl("/api/admin");
 
 type UserRow = {
   id: number;

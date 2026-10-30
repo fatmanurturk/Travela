@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiUrl } from "../../api";
 
-const BUSES_API_URL = "http://localhost:5062/api/buses";
-const TRIPS_API_URL = "http://localhost:5062/api/trips";
+const BUSES_API_URL = apiUrl("/api/buses");
+const TRIPS_API_URL = apiUrl("/api/trips");
 
 type SummaryCard = {
   title: string;

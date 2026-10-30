@@ -1,57 +1,69 @@
 import { useState } from "react";
 import "./Login.css";
 import { useNavigate } from "react-router-dom";
+import { apiUrl } from "../api";
 
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
- const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
-  e.preventDefault();
+  const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
-  try {
-    const response = await fetch("http://localhost:5062/api/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: email,
-        password: password,
-      }),
-    });
+    try {
+      const response = await fetch(apiUrl("/api/auth/login"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
 
-    if (!response.ok) {
-      alert("E-posta veya şifre hatalı.");
-      return;
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setError((data && typeof data.message === "string") ? data.message : "E-posta veya şifre hatalı.");
+        return;
+      }
+
+      if (data?.requiresPasswordChange) {
+        sessionStorage.setItem("travela_pending_email", email.trim().toLowerCase());
+        navigate("/first-login-password-change", { replace: true });
+        return;
+      }
+
+      if (!data?.token) {
+        setError("Giriş yanıtı eksik. Lütfen tekrar deneyin.");
+        return;
+      }
+
+      sessionStorage.setItem("travela_token", data.token);
+      sessionStorage.setItem("travela_user", JSON.stringify(data.user));
+
+      if (data.user.role === "Admin") {
+        navigate("/admin", { replace: true });
+      } else if (data.user.role === "Company") {
+        navigate("/company", { replace: true });
+      } else if (data.user.role === "Passenger") {
+        navigate("/", { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
+    } catch (error) {
+      console.error("API bağlantı hatası:", error);
+      setError("Sunucuya bağlanılamadı. Lütfen daha sonra tekrar deneyin.");
+    } finally {
+      setLoading(false);
     }
-
-  const data = await response.json();
-
-// JWT token'ını oturum boyunca sakla
-sessionStorage.setItem("travela_token", data.token);
-
-// Kullanıcının temel bilgilerini sakla
-sessionStorage.setItem(
-  "travela_user",
-  JSON.stringify(data.user)
-);
-
-console.log("Giriş başarılı. Kullanıcı rolü:", data.user.role);
-
-if (data.user.role === "Admin") {
-  navigate("/admin");
-} else if (data.user.role === "Company") {
-  navigate("/company");
-} else if (data.user.role === "Passenger") {
-  navigate("/");
-}
-  } catch (error) {
-    console.error("API bağlantı hatası:", error);
-    alert("Sunucuya bağlanılamadı.");
-  }
-};
+  };
 
   return (
     <div className="login-page">
@@ -85,8 +97,10 @@ if (data.user.role === "Admin") {
             />
           </div>
 
-          <button type="submit" className="login-submit-btn">
-            Giriş Yap
+          {error && <p className="register-error" role="alert">{error}</p>}
+
+          <button type="submit" className="login-submit-btn" disabled={loading}>
+            {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
           </button>
         </form>
 

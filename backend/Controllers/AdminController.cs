@@ -94,7 +94,7 @@ namespace Travela.API.Controllers
                 .AsNoTracking()
                 .Where(u => u.CompanyId == id)
                 .OrderBy(u => u.FullName)
-                .Select(u => new { u.Id, u.FullName, u.Email, u.Role, u.CreatedAt })
+                .Select(u => new { u.Id, u.FullName, u.Email, u.Role, u.IsActive, u.MustChangePassword, u.CreatedAt })
                 .ToListAsync();
 
             var buses = await _context.Buses
@@ -305,6 +305,7 @@ namespace Travela.API.Controllers
                 Role = role,
                 CompanyId = companyId,
                 IsActive = dto.IsActive,
+                MustChangePassword = false,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 SecurityVersion = 1
@@ -321,6 +322,7 @@ namespace Travela.API.Controllers
                 var passwordHasher = new PasswordHasher<User>();
                 user.PasswordHash = passwordHasher.HashPassword(user, dto.Password);
                 user.IsActive = true;
+                user.MustChangePassword = role == "Company";
             }
             else
             {
@@ -531,6 +533,87 @@ namespace Travela.API.Controllers
                 message = "Şifre sıfırlama süreci başlatıldı.",
                 resetToken,
                 expiresAt = user.PasswordResetTokenExpiresAt
+            });
+        }
+
+        [HttpPost("companies/{companyId:int}/users")]
+        public async Task<IActionResult> CreateCompanyUser(int companyId, [FromBody] CreateCompanyUserDto dto)
+        {
+            if (dto == null)
+            {
+                return BadRequest(new { message = "Kullanıcı bilgileri gerekli." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.FullName) || string.IsNullOrWhiteSpace(dto.Email))
+            {
+                return BadRequest(new { message = "Ad soyad ve e-posta zorunludur." });
+            }
+
+            if (dto.TemporaryPassword.Length < 8 || dto.ConfirmPassword.Length < 8)
+            {
+                return BadRequest(new { message = "Geçici şifre en az 8 karakter olmalıdır." });
+            }
+
+            if (!string.Equals(dto.TemporaryPassword, dto.ConfirmPassword, StringComparison.Ordinal))
+            {
+                return BadRequest(new { message = "Geçici şifre ile tekrarı eşleşmiyor." });
+            }
+
+            if (!IsValidEmail(dto.Email.Trim()))
+            {
+                return BadRequest(new { message = "E-posta formatı geçersiz." });
+            }
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.Id == companyId);
+            if (company == null)
+            {
+                return NotFound(new { message = "Firma bulunamadı." });
+            }
+
+            if (!company.IsActive)
+            {
+                return BadRequest(new { message = "Pasif firma için kullanıcı oluşturulamaz." });
+            }
+
+            var email = dto.Email.Trim();
+            if (await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower()))
+            {
+                return Conflict(new { message = "Bu e-posta adresi başka bir hesaba ait." });
+            }
+
+            var passwordHasher = new PasswordHasher<User>();
+            var user = new User
+            {
+                FullName = dto.FullName.Trim(),
+                Email = email,
+                Role = "Company",
+                CompanyId = companyId,
+                IsActive = true,
+                MustChangePassword = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                SecurityVersion = 1
+            };
+
+            user.PasswordHash = passwordHasher.HashPassword(user, dto.TemporaryPassword);
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            return StatusCode(201, new
+            {
+                message = "Firma kullanıcısı oluşturuldu. Kullanıcı ilk girişte şifresini değiştirmelidir.",
+                user = new
+                {
+                    user.Id,
+                    user.FullName,
+                    user.Email,
+                    user.Role,
+                    user.CompanyId,
+                    user.IsActive,
+                    user.CreatedAt,
+                    user.MustChangePassword
+                }
             });
         }
 

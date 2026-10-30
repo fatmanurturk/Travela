@@ -293,6 +293,9 @@ namespace Travela.API.Migrations
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<bool>("MustChangePassword")
+                        .HasColumnType("bit");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");

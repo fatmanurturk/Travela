@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiUrl } from "../api";
 import "./Admin.css";
 
 type DashboardStats = {
@@ -20,7 +21,7 @@ function Admin() {
         const token = sessionStorage.getItem("travela_token");
 
         const response = await fetch(
-          "http://localhost:5062/api/admin/dashboard",
+          apiUrl("/api/admin/dashboard"),
           {
             headers: {
               Authorization: `Bearer ${token}`,

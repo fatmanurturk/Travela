@@ -23,6 +23,320 @@ namespace Travela.Api.Controllers
             _context = context;
         }
 
+        [HttpGet("search")]
+        [AllowAnonymous]
+        public async Task<IActionResult> SearchPublicTrips(
+            [FromQuery] string? departureCity,
+            [FromQuery] string? arrivalCity,
+            [FromQuery] DateOnly? date,
+            [FromQuery] bool all = false,
+            [FromQuery] int passengers = 1,
+            [FromQuery] int? companyId = null,
+            [FromQuery] int? departureHourFrom = null,
+            [FromQuery] int? departureHourTo = null,
+            [FromQuery] decimal? minPrice = null,
+            [FromQuery] decimal? maxPrice = null,
+            [FromQuery] string sortBy = "departure",
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 100)
+        {
+            if (!all && (string.IsNullOrWhiteSpace(departureCity) || string.IsNullOrWhiteSpace(arrivalCity) || !date.HasValue))
+            {
+                return BadRequest(new { message = "Kalkış, varış ve tarih bilgileri zorunludur." });
+            }
+
+            var departure = departureCity?.Trim();
+            var arrival = arrivalCity?.Trim();
+            if (!string.IsNullOrWhiteSpace(departure) &&
+                !string.IsNullOrWhiteSpace(arrival) &&
+                string.Equals(departure, arrival, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = "Kalkış ve varış şehirleri aynı olamaz." });
+            }
+
+            var todayInTurkey = DateOnly.FromDateTime(DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).DateTime);
+            if (date.HasValue && date.Value < todayInTurkey)
+            {
+                return BadRequest(new { message = "Geçmiş bir tarih için sefer aranamaz." });
+            }
+
+            if (passengers < 1 || passengers > 10)
+            {
+                return BadRequest(new { message = "Yolcu sayısı 1 ile 10 arasında olmalıdır." });
+            }
+
+            if (pageNumber < 1 || pageSize < 1 || pageSize > 100)
+            {
+                return BadRequest(new { message = "Sayfa numarası 1 veya daha büyük, sayfa boyutu 1 ile 100 arasında olmalıdır." });
+            }
+
+            var normalizedSortBy = sortBy.Trim().ToLowerInvariant();
+            if (normalizedSortBy is not ("departure" or "price" or "duration"))
+            {
+                return BadRequest(new { message = "Sıralama seçeneği geçersiz." });
+            }
+
+            if (departureHourFrom is < 0 or > 23 ||
+                departureHourTo is < 0 or > 23 ||
+                (departureHourFrom.HasValue && departureHourTo.HasValue && departureHourFrom > departureHourTo))
+            {
+                return BadRequest(new { message = "Kalkış saati aralığı geçersiz." });
+            }
+
+            if (minPrice < 0 || maxPrice < 0 ||
+                (minPrice.HasValue && maxPrice.HasValue && minPrice > maxPrice))
+            {
+                return BadRequest(new { message = "Bilet fiyatı aralığı geçersiz." });
+            }
+
+            var now = DateTime.UtcNow;
+
+            var availableTrips = _context.Trips
+                .AsNoTracking()
+                .Where(trip =>
+                    trip.Company.IsActive &&
+                    trip.Bus.IsActive &&
+                    trip.Bus.CompanyId == trip.CompanyId &&
+                    trip.Route.IsActive &&
+                    trip.DepartureTime > now &&
+                    trip.AvailableSeats >= passengers &&
+                    (trip.Status.ToLower() == "scheduled" ||
+                     trip.Status.ToLower() == "planlandı" ||
+                     trip.Status.ToLower() == "planlandi"));
+
+            if (date.HasValue)
+            {
+                var localDayStart = new DateTimeOffset(date.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(3));
+                var utcDayStart = localDayStart.UtcDateTime;
+                var utcDayEnd = localDayStart.AddDays(1).UtcDateTime;
+                availableTrips = availableTrips.Where(trip =>
+                    trip.DepartureTime >= utcDayStart &&
+                    trip.DepartureTime < utcDayEnd);
+            }
+
+            if (!string.IsNullOrWhiteSpace(departure))
+            {
+                availableTrips = availableTrips.Where(trip => trip.Route.DepartureCity == departure);
+            }
+
+            if (!string.IsNullOrWhiteSpace(arrival))
+            {
+                availableTrips = availableTrips.Where(trip => trip.Route.ArrivalCity == arrival);
+            }
+
+            var companies = await availableTrips
+                .Select(trip => new PublicTripCompanyDto { Id = trip.CompanyId, Name = trip.Company.Name })
+                .Distinct()
+                .OrderBy(company => company.Name)
+                .ToListAsync();
+
+            var query = availableTrips;
+
+            if (companyId.HasValue)
+            {
+                query = query.Where(trip => trip.CompanyId == companyId.Value);
+            }
+
+            if (departureHourFrom.HasValue)
+            {
+                var hourFrom = departureHourFrom.Value;
+                query = query.Where(trip => (trip.DepartureTime.Hour + 3) % 24 >= hourFrom);
+            }
+
+            if (departureHourTo.HasValue)
+            {
+                var hourTo = departureHourTo.Value;
+                query = query.Where(trip => (trip.DepartureTime.Hour + 3) % 24 <= hourTo);
+            }
+
+            if (minPrice.HasValue)
+            {
+                query = query.Where(trip => trip.Price >= minPrice.Value);
+            }
+
+            if (maxPrice.HasValue)
+            {
+                query = query.Where(trip => trip.Price <= maxPrice.Value);
+            }
+
+            var totalCount = await query.CountAsync();
+            query = normalizedSortBy switch
+            {
+                "price" => query.OrderBy(trip => trip.Price).ThenBy(trip => trip.DepartureTime),
+                "duration" => query.OrderBy(trip => EF.Functions.DateDiffMinute(trip.DepartureTime, trip.ArrivalTime))
+                    .ThenBy(trip => trip.DepartureTime),
+                _ => query.OrderBy(trip => trip.DepartureTime)
+            };
+
+            var items = await query
+                .Skip((int)Math.Min((long)(pageNumber - 1) * pageSize, int.MaxValue))
+                .Take(pageSize)
+                .Select(trip => new PublicTripDto
+                {
+                    Id = trip.Id,
+                    CompanyId = trip.CompanyId,
+                    CompanyName = trip.Company.Name,
+                    DepartureCity = trip.Route.DepartureCity,
+                    ArrivalCity = trip.Route.ArrivalCity,
+                    DepartureTime = trip.DepartureTime,
+                    ArrivalTime = trip.ArrivalTime,
+                    DurationMinutes = EF.Functions.DateDiffMinute(trip.DepartureTime, trip.ArrivalTime),
+                    Price = trip.Price,
+                    AvailableSeats = trip.AvailableSeats
+                })
+                .ToListAsync();
+
+            foreach (var item in items)
+            {
+                item.DepartureTime = AsUtc(item.DepartureTime);
+                item.ArrivalTime = AsUtc(item.ArrivalTime);
+            }
+
+            return Ok(new PublicTripSearchResponseDto
+            {
+                Items = items,
+                Companies = companies,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            });
+        }
+
+        [HttpGet("upcoming")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetUpcomingPublicTrips([FromQuery] int count = 6)
+        {
+            if (count < 1 || count > 12)
+            {
+                return BadRequest(new { message = "Sefer sayısı 1 ile 12 arasında olmalıdır." });
+            }
+
+            var now = DateTime.UtcNow;
+            var items = await _context.Trips
+                .AsNoTracking()
+                .Where(trip =>
+                    trip.Company.IsActive &&
+                    trip.Bus.IsActive &&
+                    trip.Bus.CompanyId == trip.CompanyId &&
+                    trip.Route.IsActive &&
+                    trip.DepartureTime > now &&
+                    trip.AvailableSeats > 0 &&
+                    (trip.Status.ToLower() == "scheduled" ||
+                     trip.Status.ToLower() == "planlandı" ||
+                     trip.Status.ToLower() == "planlandi"))
+                .OrderBy(trip => trip.DepartureTime)
+                .Take(count)
+                .Select(trip => new PublicTripDto
+                {
+                    Id = trip.Id,
+                    CompanyId = trip.CompanyId,
+                    CompanyName = trip.Company.Name,
+                    DepartureCity = trip.Route.DepartureCity,
+                    ArrivalCity = trip.Route.ArrivalCity,
+                    DepartureTime = trip.DepartureTime,
+                    ArrivalTime = trip.ArrivalTime,
+                    DurationMinutes = EF.Functions.DateDiffMinute(trip.DepartureTime, trip.ArrivalTime),
+                    Price = trip.Price,
+                    AvailableSeats = trip.AvailableSeats
+                })
+                .ToListAsync();
+
+            foreach (var item in items)
+            {
+                item.DepartureTime = AsUtc(item.DepartureTime);
+                item.ArrivalTime = AsUtc(item.ArrivalTime);
+            }
+
+            return Ok(items);
+        }
+
+        [HttpGet("featured-routes")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetFeaturedRoutes([FromQuery] int count = 6)
+        {
+            if (count < 1 || count > 12)
+            {
+                return BadRequest(new { message = "Güzergâh sayısı 1 ile 12 arasında olmalıdır." });
+            }
+
+            var now = DateTime.UtcNow;
+            var routes = await _context.Trips
+                .AsNoTracking()
+                .Where(trip =>
+                    trip.Company.IsActive &&
+                    trip.Bus.IsActive &&
+                    trip.Bus.CompanyId == trip.CompanyId &&
+                    trip.Route.IsActive &&
+                    trip.DepartureTime > now &&
+                    trip.AvailableSeats > 0 &&
+                    (trip.Status.ToLower() == "scheduled" ||
+                     trip.Status.ToLower() == "planlandı" ||
+                     trip.Status.ToLower() == "planlandi"))
+                .GroupBy(trip => new
+                {
+                    trip.RouteId,
+                    trip.Route.DepartureCity,
+                    trip.Route.ArrivalCity
+                })
+                .Select(group => new FeaturedRouteDto
+                {
+                    RouteId = group.Key.RouteId,
+                    DepartureCity = group.Key.DepartureCity,
+                    ArrivalCity = group.Key.ArrivalCity,
+                    UpcomingTripCount = group.Count(),
+                    StartingPrice = group.Min(trip => trip.Price)
+                })
+                .OrderByDescending(route => route.UpcomingTripCount)
+                .ThenBy(route => route.StartingPrice)
+                .Take(count)
+                .ToListAsync();
+
+            return Ok(routes);
+        }
+
+        [HttpGet("public/{id:int}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetPublicTripById(int id)
+        {
+            var now = DateTime.UtcNow;
+            var trip = await _context.Trips
+                .AsNoTracking()
+                .Where(item =>
+                    item.Id == id &&
+                    item.Company.IsActive &&
+                    item.Bus.IsActive &&
+                    item.Bus.CompanyId == item.CompanyId &&
+                    item.Route.IsActive &&
+                    item.DepartureTime > now &&
+                    item.AvailableSeats > 0 &&
+                    (item.Status.ToLower() == "scheduled" ||
+                     item.Status.ToLower() == "planlandı" ||
+                     item.Status.ToLower() == "planlandi"))
+                .Select(item => new PublicTripDto
+                {
+                    Id = item.Id,
+                    CompanyId = item.CompanyId,
+                    CompanyName = item.Company.Name,
+                    DepartureCity = item.Route.DepartureCity,
+                    ArrivalCity = item.Route.ArrivalCity,
+                    DepartureTime = item.DepartureTime,
+                    ArrivalTime = item.ArrivalTime,
+                    DurationMinutes = EF.Functions.DateDiffMinute(item.DepartureTime, item.ArrivalTime),
+                    Price = item.Price,
+                    AvailableSeats = item.AvailableSeats
+                })
+                .FirstOrDefaultAsync();
+
+            if (trip == null)
+            {
+                return NotFound(new { message = "Sefer bulunamadı veya artık satışta değil." });
+            }
+
+            trip.DepartureTime = AsUtc(trip.DepartureTime);
+            trip.ArrivalTime = AsUtc(trip.ArrivalTime);
+            return Ok(trip);
+        }
+
         [HttpGet]
         [Authorize(Policy = "trip.view")]
         public async Task<IActionResult> GetTrips(

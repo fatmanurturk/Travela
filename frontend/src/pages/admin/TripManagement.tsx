@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiUrl } from "../../api";
 import "../Admin.css";
 
-const API_URL = "http://localhost:5062/api/trips";
-const BUSES_API_URL = "http://localhost:5062/api/buses";
-const COMPANIES_API_URL = "http://localhost:5062/api/admin/companies";
-const ROUTES_API_URL = "http://localhost:5062/api/routes";
+const API_URL = apiUrl("/api/trips");
+const BUSES_API_URL = apiUrl("/api/buses");
+const COMPANIES_API_URL = apiUrl("/api/admin/companies");
+const ROUTES_API_URL = apiUrl("/api/routes");
 const PAGE_SIZE = 10;
 
 type Trip = {

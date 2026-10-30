@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiUrl } from "../../api";
 
-const COMPANY_ME_API_URL = "http://localhost:5062/api/company/me";
-const COMPANY_SUMMARY_API_URL = "http://localhost:5062/api/company/me/summary";
-const PROFILE_API_URL = "http://localhost:5062/api/profile";
+const COMPANY_ME_API_URL = apiUrl("/api/company/me");
+const COMPANY_SUMMARY_API_URL = apiUrl("/api/company/me/summary");
+const PROFILE_API_URL = apiUrl("/api/profile");
 
 type CompanyInfo = {
   id: number;

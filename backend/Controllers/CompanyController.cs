@@ -190,9 +190,18 @@ namespace Travela.API.Controllers
                 return null;
             }
 
-            return await _context.Users
-                .AsNoTracking()
+            var user = await _context.Users
                 .FirstOrDefaultAsync(user => user.Id == userId && user.Role == "Company");
+
+            if (user == null || !user.CompanyId.HasValue || user.MustChangePassword)
+            {
+                return null;
+            }
+
+            var companyExists = await _context.Companies
+                .AnyAsync(company => company.Id == user.CompanyId.Value && company.IsActive);
+
+            return companyExists ? user : null;
         }
 
         private static bool IsValidEmail(string email)

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiUrl } from "../../api";
 
 type BusItem = {
   id: number;
@@ -34,10 +35,10 @@ function CompanyReports() {
     const loadData = async () => {
       try {
         const [busResponse, tripResponse] = await Promise.all([
-          fetch("http://localhost:5062/api/buses?pageNumber=1&pageSize=100", {
+          fetch(`${apiUrl("/api/buses")}?pageNumber=1&pageSize=100`, {
             headers: getHeaders(),
           }),
-          fetch("http://localhost:5062/api/trips?pageNumber=1&pageSize=100", {
+          fetch(`${apiUrl("/api/trips")}?pageNumber=1&pageSize=100`, {
             headers: getHeaders(),
           }),
         ]);

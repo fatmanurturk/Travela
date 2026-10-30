@@ -16,6 +16,8 @@ namespace Travela.Models
 
         public bool IsActive { get; set; } = true;
 
+        public bool MustChangePassword { get; set; } = false;
+
         public int SecurityVersion { get; set; } = 1;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

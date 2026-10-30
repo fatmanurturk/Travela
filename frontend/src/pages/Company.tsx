@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiUrl } from "../api";
 
-const API_URL = "http://localhost:5062/api/buses";
+const API_URL = apiUrl("/api/buses");
 
 type Bus = {
   id: number;

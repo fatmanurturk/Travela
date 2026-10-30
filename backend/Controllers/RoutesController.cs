@@ -22,6 +22,28 @@ namespace Travela.Api.Controllers
             _context = context;
         }
 
+        [HttpGet("public")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetPublicRoutes()
+        {
+            var routes = await _context.Routes
+                .AsNoTracking()
+                .Where(route => route.IsActive)
+                .OrderBy(route => route.DepartureCity)
+                .ThenBy(route => route.ArrivalCity)
+                .Select(route => new RouteDto
+                {
+                    Id = route.Id,
+                    DepartureCity = route.DepartureCity,
+                    ArrivalCity = route.ArrivalCity,
+                    DistanceKm = route.DistanceKm,
+                    EstimatedDurationMinutes = route.EstimatedDurationMinutes
+                })
+                .ToListAsync();
+
+            return Ok(routes);
+        }
+
         [HttpGet]
         public async Task<IActionResult> GetRoutes()
         {

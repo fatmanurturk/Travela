@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiUrl } from "../../api";
 import "../Admin.css";
 
-const API_URL = "http://localhost:5062/api/buses";
-const ADMIN_API_URL = "http://localhost:5062/api/admin";
+const API_URL = apiUrl("/api/buses");
+const ADMIN_API_URL = apiUrl("/api/admin");
 const PAGE_SIZE = 10;
 
 type Bus = {
@@ -202,7 +203,7 @@ function BusManagement() {
     try {
       const url = isAdmin
         ? `${ADMIN_API_URL}/companies`
-        : "http://localhost:5062/api/company/profile";
+        : apiUrl("/api/company/profile");
 
       const response = await fetch(url, {
         headers: getHeaders(),
