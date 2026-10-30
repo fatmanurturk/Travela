@@ -19,6 +19,7 @@ import SearchResultsPage from "./pages/SearchResultsPage";
 import PublicTripDetailsPage from "./pages/PublicTripDetailsPage";
 import Register from "./pages/Register";
 import FirstLoginPasswordChange from "./pages/FirstLoginPasswordChange";
+import Profile from "./pages/Profile";
 import "./Site.css";
 
 function App() {
@@ -46,6 +47,15 @@ function App() {
         <Route path="reports" element={<CompanyReports />} />
         <Route path="profile" element={<CompanyProfile />} />
       </Route>
+
+<Route
+  path="/profile"
+  element={
+    <ProtectedRoute allowedRole="Passenger">
+      <Profile />
+    </ProtectedRoute>
+  }
+/>
 
       <Route
         path="/admin"
