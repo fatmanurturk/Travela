@@ -12,9 +12,13 @@ public class PurchaseDto
     public int TripId { get; set; }
     public int SeatNumber { get; set; }
     public string CompanyName { get; set; } = "";
+    public string PassengerName { get; set; } = "";
     public string DepartureCity { get; set; } = "";
     public string ArrivalCity { get; set; } = "";
     public DateTime DepartureTime { get; set; }
+    public DateTime ArrivalTime { get; set; }
+    public DateTime? PaidAt { get; set; }
+    public DateTime RetrievedAt { get; set; }
     public DateTime CancelDeadline { get; set; }
     public DateTime? HoldExpiresAt { get; set; }
     public decimal Amount { get; set; }
@@ -23,6 +27,8 @@ public class PurchaseDto
     public string PaymentStatus { get; set; } = "";
     public string TicketStatus { get; set; } = "";
     public string RefundStatus { get; set; } = "";
+    public string RefundStatusLabel => Travela.Api.Payments.RefundPresentation.Label(RefundStatus);
+    public string RefundDescription => Travela.Api.Payments.RefundPresentation.Describe(RefundStatus, IsTest, LastError, NeedsAttention);
     public decimal RefundAmount { get; set; }
     public bool CanCancel { get; set; }
     public string? CancellationReason { get; set; }

@@ -7,6 +7,8 @@ using Microsoft.IdentityModel.Tokens;
 using Travela.Api.Authorization;
 using Travela.Data;
 using Travela.Api.Payments;
+using Travela.Api.Documents;
+using Travela.Api.Reporting;
 
 var builder = WebApplication.CreateBuilder(args);
 var jwtKey = builder.Configuration["Jwt:Key"]
@@ -77,6 +79,8 @@ builder.Services.AddAuthorization(options =>
 });
 
 builder.Services.AddControllers();
+builder.Services.AddSingleton<TicketPdfRenderer>();
+builder.Services.AddScoped<CompanyReportingService>();
 // No live provider is installed. Fail closed outside development/test instead of charging money.
 if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
     throw new InvalidOperationException("Gerçek ödeme sağlayıcısı yapılandırılmadı. LocalTest yalnızca geliştirme/test ortamında çalışır.");

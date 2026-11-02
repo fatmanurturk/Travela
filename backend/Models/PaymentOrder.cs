@@ -25,6 +25,8 @@ public class PaymentOrder
     public DateTime? RefundLeaseUntil { get; set; }
     public Guid? RefundLeaseToken { get; set; }
     public DateTime? RefundedAt { get; set; }
+    public DateTime? RefundRequestedAt { get; set; }
+    public DateTime? RefundStatusChangedAt { get; set; }
     public string? LastError { get; set; }
     public bool NeedsAttention { get; set; }
 }

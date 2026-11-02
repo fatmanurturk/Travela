@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiUrl } from "../api";
 import SiteHeader from "../components/SiteHeader";
+import { Details } from "../components/UiDetails";
 import TicketCard from "../components/TicketCard";
 import ReservationSummary from "../components/ReservationSummary";
 import { dateTime, money } from "../reservations";
@@ -50,7 +51,7 @@ export default function MyReservationsPage() {
       const response = await fetch(apiUrl(path), { method: "POST", headers: { Authorization: `Bearer ${sessionStorage.getItem("travela_token")}` } });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.message ?? "İptal tamamlanamadı. Güncel durumu kontrol ediniz.");
-      setSuccess(confirming.ticket ? "Bilet iptal edildi; tam iade talebi kaydedildi. İadenin tamamlanması sağlayıcı sonucuyla ayrıca gösterilecektir." : "Eski ücretsiz kayıt serbest bırakıldı. Bu kayıt için ödeme veya iade yoktur.");
+      setSuccess(confirming.ticket ? "Bilet iptal edildi. İadeyi biletinizden takip edebilirsiniz." : "Ücretsiz kayıt serbest bırakıldı.");
       setConfirming(null); setRevision(v => v + 1);
     } catch (e) { setError(e instanceof TypeError ? "Yanıt alınamadı. İptali tekrar denemeden önce güncel durumu kontrol ediniz." : e instanceof Error ? e.message : "İptal tamamlanamadı."); }
     finally { setBusy(false); }
@@ -62,12 +63,12 @@ export default function MyReservationsPage() {
     <button className="site-button secondary" disabled={busy} onClick={() => setRevision(v => v + 1)}>Durumları yenile</button>
     {loading ? <p role="status">Biletleriniz yükleniyor...</p> : <>
       {items.length === 0 ? <div className="site-empty-state"><p>Henüz biletiniz veya ödeme işleminiz yok.</p><Link to="/#sefer-ara" className="site-button primary">Sefer ara</Link></div> : <div className="reservation-list">{items.map(item => <TicketCard key={item.id} item={{ ...item, canCancel: item.canCancel && now <= new Date(item.cancelDeadline).getTime() }} busy={busy} onCancel={ticket => { setConfirming({ ticket }); setError(""); }} />)}</div>}
-      {legacy.length > 0 && <section><h2>Eski ücretsiz kayıtlar</h2><p>Bu kayıtlar korunmuştur; satın alınmış veya ödenmiş bilet değildir. Yeni satın alma için bu kaydı serbest bırakıp seferden ödeme adımını başlatabilirsiniz.</p><div className="reservation-list">{legacy.map(item => <ReservationSummary key={item.reservationNumber} reservation={item} cancelling={busy} onCancel={item.canCancel && new Date(item.departureTime).getTime() > now ? r => { setConfirming({ legacy: r }); setError(""); } : undefined} />)}</div></section>}
+      {legacy.length > 0 && <Details title={`Eski ücretsiz kayıtlar (${legacy.length})`}><p>Bu kayıtlar satın alınmış bilet değildir.</p><div className="reservation-list">{legacy.map(item => <ReservationSummary key={item.reservationNumber} reservation={item} cancelling={busy} onCancel={item.canCancel && new Date(item.departureTime).getTime() > now ? r => { setConfirming({ legacy: r }); setError(""); } : undefined} />)}</div></Details>}
     </>}
     {target && confirming && <Confirm busy={busy} close={() => setConfirming(null)}>
       <h2 id="cancel-title">{confirming.ticket ? "Bilet iptal edilsin mi?" : "Eski ücretsiz kayıt serbest bırakılsın mı?"}</h2>
       <p>{target.departureCity} → {target.arrivalCity} · Koltuk {target.seatNumber}</p><p>Kalkış: {dateTime.format(new Date(target.departureTime))}</p>
-      {confirming.ticket ? <><p>Tam iade tutarı: <strong>{money.format(confirming.ticket.amount)}</strong>{confirming.ticket.isTest && " (yerel test)"}</p><p>İptal son zamanı: {dateTime.format(new Date(confirming.ticket.cancelDeadline))}. İade talebi, tamamlanmış iade anlamına gelmez.</p></> : <p>Ücretsiz kayıt için ödeme veya iade işlemi bulunmuyor.</p>}
+      {confirming.ticket ? <><p>Tam iade tutarı: <strong>{money.format(confirming.ticket.amount)}</strong>{confirming.ticket.isTest && " (yerel test)"}</p><p>İptal son zamanı: {dateTime.format(new Date(confirming.ticket.cancelDeadline))}.</p></> : <p>Ücretsiz kayıt için ödeme veya iade işlemi bulunmuyor.</p>}
       {error && <p role="alert">{error}</p>}<div className="reservation-confirm-actions"><button autoFocus className="site-button secondary" disabled={busy} onClick={() => setConfirming(null)}>Vazgeç</button><button className="site-button reservation-cancel" disabled={busy} onClick={() => void cancel()}>{busy ? "İşleniyor..." : "Evet, iptal et"}</button></div>
     </Confirm>}
   </main></div>;

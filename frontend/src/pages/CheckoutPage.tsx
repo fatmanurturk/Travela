@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiUrl } from "../api";
+import { TestNotice } from "../components/UiDetails";
 import SiteHeader from "../components/SiteHeader";
 import TicketCard from "../components/TicketCard";
 import type { Purchase } from "../payments";
@@ -35,11 +36,11 @@ export default function CheckoutPage() {
     } catch (e) { setError(e instanceof TypeError ? "Yanıt alınamadı. Yeniden denemeden önce işlem durumunu kontrol ediniz." : e instanceof Error ? e.message : "Test işlemi tamamlanamadı."); }
     finally { setBusy(false); }
   };
-  return <div className="travela-site"><SiteHeader /><main className="trip-detail-page"><h1>Yerel test ödeme ekranı</h1>
-    <p className="test-payment-badge">Bu ekran yalnızca geliştirme adaptörüdür. Kart bilgisi girmeyiniz. Gerçek ödeme veya iade yapılmaz.</p>
+  return <div className="travela-site"><SiteHeader /><main className="trip-detail-page"><h1>Test ödemesi</h1>
+    <TestNotice />
     {error && <p role="alert" className="results-message error">{error}</p>}
-    {!item && !error ? <p role="status">Sipariş yükleniyor...</p> : item && <><TicketCard item={item} />
-      {item.isTest && item.paymentStatus === "Pending" && item.checkoutUrl && <section className="booking-summary"><h2>Test sağlayıcı simülatörü</h2><label>Olası iadenin test sonucu <select value={refund} onChange={e => setRefund(e.target.value)}><option value="Succeeded">Başarılı</option><option value="Pending">Bekleyen</option><option value="Failed">Başarısız</option></select></label><div className="reservation-confirm-actions"><button className="site-button primary" disabled={busy} onClick={() => void simulate("Succeeded")}>Test ödemesini başarılı bildir</button><button className="site-button secondary" disabled={busy} onClick={() => void simulate("Failed")}>Test ödemesini başarısız bildir</button></div><p>Ekranı kapatırsanız bilet oluşmaz; ödeme tutması süre sonunda serbest kalır. Sonuç, sağlayıcı bildirimi ve sunucu sorgusuyla doğrulanır.</p></section>}
+    {!item && !error ? <p role="status">Sipariş yükleniyor...</p> : item && <><TicketCard item={item} showCheckout={false} />
+      {item.isTest && item.paymentStatus === "Pending" && item.checkoutUrl && <section className="booking-summary"><h2>Test kontrolleri</h2><label>İade test sonucu <select value={refund} onChange={e => setRefund(e.target.value)}><option value="Succeeded">Başarılı</option><option value="Pending">Bekleyen</option><option value="Failed">Başarısız</option></select></label><div className="reservation-confirm-actions"><button className="site-button primary" disabled={busy} onClick={() => void simulate("Succeeded")}>Ödemeyi başarılı yap</button><button className="site-button secondary" disabled={busy} onClick={() => void simulate("Failed")}>Ödemeyi başarısız yap</button></div><p>Ödeme tamamlanmazsa bilet oluşmaz. Ayrılan koltuk süre sonunda boşalır.</p></section>}
       {item.isTest && item.refundStatus !== "None" && item.refundStatus !== "Succeeded" && <section className="booking-summary"><h2>Yerel test iade sonucu</h2><div className="reservation-confirm-actions">{["Succeeded", "Pending", "Failed"].map(value => <button key={value} className="site-button secondary" disabled={busy} onClick={() => void simulate(value, true)}>{value === "Succeeded" ? "Test iadesini tamamla" : value === "Pending" ? "Test iadesini beklet" : "Test iadesini başarısız yap"}</button>)}</div></section>}
     </>}
     <div className="reservation-confirm-actions"><button className="site-button secondary" disabled={busy} onClick={() => { setError(""); setRevision(v => v + 1); }}>Durumu yenile</button><Link to="/tickets" className="site-button secondary">Biletlerim</Link></div>

@@ -46,6 +46,7 @@ try
     var route = new Travela.Api.Models.Route { DepartureCity = "İstanbul", ArrivalCity = "Ankara", EstimatedDurationMinutes = 360 };
     var trip = new Trip { Company = company, Bus = bus, Route = route, DepartureTime = DateTime.UtcNow.AddDays(3), ArrivalTime = DateTime.UtcNow.AddDays(3).AddHours(6), Price = 500, AvailableSeats = 19 };
     var u1 = User("one"); var u2 = User("two"); var admin = User("admin", "Admin");
+    u1.FullName = "Çağrı Şükrü Işık Öztürk " + new string('Ğ', 44) + " Çalışkan Uzunsoyad";
     var c1 = User("company", "Company"); var c2 = User("other-company", "Company");
     db.AddRange(company, otherCompany, trip, u1, u2, admin, c1, c2);
     var role = new Role { Name = "Admin" };
@@ -80,12 +81,29 @@ try
     var key = Guid.NewGuid();
     var order = await Start(1, key);
     Check(order.Amount == 500 && order.Pnr == null && order.IsTest && order.PaymentStatus == "Pending", "Tutar backend'den, ödeme öncesi PNR yok, test etiketi mevcut");
+    Check((await Send("GET", $"/api/tickets/{order.Id}/pdf", token1)).StatusCode == HttpStatusCode.NotFound &&
+        (await Send("GET", $"/api/tickets/{order.Id}", token1)).StatusCode == HttpStatusCode.NotFound, "Ödemesi tamamlanmamış sipariş için bilet detayı ve PDF üretilmedi");
+    Check((await Send("GET", $"/api/tickets/{legacyNumber}/pdf", token1)).StatusCode == HttpStatusCode.NotFound, "Eski ücretsiz kayda bilet PDF'si üretilmedi");
     Check((await Start(1, key)).Id == order.Id && await db.PaymentOrders.CountAsync() == 1 && await db.LocalPaymentRecords.CountAsync() == 1, "Tekrar tıklama aynı sipariş ve sağlayıcı oturumunu döndürür");
     Check((await Send("GET", $"/api/tickets/orders/{order.Id}", token2)).StatusCode == HttpStatusCode.NotFound, "Başka yolcu siparişi göremiyor");
     var forged = await Send("POST", "/api/payments/notifications", null, new { orderId = order.Id, eventId = "fake", timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() });
     Check(forged.StatusCode == HttpStatusCode.BadRequest, "İmzasız sağlayıcı bildirimi reddedildi");
     var paid = await Complete(order.Id, "Succeeded");
     Check(paid.Pnr?.Length == 32 && paid.Kind == "Ticket" && paid.PaymentStatus == "Paid" && paid.IsTest, "Doğrulanmış test ödemesinden sonra PNR düzenlendi");
+    // Exercise the full 32-character identifier width without changing the production PNR generator.
+    await db.Reservations.Where(r => r.Pnr == paid.Pnr).ExecuteUpdateAsync(s => s.SetProperty(r => r.Pnr, new string('F', 32)));
+    paid = await Get(order.Id);
+    var detailResponse = await Send("GET", $"/api/tickets/{paid.Pnr}", token1);
+    var ticketDetail = await Read(detailResponse);
+    Check(ticketDetail.PassengerName == u1.FullName && ticketDetail.ArrivalTime > ticketDetail.DepartureTime && ticketDetail.Pnr == paid.Pnr && ticketDetail.CanCancel && ticketDetail.CancelDeadline == ticketDetail.DepartureTime.AddHours(-2), "Aktif bilet detayında yolcu, varış, PNR ve iki saat iptal son zamanı doğru");
+    Check(detailResponse.Headers.CacheControl?.NoStore == true && detailResponse.Headers.CacheControl.Private, "Kişisel bilet detayı private/no-store ile sunuluyor");
+    Check((await Send("GET", $"/api/tickets/{paid.Pnr}", token2)).StatusCode == HttpStatusCode.NotFound &&
+        (await Send("GET", $"/api/tickets/{paid.Pnr}/pdf", token2)).StatusCode == HttpStatusCode.NotFound, "Başka yolcu bilet detayına ve PDF'sine erişemiyor");
+    Check((await Send("GET", $"/api/tickets/{paid.Pnr}/pdf", null)).StatusCode == HttpStatusCode.Unauthorized &&
+        (await Send("GET", $"/api/tickets/{paid.Pnr}", null)).StatusCode == HttpStatusCode.Unauthorized, "PNR herkese açık erişim anahtarı değil; girişsiz detay ve PDF 401");
+    Check((await Send("GET", $"/api/tickets/{paid.Pnr}/pdf", companyToken)).StatusCode == HttpStatusCode.Forbidden, "Firma hesabı yolcuya özel PDF endpoint'ine erişemiyor");
+    await DownloadPdf(paid.Pnr!, "ticket-active-test.pdf");
+    await SaveSnapshot(ticketDetail, "active");
     var duplicates = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => Complete(order.Id, "Succeeded")));
     Check(duplicates.All(p => p.Pnr == paid.Pnr) && await db.PaymentNotifications.CountAsync(n => n.OrderId == order.Id) == 1, "Tekrarlanan ödeme bildirimleri tek PNR ve tek bildirim kaydı oluşturdu");
     var failedOrder = await Start(2);
@@ -121,18 +139,33 @@ try
         Check(accepted == (minutes >= 120), $"Sunucu UTC saatiyle iptal sınırı: kalkışa {minutes} dakika");
     }
     // Restore future departure for the remaining test scenarios.
-    await db.Trips.Where(t => t.Id == trip.Id).ExecuteUpdateAsync(s => s.SetProperty(t => t.DepartureTime, DateTime.UtcNow.AddDays(3)));
+    await db.Trips.Where(t => t.Id == trip.Id).ExecuteUpdateAsync(s => s.SetProperty(t => t.DepartureTime, trip.DepartureTime));
     var cancels = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Send("POST", $"/api/tickets/{paid.Pnr}/cancel", token1)));
     Check(cancels.All(r => r.IsSuccessStatusCode), "8 eş zamanlı iptal isteği idempotent");
     var pendingRefund = await Get(order.Id);
     Check(pendingRefund.TicketStatus == "Cancelled" && pendingRefund.RefundStatus == "Pending" && pendingRefund.RefundAmount == 500, "Bilet iptali ve bekleyen tam iade ayrı durumlar");
+    var cancelledDetail = await Read(await Send("GET", $"/api/tickets/{paid.Pnr}", token1));
+    Check(cancelledDetail.TicketStatus == "Cancelled" && cancelledDetail.CancelledAt != null && cancelledDetail.RefundStatus == "Pending" && !cancelledDetail.CanCancel, "İptal edilmiş bilet detayı güncel iptal zamanı ve bekleyen iade durumunu sunuyor");
+    await DownloadPdf(paid.Pnr!, "ticket-cancelled-test.pdf");
+    Check(cancelledDetail.RefundDescription.Contains("İade talebi kaydedildi, sonuç bekleniyor") && cancelledDetail.RefundDescription.StartsWith("Test iadesi:"), "Bekleyen test iadesi sayfa/PDF için tek backend açıklaması kullanıyor");
+    await SaveSnapshot(cancelledDetail, "pending");
+    await DownloadPdf(paid.Pnr!, "ticket-refund-pending.pdf", true);
     Check((await Send("POST", $"/api/tickets/{paid.Pnr}/cancel", token2)).StatusCode == HttpStatusCode.NotFound, "Başka yolcunun bilet iptali engellendi");
     var waiting = await Refund(order.Id, "Pending");
     Check(waiting.RefundStatus == "Pending" && !await db.PaymentOrders.AnyAsync(p => p.Id == order.Id && p.RefundedAt != null), "Bekleyen sağlayıcı yanıtı iade tamamlandı sayılmadı");
     var refundFailed = await Refund(order.Id, "Failed");
     Check(refundFailed.RefundStatus == "Failed" && refundFailed.LastError != null, "Başarısız iade kaydı ve hata bilgisi tutuluyor");
+    Check(refundFailed.RefundDescription.Contains(refundFailed.LastError!) && !refundFailed.RefundDescription.Contains("Tam iade tamamlandı"), "Başarısız iade açıklaması gerçek hata bilgisini içeriyor; tamamlandı demiyor");
+    Check(refundFailed.CancellationReason == cancelledDetail.CancellationReason && refundFailed.CancelledAt == cancelledDetail.CancelledAt, "İade hatası iptal nedeni ve tarihini değiştirmedi");
+    await SaveSnapshot(refundFailed, "failed");
+    await DownloadPdf(paid.Pnr!, "ticket-refund-failed.pdf", true);
     var refundSuccess = await Refund(order.Id, "Succeeded");
     Check(refundSuccess.RefundStatus == "Succeeded" && await db.PaymentOrders.AnyAsync(p => p.Id == order.Id && p.RefundedAt != null), "Başarılı sağlayıcı sonucu iade tamamlandı durumuna geçiriyor");
+    Check(refundSuccess.RefundStatusLabel == "Tam iade tamamlandı" && refundSuccess.RefundDescription.Contains("Tam iade tamamlandı") && !refundSuccess.RefundDescription.Contains("sonuç bekleniyor"), "Tamamlanan iadede güncel açıklama bekleyen metni yerine tam iadeyi gösteriyor");
+    Check(refundSuccess.CancellationReason == cancelledDetail.CancellationReason && refundSuccess.CancelledAt == cancelledDetail.CancelledAt, "İade tamamlanması geçmiş iptal nedenini ve zamanını değiştirmedi");
+    await SaveSnapshot(refundSuccess, "cancelled");
+    Check((await Read(await Send("GET", $"/api/tickets/{paid.Pnr}", token1))).RefundStatus == "Succeeded", "Aynı bilet detay isteği eski yanıt yerine güncellenmiş iade sonucunu getiriyor");
+    await DownloadPdf(paid.Pnr!, "ticket-cancelled-test.pdf");
     await Refund(order.Id, "Succeeded"); await Send("POST", $"/api/tickets/{paid.Pnr}/cancel", token1);
     Check(await db.LocalPaymentRecords.Where(p => p.Id == order.Id).Select(p => p.RefundTransfers).SingleAsync() == 1, "Tekrar iptal ve tekrar iade bildirimi ikinci iade oluşturmadı");
     var retryOrder = await Start(11);
@@ -169,6 +202,21 @@ try
     {
         var r = await http.PostAsJsonAsync("/api/auth/login", new { email = u.Email, password = "TestPass123!" }); r.EnsureSuccessStatusCode();
         return (await r.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!;
+    }
+    async Task SaveSnapshot(PurchaseDto item, string state)
+    {
+        var path = Path.Combine(root, "tmp", "ticket-qa"); Directory.CreateDirectory(path);
+        await File.WriteAllTextAsync(Path.Combine(path, state + ".json"), JsonSerializer.Serialize(item, new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true }));
+    }
+    async Task DownloadPdf(string pnr, string filename, bool temporary = false)
+    {
+        var response = await Send("GET", $"/api/tickets/{pnr}/pdf", token1);
+        if (!response.IsSuccessStatusCode) throw new Exception($"PDF HTTP {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}\n{log}");
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        Check(response.Content.Headers.ContentType?.MediaType == "application/pdf" && bytes.Length > 10000 && System.Text.Encoding.ASCII.GetString(bytes, 0, 5) == "%PDF-", "Sahiplik kontrollü PDF endpoint'i geçerli PDF üretti: " + filename);
+        Check(response.Headers.CacheControl?.NoStore == true && response.Content.Headers.ContentDisposition?.DispositionType == "attachment", "PDF cache edilmeden indirme eki olarak sunuluyor");
+        var directory = temporary ? Path.Combine(root, "tmp", "ticket-qa") : Path.Combine(root, "output", "pdf"); Directory.CreateDirectory(directory);
+        await File.WriteAllBytesAsync(Path.Combine(directory, filename), bytes);
     }
     async Task<HttpResponseMessage> Send(string method, string path, string? token, object? body = null)
     {

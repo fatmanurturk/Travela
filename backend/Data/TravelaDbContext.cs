@@ -42,6 +42,8 @@ namespace Travela.Data
         entity.HasIndex(r => r.ReservationNumber).IsUnique();
         entity.HasIndex(r => new { r.TripId, r.SeatNumber }).IsUnique().HasFilter("[Status] = N'Active'");
         entity.HasIndex(r => new { r.PassengerId, r.CreatedAt });
+        entity.HasIndex(r => new { r.TripId, r.Kind, r.Status });
+        entity.HasIndex(r => r.IssuedAt);
         entity.ToTable(t => t.HasCheckConstraint("CK_Reservations_SeatNumber", "[SeatNumber] > 0"));
         entity.ToTable(t => t.HasCheckConstraint("CK_Reservations_Status", "([Status] = N'Active' AND [CancelledAt] IS NULL) OR ([Status] = N'Cancelled' AND [CancelledAt] IS NOT NULL)"));
         entity.HasOne(r => r.Trip).WithMany().HasForeignKey(r => r.TripId).OnDelete(DeleteBehavior.NoAction);
@@ -67,6 +69,9 @@ namespace Travela.Data
         e.HasIndex(p => p.RefundKey).IsUnique();
         e.HasOne(p => p.Reservation).WithOne(r => r.Payment).HasForeignKey<PaymentOrder>(p => p.ReservationId).OnDelete(DeleteBehavior.NoAction);
         e.HasIndex(p => new { p.RefundStatus, p.NextRefundAttemptAt });
+        e.HasIndex(p => new { p.IsTest, p.PaidAt });
+        e.HasIndex(p => new { p.IsTest, p.RefundStatusChangedAt });
+        e.HasIndex(p => new { p.IsTest, p.RefundedAt });
     });
     modelBuilder.Entity<LocalPaymentRecord>(e =>
     {
@@ -105,6 +110,7 @@ namespace Travela.Data
 
     modelBuilder.Entity<Trip>()
         .HasIndex(t => new { t.BusId, t.DepartureTime });
+    modelBuilder.Entity<Trip>().HasIndex(t => new { t.CompanyId, t.DepartureTime });
 
     modelBuilder.Entity<Bus>()
         .Property(b => b.PlateNumber)

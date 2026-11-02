@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiUrl } from "../../api";
@@ -365,6 +365,7 @@ function TripManagement() {
     setShowTripForm(true);
   };
 
+  const linkedDetail = useRef(new URLSearchParams(location.search).get("detail"));
   const openDetail = async (tripId: number) => {
     setDetailLoading(true);
     setDetail(null);
@@ -378,6 +379,12 @@ function TripManagement() {
       setDetailLoading(false);
     }
   };
+
+  useEffect(() => {
+    const id = Number(linkedDetail.current);
+    linkedDetail.current = null;
+    if (Number.isSafeInteger(id) && id > 0) void openDetail(id);
+  });
 
   const submitTrip = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

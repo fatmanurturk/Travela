@@ -1515,6 +1515,35 @@
 .reservation-number { font-family: monospace; }
 .reservation-state.active { color: #166534; }
 .test-payment-badge { background: #fff8dc; color: #78520a; padding: 14px; border: 1px solid #e3c471; border-radius: 10px; font-weight: 700; }
+.ticket-document-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 24px; }
+.ticket-document { width: min(100%, 740px); box-sizing: border-box; padding: clamp(20px, 5vw, 40px); margin: 0 auto; background: #fff; border: 1px solid #e1e8f2; border-radius: 20px; overflow-wrap: anywhere; }
+.ticket-document h1 { font-size: 26px; margin-top: 8px; }
+.ticket-document h2 { font-size: clamp(22px, 4vw, 30px); }
+.ticket-document-brand { color: #1d4ed8; font-size: 30px; font-weight: 850; }
+.ticket-document-brand span { color: #38bdf8; }
+.ticket-pnr { background: #f5f7fb; border-radius: 10px; padding: 14px; font-family: monospace; }
+.ticket-cancelled-banner { background: #ffebeb; color: #a62626; padding: 16px; border: 2px solid #a62626; border-radius: 10px; font-size: 24px; font-weight: 800; text-align: center; }
+.ticket-document-stamp { color: #60718b; font-size: 13px; margin-top: 24px; }
+.ticket-document-facts > div { padding-bottom: 12px; border-bottom: 1px solid #e8edf5; }
+.ticket-document-actions > *, .ticket-document-facts > div { min-width: 0; max-width: 100%; }
+.ticket-document-actions .site-button { box-sizing: border-box; white-space: normal; text-align: center; }
+.ticket-history, .ticket-refund-explanation { border-top: 1px solid #e8edf5; margin-top: 20px; padding-top: 14px; }
+.ticket-history h3, .ticket-refund-explanation h3 { font-size: 16px; margin: 0 0 8px; }
+.ticket-history p, .ticket-refund-explanation p { margin: 0; }
+@media (max-width: 480px) {
+  .ticket-document-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ticket-document-actions .back-home { grid-column: 1 / -1; margin-bottom: 0; }
+  .ticket-document-actions .site-button { width: 100%; padding: 10px 12px; }
+  .ticket-document { padding: 20px 16px; }
+}
+@media print {
+  .ticket-details-view .site-header, .ticket-document-actions, .ticket-document-error { display: none !important; }
+  .ticket-details-view, .ticket-details-view .trip-detail-page { background: #fff; padding: 0; margin: 0; width: 100%; }
+  .ticket-document { border: 0; border-radius: 0; padding: 0; width: 100%; max-width: none; color: #000; }
+  .ticket-document .test-payment-badge, .ticket-cancelled-banner { border: 2px solid currentColor; print-color-adjust: exact; }
+  .ticket-document-facts > div { break-inside: avoid; }
+  .ticket-document-stamp { color: #333; }
+}
 .booking-summary select { width: 100%; padding: 10px; border: 1px solid #cbd8eb; border-radius: 8px; font: inherit; margin: 10px 0; }
 .reservation-list { margin-top: 20px; }
 .reservation-state.cancelled { color: #a12626; }
@@ -1539,3 +1568,51 @@
   .travela-site .site-nav { display: flex; flex-wrap: wrap; gap: 14px; }
   .travela-site .site-actions { flex-wrap: wrap; }
 }
+/* Company reporting: keep wide tables inside their own scroll area. */
+.company-reporting { min-width: 0; }
+.report-scope > strong { display: block; padding: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.report-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 16px; }
+.report-filters label { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.report-filters input, .report-filters select { width: 100%; min-width: 0; box-sizing: border-box; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; font: inherit; }
+.report-filters small { font-size: 12px; color: #52647a; }
+.report-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 18px 0; }
+.report-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr)); gap: 18px; margin: 20px 0; }
+.report-card-grid .company-stat-card { min-width: 0; overflow-wrap: anywhere; }
+.report-card-grid h2 { font-size: 18px; margin: 10px 0; }
+.report-card-grid p, .report-card-grid small { font-size: 13px; line-height: 1.55; }
+.report-card-value { display: block; font-size: 26px; }
+.report-chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.report-chart { min-width: 0; }
+.report-chart svg { display: block; width: 100%; height: auto; }
+.report-series-one { color: #176f89; }.report-series-two { color: #b45309; }
+.company-reporting .company-panel { min-width: 0; margin-bottom: 20px; }
+.company-reporting .table-wrap { max-width: 100%; overflow-x: auto; }
+.report-trip-table { min-width: 2200px; }
+.report-trip-table td { max-width: 260px; overflow-wrap: anywhere; }
+.report-list { list-style: none; padding: 0; }.report-list li { padding: 14px 0; border-bottom: 1px solid #e2e8f0; overflow-wrap: anywhere; }.report-list span { display: block; margin-top: 6px; }
+.company-reporting button { white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
+@media(max-width: 760px) { .report-chart-grid { grid-template-columns: minmax(0, 1fr); }.company-reporting .company-panel { padding: 16px; } }
+.ui-details { margin: 12px 0; min-width: 0; overflow-wrap: anywhere; }
+.ui-details > summary { cursor: pointer; width: fit-content; max-width: 100%; padding: 10px 4px; color: #1c5484; font-weight: 600; min-height: 44px; box-sizing: border-box; }
+.ui-details > summary:focus-visible, .identifier-copy:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; border-radius: 5px; }
+.ui-details-content { padding: 2px 4px 10px; color: #52647a; line-height: 1.6; }
+.ui-details-content p { margin: 8px 0; }
+.report-summary-line { margin: 0; font-weight: 600; }
+.report-card-grid .company-stat-card { padding: 22px; }
+.report-card-grid .company-stat-card h2 { font-size: 16px; margin: 0 0 12px; }
+.report-card-grid .report-card-value { font-size: clamp(25px, 3vw, 32px); }
+.test-tag { display: inline-block; border: 1px solid #d8bd71; background: #fff8dc; color: #78520a; font-size: 11px; line-height: 1.4; letter-spacing: .04em; font-weight: 750; padding: 3px 7px; border-radius: 5px; margin: 4px 0; }
+.status-text { font-weight: 650; }.status-text.success { color: #166534; }.status-text.danger { color: #a12626; }.status-text.pending { color: #865400; }.status-text.neutral { color: #52647a; }
+.company-reservation-table { min-width: 1500px; }
+.company-reservation-table td { overflow-wrap: anywhere; }
+.company-reservation-table th:first-child, .company-reservation-table td:first-child { min-width: 220px; }
+.company-reservation-table th:nth-child(2), .company-reservation-table td:nth-child(2) { min-width: 200px; max-width: 260px; }
+.company-reservation-table th:nth-child(3), .company-reservation-table td:nth-child(3) { min-width: 150px; }
+.company-reservation-table th:nth-child(4), .company-reservation-table td:nth-child(4) { min-width: 150px; }
+.company-reservation-table th:nth-child(7), .company-reservation-table td:nth-child(7) { min-width: 130px; }
+.company-reservation-table th:nth-child(9), .company-reservation-table td:nth-child(9) { min-width: 170px; }
+.short-identifier { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; max-width: 100%; overflow-wrap: anywhere; }
+.identifier-copy { font: inherit; font-size: 12px; padding: 10px 6px; min-height: 44px; border: 0; border-radius: 5px; background: #edf3fa; color: #1c5484; cursor: pointer; }
+.reservation-card .site-button { margin: 6px 6px 6px 0; }
+.company-panel > h2, .report-chart > h2 { font-size: 21px; margin: 0 0 16px; }
+@media print { .identifier-copy, .test-environment-notice { display: none !important; } .ticket-document .ui-details-content { display: block !important; } }

@@ -97,7 +97,7 @@ public class PaymentService(TravelaDbContext db, IPaymentProvider provider, Time
             order.PaymentStatus = "Paid"; order.PaidAt = Now; order.ProviderReference = result.Reference;
             if (r.Kind == "Hold" && r.Status == "Active" && r.HoldExpiresAt > Now && trip.DepartureTime > Now && Scheduled(trip) && trip.Company.IsActive && trip.Bus.IsActive && trip.Route.IsActive)
             {
-                r.Kind = "Ticket"; r.Pnr = Guid.NewGuid().ToString("N").ToUpperInvariant();
+                r.Kind = "Ticket"; r.Pnr = Guid.NewGuid().ToString("N").ToUpperInvariant(); r.IssuedAt = Now;
             }
             else
             {
@@ -125,6 +125,7 @@ public class PaymentService(TravelaDbContext db, IPaymentProvider provider, Time
     {
         if (order.PaymentStatus != "Paid" || order.RefundStatus != "None") return;
         order.RefundStatus = "Pending"; order.RefundAmount = order.Amount; order.NextRefundAttemptAt = now;
+        order.RefundRequestedAt = now; order.RefundStatusChangedAt = now;
     }
 
     public async Task CancelTicket(int userId, string pnr, CancellationToken ct)
@@ -186,7 +187,9 @@ public class PaymentService(TravelaDbContext db, IPaymentProvider provider, Time
         await LockTrip(tripId, ct);
         order = await db.PaymentOrders.SingleAsync(p => p.Id == id, ct);
         if (order.RefundLeaseToken != lease) return;
-        order.RefundStatus = result.Status is "Succeeded" or "Pending" ? result.Status : "Failed";
+        var nextStatus = result.Status is "Succeeded" or "Pending" ? result.Status : "Failed";
+        if (order.RefundStatus != nextStatus || order.RefundStatusChangedAt == null) order.RefundStatusChangedAt = Now;
+        order.RefundStatus = nextStatus;
         order.RefundReference = result.Reference; order.LastError = result.Error;
         order.RefundLeaseUntil = null; order.RefundLeaseToken = null;
         order.NextRefundAttemptAt = order.RefundStatus == "Succeeded" ? null : Now.AddSeconds(Math.Min(3600, 15 * Math.Pow(2, order.RefundAttempts)));

@@ -15,6 +15,7 @@ public class Reservation
     public string Kind { get; set; } = "Legacy";
     public DateTime? HoldExpiresAt { get; set; }
     public string? Pnr { get; set; }
+    public DateTime? IssuedAt { get; set; }
     public PaymentOrder? Payment { get; set; }
     public DateTime? CancelledAt { get; set; }
     public string? CancellationReason { get; set; }

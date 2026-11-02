@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "node --test tests/*.test.mjs",
+    "test:browser": "playwright test",
+    "test:pdf": "node ../scripts/verify-ticket-pdfs.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -16,6 +18,7 @@
     "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",

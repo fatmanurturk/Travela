@@ -62,6 +62,42 @@ Mevcut test projesi ödeme akışına güncellendi. Gerçek SQL Server üzerinde
 dotnet run --project tests/Travela.ReservationTests -c PaymentVerification -- --verify-existing
 ```
 
+## Bilet detayı ve PDF belgesi
+
+`/tickets/:pnr` sayfasına Biletlerim ekranındaki **Bilet detayını gör** bağlantısıyla gidilir. Detay, `GET /api/tickets/:pnr` ile oturum sahibinin düzenlenmiş ve ödemesi doğrulanmış biletini getirir. PDF endpoint'i `GET /api/tickets/:pnr/pdf` aynı sahiplik ve ödeme kontrolünü yapar. PNR tek başına erişim anahtarı değildir. Girişsiz istek `401`, farklı rol `403`, başka yolcunun bileti veya ödenmemiş/ücretsiz kayıt `404` döner.
+
+Detay ve PDF yanıtları `Cache-Control: private, no-store` kullanır. PDF sunucuda veya statik dizinde tutulmaz; her indirmede güncel kayıttan bellekte üretilip attachment olarak gönderilir. Tarayıcı indirmesi bearer token'lı fetch ve kısa ömürlü blob URL kullanır; token URL'ye eklenmez. Detay sayfası açılışta, odağa dönüşte ve 15 saniyede bir yenilenir. Yazdır düğmesi de önce sunucudan güncel durumu getirir. İndirilmiş belgenin durum zamanı yazılıdır; sonradan değişen iptal/iade sonucu için sayfa tekrar kontrol edilmelidir.
+
+PNR, yolcu adı, firma, güzergâh, kalkış/varış, koltuk, satın alma tutarı, bilet/ödeme/iade durumları ve geçerli iptal son zamanı gösterilir. İptal edilmiş belgede iptal zamanı ve belirgin **İPTAL EDİLDİ** işareti vardır. Her test belgesinde **TEST BİLETİ — Gerçek seyahat için geçerli değildir** ibaresi bulunur. Saatler Türkiye saatidir. Mevcut iki saat iptal ve ödeme kuralları değiştirilmedi.
+
+PDFsharp/MigraDoc 6.2.4 ve gömülü açık lisanslı Lato yazı tipleri kullanılır; işletim sisteminde font kurulumu gerekmez. Font lisansı `backend/Assets/Fonts/OFL.txt` altında bulunur ve yayın çıktısına da kopyalanır. A5 dikey düzen ve Türkçe karakterler Poppler ile PNG'ye çevrilip görsel kontrol edilir. Üretilen QA örnekleri yalnızca sentetik test kayıtlarından `output/pdf/` altında oluşur; bu klasör statik web yolu değildir ve git'e dahil edilmez.
+
+Bu geliştirme veritabanı alanı/ilişkisi eklemediği için yeni migration gerekmez. Güncel testler aktif/iptal edilmiş PDF'yi, tamamlanmamış ödeme/ücretsiz kayda belge verilmemesini, farklı kullanıcı ve girişsiz erişimi ve güncel iade durumunu kapsar.
+
+### İade açıklamaları ve görünüm regresyonu
+
+`RefundPresentation` backend politikası, API'nin `refundStatusLabel` / `refundDescription` alanlarını üretir; PDF bu alanları kullanır. PDF'de tamamlanan iade **Tam iade tamamlandı**, bekleyen iade **İade talebi kaydedildi, sonuç bekleniyor** olarak açıklanır. Yolcu ekranları aynı güncel durum kodlarını kısa mesajlarla sunar: **İadeniz bekleniyor.**, **İadeniz tamamlandı.**, **İade tamamlanamadı.** Hata ayrıntıları açılır alandadır. Test ekranının üstünde tek ortam uyarısı, karma listelerde TEST etiketi bulunur; test bilet detayı/PDF seyahat geçersizliği uyarısını korur. `CancellationReason` ve `CancelledAt` tarihsel kayıtlardır; güncel iade açıklamasından ayrı gösterilir ve arayüz değişiklikleri bunları değiştirmez.
+
+Uzun kelimeler PDF'de koşullu satır bölme ile, HTML'de `overflow-wrap` ile taşmadan gösterilir. PNR değiştirilmez veya içine ayırıcı eklenmez. 360/390 px işlem alanı iki sütunlu uyarlanır; yazdırmada menü ve işlem butonları gizlenir. Son kontroller: 62 SQL Server/HTTP kontrolü, 8 birim testi, 9 tarayıcı testi ve 4 PDF içerik/sayfa sınırı doğrulaması. Aktif ve iptal edilmiş uzun metinli son PDF'ler tek A5 sayfadır ve görsel incelenmiştir.
+
+Görünüm testleri için önce SQL/HTTP testi sentetik API yanıtlarını `tmp/ticket-qa/` altına kaydeder; sonra ayrı 5178 portunda gerçek React/CSS sayfası ve geçici headless Chrome profiliyle tarayıcı testleri çalışır. Mevcut kullanıcı tarayıcısı, hesapları veya uygulama veritabanı bu görünüm testiyle değiştirilmez. API yetkilendirmesi mock edilmeden SQL/HTTP testinde ayrıca doğrulanır.
+
+```powershell
+dotnet run --project tests/Travela.ReservationTests -c TicketStatusVerification
+cd frontend
+npm.cmd ci
+npm.cmd test
+npm.cmd run test:browser
+```
+
+Varsayılan tarayıcı kanalı kurulu Google Chrome'dur. Chrome yoksa Playwright Chromium kurup `TRAVELA_BROWSER_CHANNEL=chromium` kullanın. Ekran görüntüleri `tmp/ticket-qa/screenshots/` altında oluşur; dosyalar yalnızca sentetik test verisidir. PDF içerik karşılaştırması için Poppler (`pdftotext`) PATH'te olmalı veya `POPPLER_BIN` araç dizinine ayarlanmalıdır:
+
+```powershell
+npm.cmd run test:pdf
+```
+
+Bu komut aktif, iptal edilmiş, bekleyen iade ve başarısız iade PDF'lerini API kayıtlarıyla karşılaştırır; Türkçe karakterleri, tam PNR'yi, test/iptal ibarelerini, geçmiş iptal nedenini, güncel iade açıklamasını ve tüm metinlerin sayfa sınırlarında kaldığını doğrular. Gerçek ödeme/iade entegrasyonu eklenmedi; iki saat kuralı ve koltuk işlemleri değiştirilmedi.
+
 ## Gerçek entegrasyon için gerekenler
 
 1. Seçilen sağlayıcı, sandbox hesabı, işyeri/satıcı kimliği, sandbox API adresleri ve belgeleri; test API kimlik bilgileri ve webhook imza doğrulama anahtarı. Bunlar secret store/ortam değişkenlerinde tutulmalı.

@@ -74,7 +74,7 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
     [Authorize(Roles = "Company")]
     public async Task<IActionResult> CompanyReservations([FromQuery] int? tripId, [FromQuery] DateOnly? dateFrom,
         [FromQuery] DateOnly? dateTo, [FromQuery] string? status, [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)
+        [FromQuery] int pageSize = 20, [FromQuery] Guid? orderId = null, CancellationToken cancellationToken = default)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)) return Unauthorized();
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId && u.IsActive && u.Role == "Company" && !u.MustChangePassword, cancellationToken);
@@ -83,6 +83,11 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
             return BadRequest(new { message = "Sefer, tarih, durum veya sayfa filtresi geçersiz." });
         // Never accept a company id from the caller. Scope every query to the authenticated company.
         var query = db.Reservations.AsNoTracking().Where(r => r.Trip.CompanyId == user.CompanyId);
+        if (orderId.HasValue)
+        {
+            if (!await db.PaymentOrders.AnyAsync(p => p.Id == orderId && p.Reservation.Trip.CompanyId == user.CompanyId, cancellationToken)) return NotFound(new { message = "İşlem bulunamadı." });
+            query = query.Where(r => r.Payment != null && r.Payment.Id == orderId);
+        }
         if (tripId.HasValue)
         {
             if (!await db.Trips.AnyAsync(t => t.Id == tripId && t.CompanyId == user.CompanyId, cancellationToken))

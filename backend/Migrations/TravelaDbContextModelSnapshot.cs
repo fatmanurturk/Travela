@@ -255,10 +255,16 @@ namespace Travela.API.Migrations
                     b.Property<string>("RefundReference")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("RefundRequestedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("RefundStatus")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("RefundStatusChangedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("RefundedAt")
                         .HasColumnType("datetime2");
@@ -276,6 +282,12 @@ namespace Travela.API.Migrations
 
                     b.HasIndex("ReservationId")
                         .IsUnique();
+
+                    b.HasIndex("IsTest", "PaidAt");
+
+                    b.HasIndex("IsTest", "RefundStatusChangedAt");
+
+                    b.HasIndex("IsTest", "RefundedAt");
 
                     b.HasIndex("PassengerId", "RequestKey")
                         .IsUnique();
@@ -317,6 +329,9 @@ namespace Travela.API.Migrations
                     b.Property<DateTime?>("HoldExpiresAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("IssuedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -355,6 +370,8 @@ namespace Travela.API.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("IssuedAt");
+
                     b.HasIndex("Pnr")
                         .IsUnique()
                         .HasFilter("[Pnr] IS NOT NULL");
@@ -367,6 +384,8 @@ namespace Travela.API.Migrations
                     b.HasIndex("TripId", "SeatNumber")
                         .IsUnique()
                         .HasFilter("[Status] = N'Active'");
+
+                    b.HasIndex("TripId", "Kind", "Status");
 
                     b.ToTable("Reservations", t =>
                         {
@@ -465,11 +484,11 @@ namespace Travela.API.Migrations
 
                     b.HasIndex("CancelledByUserId");
 
-                    b.HasIndex("CompanyId");
-
                     b.HasIndex("RouteId");
 
                     b.HasIndex("BusId", "DepartureTime");
+
+                    b.HasIndex("CompanyId", "DepartureTime");
 
                     b.ToTable("Trips");
                 });

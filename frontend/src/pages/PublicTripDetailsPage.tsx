@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiUrl } from "../api";
+import { Details } from "../components/UiDetails";
 import SiteHeader from "../components/SiteHeader";
 
 import { currentRole, tripStatusLabel } from "../reservations";
@@ -98,7 +99,7 @@ function TripDetails({ id }: { id: string | undefined }) {
       const data = await response.json().catch(() => null);
       if (!response.ok) {
         if (response.status === 409) refresh();
-        throw new Error(response.status === 403 ? "Bilet satın almak için Passenger (yolcu) hesabıyla giriş yapınız." : data?.message ?? "Ödeme adımı açılamadı. Lütfen tekrar deneyiniz.");
+        throw new Error(response.status === 403 ? "Bilet satın almak için yolcu hesabıyla giriş yapınız." : data?.message ?? "Ödeme adımı açılamadı. Lütfen tekrar deneyiniz.");
       }
       const path = safeCheckoutPath(data.checkoutUrl);
       if (!path) throw new Error("Ödeme adresi alınamadı. Biletlerim sayfasını kontrol ediniz.");
@@ -128,7 +129,7 @@ function TripDetails({ id }: { id: string | undefined }) {
               </div>
               <div className="trip-detail-facts"><span>{Math.floor(trip.durationMinutes / 60)} sa {trip.durationMinutes % 60} dk yolculuk</span><span>{trip.availableSeats} boş koltuk</span></div>
               <div className="trip-detail-price"><span>Kişi başı</span><strong>{currencyFormatter.format(trip.price)}</strong></div>
-              <p className="booking-notice">Ödeme doğrulanmadan bilet düzenlenmez. Geliştirme ortamındaki işlemler yalnızca testtir.</p>
+
               <Link to="/#sefer-ara" className="site-button secondary">Başka sefer ara</Link>
             </section>
             <section className="seat-booking" aria-labelledby="seat-heading">
@@ -136,8 +137,8 @@ function TripDetails({ id }: { id: string | undefined }) {
                 <h2 id="seat-heading">Koltuğunuzu seçin</h2>
                 <p>{trip.seatCapacity} koltuk · Sefer durumu: {tripStatusLabel(trip.status)}</p>
                 <p className="seat-legend"><span>□ Boş</span><span>▧ Dolu</span><span>✓ Seçili</span></p>
-                <p className="booking-notice">Numaralı plan kapasiteye göre hazırlanmıştır; otobüsün fiziksel yerleşimini temsil etmez.</p>
-                {!trip.canReserve && <p role="status">{trip.departureHasPassed ? "Bu seferin kalkış zamanı geçtiği için bilet alınamaz." : tripStatusLabel(trip.status) === "İptal edildi" ? "Bu sefer iptal edildiği için bilet alınamaz." : !trip.seatPlanAvailable ? "Bu seferin eski kontenjan bilgileri koltuk kayıtlarıyla eşleşmiyor. Firma doğrulaması bekleniyor." : trip.availableSeats === 0 ? "Bu seferde boş koltuk kalmadı." : "Bu sefer bilet satışına kapalı."}</p>}
+                <Details title="Koltuk planı hakkında"><p>Koltukların otobüsteki yerleşimi farklı olabilir.</p></Details>
+                {!trip.canReserve && <p role="status">{trip.departureHasPassed ? "Bu seferin kalkış zamanı geçtiği için bilet alınamaz." : tripStatusLabel(trip.status) === "İptal edildi" ? "Bu sefer iptal edildiği için bilet alınamaz." : !trip.seatPlanAvailable ? "Koltuk bilgileri kontrol ediliyor. Lütfen daha sonra deneyin." : trip.availableSeats === 0 ? "Bu seferde boş koltuk kalmadı." : "Bu sefer bilet satışına kapalı."}</p>}
                 {trip.seatPlanAvailable && <div className="seat-plan" role="group" aria-label="Numaralı koltuk planı">
                   <div className="bus-front" aria-hidden="true">Otobüsün önü ↑</div>
                   {Array.from({ length: trip.seatCapacity }, (_, index) => index + 1).map(seat => {
@@ -162,10 +163,10 @@ function TripDetails({ id }: { id: string | undefined }) {
                   <p><strong>Koltuk {selectedSeat}</strong></p>
                   <p>Bilet fiyatı: <strong>{currencyFormatter.format(trip.price)}</strong></p>
                 </> : <p>Devam etmek için boş bir koltuk seçiniz.</p>}
-                <p className="booking-notice">Ödeme doğrulanmadan bilet düzenlenmez. Geliştirme ortamındaki işlemler yalnızca testtir. Seçim yapmak koltuğu ayırmaz. Ödeme adımında en fazla 10 dakikalık dahili tutma uygulanır.</p>
-                {token && role !== "Passenger" ? <p role="status">Bilet satın almak için Passenger (yolcu) hesabıyla giriş yapmalısınız.</p> :
+                <p className="booking-notice">Biletiniz ödeme tamamlandığında oluşur. Koltuğunuz ödeme adımında 10 dakika ayrılır.</p>
+                {token && role !== "Passenger" ? <p role="status">Bilet almak için yolcu hesabınızla giriş yapın.</p> :
                   <button type="button" className="site-button primary" disabled={selectedSeat === null || !trip.canReserve || saving}
-                    onClick={() => void reserve()}>{saving ? "Ödeme adımı hazırlanıyor..." : token ? "Test ödeme adımına geç" : "Giriş yap ve devam et"}</button>}
+                    onClick={() => void reserve()}>{saving ? "Ödeme adımı hazırlanıyor..." : token ? "Ödemeye geç" : "Giriş yap ve devam et"}</button>}
               </aside>
             </section>
           </>

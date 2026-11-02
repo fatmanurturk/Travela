@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { dateTime, money, reservationNotice, reservationStatusLabel, tripStatusLabel } from "../reservations";
+import { dateTime, money, reservationStatusLabel, tripStatusLabel } from "../reservations";
+import { Identifier } from "./UiDetails";
 import type { Reservation } from "../reservations";
 
 export default function ReservationSummary({ reservation, onCancel, cancelling = false }: { reservation: Reservation; onCancel?: (reservation: Reservation) => void; cancelling?: boolean }) {
@@ -8,7 +9,7 @@ export default function ReservationSummary({ reservation, onCancel, cancelling =
     <h2>{reservation.departureCity} → {reservation.arrivalCity}</h2>
     <p>{reservation.companyName} · Sefer #{reservation.tripId}</p>
     <dl className="reservation-facts">
-      <div><dt>Rezervasyon numarası</dt><dd className="reservation-number">{reservation.reservationNumber}</dd></div>
+      <div><dt>Kayıt numarası</dt><dd className="reservation-number"><Identifier value={reservation.reservationNumber} /></dd></div>
       <div><dt>Rezervasyon durumu</dt><dd className={`reservation-state ${reservation.status === "Cancelled" ? "cancelled" : "active"}`}>{reservationStatusLabel(reservation.status)}</dd></div>
       <div><dt>Koltuk</dt><dd>{reservation.seatNumber}</dd></div>
       <div><dt>Kalkış</dt><dd>{dateTime.format(new Date(reservation.departureTime))}</dd></div>
@@ -20,7 +21,6 @@ export default function ReservationSummary({ reservation, onCancel, cancelling =
       {reservation.cancelledAt && <div><dt>İptal zamanı</dt><dd>{dateTime.format(new Date(reservation.cancelledAt))}</dd></div>}
       {reservation.cancellationReason && <div><dt>İptal nedeni</dt><dd>{reservation.cancellationReason}</dd></div>}
     </dl>
-    <p className="booking-notice">{reservationNotice}</p>
     <Link to={`/trips/${reservation.tripId}`} className="site-button secondary">Sefer detayını gör</Link>
     {onCancel && reservation.status === "Active" && reservation.canCancel && <button type="button" className="site-button reservation-cancel" disabled={cancelling} onClick={() => onCancel(reservation)}>{cancelling ? "İşleniyor..." : "Ücretsiz kaydı serbest bırak"}</button>}
   </article>;

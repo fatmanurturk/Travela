@@ -6,16 +6,19 @@ using Microsoft.EntityFrameworkCore;
 using Travela.Api.Payments;
 using Travela.Data;
 using Travela.DTOs;
+using Travela.Api.Documents;
 
 namespace Travela.Api.Controllers;
 
 [ApiController, Route("api/tickets"), Authorize(Roles = "Passenger")]
-public class TicketsController(TravelaDbContext db, PaymentService payments, LocalTestPaymentProvider local, IWebHostEnvironment env, TimeProvider clock) : ControllerBase
+public class TicketsController(TravelaDbContext db, PaymentService payments, LocalTestPaymentProvider local, IWebHostEnvironment env, TimeProvider clock, TicketPdfRenderer pdf) : ControllerBase
 {
     private int UserId => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : -1;
     private Task<bool> ActiveUser(CancellationToken ct) => db.Users.AnyAsync(u => u.Id == UserId && u.Role == "Passenger" && u.IsActive && !u.MustChangePassword, ct);
     private async Task<IActionResult> Run(Func<Task<IActionResult>> action, CancellationToken ct)
     {
+        Response.Headers.CacheControl = "private, no-store, max-age=0";
+        Response.Headers.Pragma = "no-cache";
         if (!await ActiveUser(ct)) return Unauthorized();
         try { return await action(); }
         catch (PaymentFlowException e) { return StatusCode(e.Status, new { message = e.Message }); }
@@ -49,6 +52,28 @@ public class TicketsController(TravelaDbContext db, PaymentService payments, Loc
         var id = await db.PaymentOrders.Where(p => p.Reservation.Pnr == pnr && p.PassengerId == UserId).Select(p => p.Id).SingleAsync(ct);
         return Ok(await Detail(id, ct));
     }, ct);
+    [HttpGet("{pnr}")]
+    public Task<IActionResult> Ticket(string pnr, CancellationToken ct) => Run(async () =>
+    {
+        var ticket = await IssuedTicket(pnr, ct);
+        return ticket == null ? NotFound(new { message = "Bilet bulunamadı veya bu bilete erişim izniniz yok." }) : Ok(ticket);
+    }, ct);
+    [HttpGet("{pnr}/pdf")]
+    public Task<IActionResult> Pdf(string pnr, CancellationToken ct) => Run(async () =>
+    {
+        var ticket = await IssuedTicket(pnr, ct);
+        if (ticket == null) return NotFound(new { message = "Bilet belgesi bulunamadı veya erişim izniniz yok." });
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(pdf.Render(ticket), "application/pdf", $"Travela-{ticket.Pnr}.pdf");
+    }, ct);
+    private async Task<PurchaseDto?> IssuedTicket(string pnr, CancellationToken ct)
+    {
+        // PNR alone is never an access token. Free records and unpaid holds cannot produce a document.
+        var id = await db.PaymentOrders.AsNoTracking()
+            .Where(p => p.PassengerId == UserId && p.PaymentStatus == "Paid" && p.Reservation.Kind == "Ticket" && p.Reservation.Pnr == pnr)
+            .Select(p => (Guid?)p.Id).SingleOrDefaultAsync(ct);
+        return id.HasValue ? await Detail(id.Value, ct) : null;
+    }
     [HttpPost("local/{id:guid}/complete")]
     public Task<IActionResult> Simulate(Guid id, TestPaymentDto dto, CancellationToken ct) => Run(async () =>
     {
@@ -75,11 +100,13 @@ public class TicketsController(TravelaDbContext db, PaymentService payments, Loc
     private async Task<PurchaseDto> Detail(Guid id, CancellationToken ct)
     {
         var p = await db.PaymentOrders.AsNoTracking().Include(p => p.Reservation).ThenInclude(r => r.Trip).ThenInclude(t => t.Route)
-            .Include(p => p.Reservation).ThenInclude(r => r.Trip).ThenInclude(t => t.Company).SingleAsync(p => p.Id == id && p.PassengerId == UserId, ct);
+            .Include(p => p.Reservation).ThenInclude(r => r.Trip).ThenInclude(t => t.Company)
+            .Include(p => p.Reservation).ThenInclude(r => r.Passenger).SingleAsync(p => p.Id == id && p.PassengerId == UserId, ct);
         var r = p.Reservation; var t = r.Trip;
         DateTime Utc(DateTime d) => DateTime.SpecifyKind(d, DateTimeKind.Utc);
         return new() { Id = id, Pnr = r.Pnr, Kind = r.Kind, TripId = t.Id, SeatNumber = r.SeatNumber,
-            CompanyName = t.Company.Name, DepartureCity = t.Route.DepartureCity, ArrivalCity = t.Route.ArrivalCity,
+            CompanyName = t.Company.Name, PassengerName = r.Passenger.FullName, DepartureCity = t.Route.DepartureCity, ArrivalCity = t.Route.ArrivalCity,
+            ArrivalTime = Utc(t.ArrivalTime), PaidAt = p.PaidAt.HasValue ? Utc(p.PaidAt.Value) : null, RetrievedAt = clock.GetUtcNow().UtcDateTime,
             DepartureTime = Utc(t.DepartureTime), CancelDeadline = Utc(t.DepartureTime.AddHours(-2)),
             HoldExpiresAt = r.HoldExpiresAt.HasValue ? Utc(r.HoldExpiresAt.Value) : null,
             Amount = p.Amount, Currency = p.Currency, IsTest = p.IsTest, PaymentStatus = p.PaymentStatus,

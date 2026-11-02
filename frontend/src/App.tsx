@@ -18,6 +18,7 @@ import HomePage from "./pages/HomePage";
 import SearchResultsPage from "./pages/SearchResultsPage";
 import PublicTripDetailsPage from "./pages/PublicTripDetailsPage";
 import CheckoutPage from "./pages/CheckoutPage";
+import TicketDetailsPage from "./pages/TicketDetailsPage";
 import MyReservationsPage from "./pages/MyReservationsPage";
 import Register from "./pages/Register";
 import FirstLoginPasswordChange from "./pages/FirstLoginPasswordChange";
@@ -31,6 +32,7 @@ function App() {
       <Route path="/search" element={<SearchResultsPage />} />
       <Route path="/trips/:id" element={<PublicTripDetailsPage />} />
       <Route path="/tickets" element={<ProtectedRoute allowedRole="Passenger"><MyReservationsPage /></ProtectedRoute>} />
+      <Route path="/tickets/:pnr" element={<ProtectedRoute allowedRole="Passenger"><TicketDetailsPage /></ProtectedRoute>} />
       <Route path="/reservations" element={<Navigate to="/tickets" replace />} />
       <Route path="/test-payment/:id" element={<ProtectedRoute allowedRole="Passenger"><CheckoutPage /></ProtectedRoute>} />
       <Route path="/login" element={<Login />} />

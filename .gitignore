@@ -22,3 +22,7 @@ obj/
 
 # Local secrets
 appsettings.Development.json
+
+# Generated local QA artifacts (never public ticket storage)
+/tmp/
+/output/
