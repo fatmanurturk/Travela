@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 
 type ProtectedRouteProps = {
@@ -10,11 +10,13 @@ function ProtectedRoute({
   children,
   allowedRole,
 }: ProtectedRouteProps) {
+  const location = useLocation();
+  const loginPath = `/login?returnTo=${encodeURIComponent(location.pathname)}`;
   const token = sessionStorage.getItem("travela_token");
   const storedUser = sessionStorage.getItem("travela_user");
 
   if (!token || !storedUser) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginPath} replace />;
   }
 
   let user;
@@ -22,10 +24,10 @@ function ProtectedRoute({
   try {
     user = JSON.parse(storedUser);
   } catch {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginPath} replace />;
   }
 
-  if (user.role !== allowedRole) {
+  if (!user || user.role !== allowedRole) {
     return <Navigate to="/" replace />;
   }
 

@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiUrl } from "../api";
 import SiteHeader from "../components/SiteHeader";
+import ReservationSummary from "../components/ReservationSummary";
+import { currentRole, reservationNotice, tripStatusLabel } from "../reservations";
+import type { Reservation } from "../reservations";
 
 type PublicTrip = {
   id: number;
@@ -13,6 +16,12 @@ type PublicTrip = {
   durationMinutes: number;
   price: number;
   availableSeats: number;
+  seatCapacity: number;
+  occupiedSeats: number[];
+  canReserve: boolean;
+  seatPlanAvailable: boolean;
+  departureHasPassed: boolean;
+  status: string;
 };
 
 const currencyFormatter = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" });
@@ -29,9 +38,25 @@ const CURRENT_YEAR = new Date().getFullYear();
 
 function PublicTripDetailsPage() {
   const { id } = useParams();
+  return <TripDetails key={id} id={id} />;
+}
+
+function TripDetails({ id }: { id: string | undefined }) {
   const [trip, setTrip] = useState<PublicTrip | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [bookingError, setBookingError] = useState("");
+  const [reservation, setReservation] = useState<Reservation | null>(null);
+  const [revision, setRevision] = useState(0);
+  const navigate = useNavigate();
+  const token = sessionStorage.getItem("travela_token");
+  const role = currentRole();
+  const loginPath = `/login?returnTo=${encodeURIComponent(`/trips/${id}`)}`;
+  const refresh = () => {
+    setLoading(true); setError(""); setSelectedSeat(null); setRevision(v => v + 1);
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -39,28 +64,59 @@ function PublicTripDetailsPage() {
       try {
         const response = await fetch(apiUrl(`/api/trips/public/${id}`), { signal: controller.signal });
         if (!response.ok) {
-          if (response.status === 404) throw new Error("Sefer bulunamadı veya artık satışta değil.");
+          if (response.status === 404) throw new Error("Sefer bulunamadı.");
           throw new Error("Sefer bilgileri şu anda alınamıyor.");
         }
-        setTrip(await response.json() as PublicTrip);
+        const details = await response.json() as PublicTrip;
+        // Older running API builds do not yet return the server-computed time flag.
+        details.departureHasPassed ??= new Date(details.departureTime).getTime() <= Date.now();
+        setTrip(details);
       } catch (cause) {
         if (cause instanceof DOMException && cause.name === "AbortError") return;
-        setError(cause instanceof Error ? cause.message : "Sefer bilgileri alınamadı.");
+        setError(cause instanceof TypeError ? "Sunucuya bağlanılamadı. Lütfen tekrar deneyiniz." : cause instanceof Error ? cause.message : "Sefer bilgileri alınamadı.");
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
     };
     void loadTrip();
     return () => controller.abort();
-  }, [id]);
+  }, [id, revision]);
+
+  const reserve = async () => {
+    if (!token) { navigate(loginPath); return; }
+    if (!trip || selectedSeat === null || saving) return;
+    setSaving(true); setBookingError(""); setReservation(null);
+    try {
+      const response = await fetch(apiUrl("/api/reservations"), {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ tripId: trip.id, seatNumber: selectedSeat }),
+      });
+      if (response.status === 401) {
+        sessionStorage.removeItem("travela_token"); sessionStorage.removeItem("travela_user");
+        navigate(loginPath); return;
+      }
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        if (response.status === 409) refresh();
+        throw new Error(response.status === 403 ? "Rezervasyon için Passenger (yolcu) hesabıyla giriş yapınız." : data?.message ?? "Rezervasyon yapılamadı. Lütfen tekrar deneyiniz.");
+      }
+      setReservation(data as Reservation);
+      setSelectedSeat(null);
+      refresh();
+    } catch (cause) {
+      setBookingError(cause instanceof TypeError ? "Sunucu yanıtı alınamadı. Yeniden denemeden önce Rezervasyonlarım sayfasını kontrol ediniz." : cause instanceof Error ? cause.message : "Rezervasyon sonucu alınamadı. Yeniden denemeden önce Rezervasyonlarım sayfasını kontrol ediniz.");
+    } finally { setSaving(false); }
+  };
 
   return (
     <div className="travela-site">
       <SiteHeader />
       <main className="trip-detail-page">
         <Link to="/" className="back-home">← Ana sayfaya dön</Link>
+        {reservation && <section className="reservation-success" aria-live="polite"><p role="status">Rezervasyonunuz başarıyla oluşturuldu.</p><ReservationSummary reservation={reservation} /><Link to="/reservations">Rezervasyonlarım sayfasına git</Link></section>}
+        {bookingError && <div className="results-message error" role="alert">{bookingError} <Link to="/reservations">Rezervasyonlarımı kontrol et</Link></div>}
         {loading ? <div className="site-empty-state">Sefer bilgileri yükleniyor...</div> : error ? (
-          <div className="results-message error" role="alert"><p>{error}</p><Link to="/search?all=true" className="site-button primary">Diğer seferleri gör</Link></div>
+          <div className="results-message error" role="alert"><p>{error}</p><button type="button" className="site-button secondary" onClick={refresh}>Tekrar dene</button> <Link to="/search?all=true" className="site-button primary">Diğer seferleri gör</Link></div>
         ) : trip ? (
           <>
             <span className="eyebrow">{trip.companyName}</span>
@@ -73,8 +129,45 @@ function PublicTripDetailsPage() {
               </div>
               <div className="trip-detail-facts"><span>{Math.floor(trip.durationMinutes / 60)} sa {trip.durationMinutes % 60} dk yolculuk</span><span>{trip.availableSeats} boş koltuk</span></div>
               <div className="trip-detail-price"><span>Kişi başı</span><strong>{currencyFormatter.format(trip.price)}</strong></div>
-              <p className="booking-notice">Bu sefer için fiyat ve koltuk bilgileri mevcut. Koltuk seçimi ve bilet rezervasyonu henüz platformda sunulmuyor.</p>
+              <p className="booking-notice">{reservationNotice}</p>
               <Link to="/#sefer-ara" className="site-button secondary">Başka sefer ara</Link>
+            </section>
+            <section className="seat-booking" aria-labelledby="seat-heading">
+              <div>
+                <h2 id="seat-heading">Koltuğunuzu seçin</h2>
+                <p>{trip.seatCapacity} koltuk · Sefer durumu: {tripStatusLabel(trip.status)}</p>
+                <p className="seat-legend"><span>□ Boş</span><span>▧ Dolu</span><span>✓ Seçili</span></p>
+                <p className="booking-notice">Numaralı plan kapasiteye göre hazırlanmıştır; otobüsün fiziksel yerleşimini temsil etmez.</p>
+                {!trip.canReserve && <p role="status">{trip.departureHasPassed ? "Bu seferin kalkış zamanı geçtiği için rezervasyon yapılamaz." : tripStatusLabel(trip.status) === "İptal edildi" ? "Bu sefer iptal edildiği için rezervasyon yapılamaz." : !trip.seatPlanAvailable ? "Bu seferin eski kontenjan bilgileri koltuk kayıtlarıyla eşleşmiyor. Firma doğrulaması bekleniyor." : trip.availableSeats === 0 ? "Bu seferde boş koltuk kalmadı." : "Bu sefer rezervasyona kapalı."}</p>}
+                {trip.seatPlanAvailable && <div className="seat-plan" role="group" aria-label="Numaralı koltuk planı">
+                  <div className="bus-front" aria-hidden="true">Otobüsün önü ↑</div>
+                  {Array.from({ length: trip.seatCapacity }, (_, index) => index + 1).map(seat => {
+                    const occupied = trip.occupiedSeats.includes(seat);
+                    const selected = selectedSeat === seat;
+                    return <button key={seat} type="button" className={`seat ${occupied ? "occupied" : selected ? "selected" : "available"}`}
+                      aria-label={`Koltuk ${seat}, ${occupied ? "dolu" : selected ? "seçili" : "boş"}`} aria-pressed={selected}
+                      disabled={occupied || !trip.canReserve || saving}
+                      onClick={() => { setSelectedSeat(selected ? null : seat); setBookingError(""); }}>
+                      {seat}<small>{occupied ? "Dolu" : selected ? "✓" : "Boş"}</small>
+                    </button>;
+                  })}
+                </div>}
+                <button type="button" className="site-button secondary" disabled={saving} onClick={refresh}>Koltuk planını yenile</button>
+              </div>
+              <aside className="booking-summary" aria-live="polite">
+                <h2>Rezervasyon özeti</h2>
+                {selectedSeat !== null ? <>
+                  <p>{trip.companyName} · Sefer #{trip.id}</p>
+                  <p>{trip.departureCity} → {trip.arrivalCity}</p>
+                  <p>{dateTimeFormatter.format(new Date(trip.departureTime))}</p>
+                  <p><strong>Koltuk {selectedSeat}</strong></p>
+                  <p>Rezervasyon fiyatı: <strong>{currencyFormatter.format(trip.price)}</strong></p>
+                </> : <p>Devam etmek için boş bir koltuk seçiniz.</p>}
+                <p className="booking-notice">{reservationNotice} Seçim yapmak koltuğu ayırmaz; uygunluk kaydetme sırasında tekrar kontrol edilir.</p>
+                {token && role !== "Passenger" ? <p role="status">Rezervasyon için Passenger (yolcu) hesabıyla giriş yapmalısınız.</p> :
+                  <button type="button" className="site-button primary" disabled={selectedSeat === null || !trip.canReserve || saving}
+                    onClick={() => void reserve()}>{saving ? "Rezervasyon yapılıyor..." : token ? "Rezervasyonu oluştur" : "Giriş yap ve devam et"}</button>}
+              </aside>
             </section>
           </>
         ) : null}

@@ -377,6 +377,11 @@ namespace Travela.Api.Controllers
                 return Forbid();
             }
 
+            if (dto.SeatCapacity != bus.SeatCapacity && await _context.Trips.AnyAsync(t => t.BusId == id))
+            {
+                return Conflict(new { message = "Seferlere atanmış otobüsün kapasitesi değiştirilemez. Önce sefer için uygun kapasiteli başka bir otobüs seçiniz." });
+            }
+
             if (dto.SeatCapacity <= 0)
             {
                 return BadRequest(new { message = "Koltuk kapasitesi 0'dan büyük olmalıdır." });

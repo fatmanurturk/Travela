@@ -1434,7 +1434,7 @@
   font: inherit;
 }
 
-.profile-field input:focus-visible {
+.profile-field input:focus-visible {  
   outline: 2px solid #2860f5;
   outline-offset: 2px;
 }
@@ -1463,4 +1463,76 @@
 
 .profile-password-section h2 {
   margin-top: 0;
+}
+
+.seat-booking {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 28px;
+  margin: 28px 0;
+  padding: 28px;
+  background: #fff;
+  border: 1px solid #e1e8f2;
+  border-radius: 20px;
+}
+.seat-legend { display: flex; flex-wrap: wrap; gap: 18px; font-weight: 600; }
+.seat-plan {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(44px, 1fr)) 24px repeat(2, minmax(44px, 1fr));
+  gap: 10px;
+  max-width: 340px;
+  margin: 20px 0;
+  padding: 18px;
+  border: 2px solid #cbd8eb;
+  border-radius: 32px 32px 16px 16px;
+}
+.bus-front { grid-column: 1 / -1; text-align: center; padding: 8px 0 20px; color: #60718b; }
+.seat:nth-of-type(4n + 3) { grid-column: 4; }
+.seat {
+  min-width: 44px;
+  min-height: 54px;
+  border: 2px solid #7397d5;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #173052;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.seat small { display: block; font-size: 10px; font-weight: 500; }
+.seat.selected { background: #2563eb; border-color: #1d4ed8; color: #fff; }
+.seat.occupied { background: repeating-linear-gradient(45deg, #e2e8f0, #e2e8f0 4px, #f1f5f9 4px, #f1f5f9 8px); border-color: #94a3b8; color: #475569; }
+.seat:disabled { cursor: not-allowed; }
+.seat:disabled:not(.occupied) { opacity: .55; }
+.seat:focus-visible { outline: 3px solid #0f172a; outline-offset: 3px; }
+.booking-summary { padding: 22px; border-radius: 16px; background: #f5f7fb; align-self: start; }
+.reservation-list { display: grid; gap: 22px; }
+.reservation-card { padding: 24px; background: #fff; border: 1px solid #e1e8f2; border-radius: 18px; }
+.reservation-card h2 { font-size: 22px; }
+.reservation-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.reservation-facts dt { color: #60718b; font-size: 14px; }
+.reservation-facts dd { margin: 5px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.reservation-number { font-family: monospace; }
+.reservation-state.active { color: #166534; }
+.reservation-state.cancelled { color: #a12626; }
+.reservation-cancel { color: #a12626; border-color: #efbcbc; background: #fff4f4; margin: 8px; }
+.reservation-confirm::backdrop { background: #172b4d99; }
+.reservation-confirm { border: 0; color: #172b4d; background: #fff; border-radius: 18px; padding: 24px; width: min(480px, calc(100% - 32px)); box-sizing: border-box; max-height: 90vh; overflow-y: auto; }
+.reservation-confirm-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+.company-reservation-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+.company-reservation-filters label { display: grid; gap: 8px; font-weight: 600; }
+.company-reservation-filters input, .company-reservation-filters select { width: 100%; min-width: 0; padding: 12px; box-sizing: border-box; border: 1px solid #cbd8eb; border-radius: 10px; font: inherit; }
+.company-reservation-filters .company-form-actions { grid-column: 1 / -1; }
+.company-reservation-table { min-width: 900px; }
+.company-reservation-table .reservation-number { display: inline-block; max-width: 180px; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .company-reservation-filters { grid-template-columns: minmax(0, 1fr); } }
+.reservation-success { margin: 24px 0; padding: 18px; border: 1px solid #6bbd91; border-radius: 18px; background: #effcf4; }
+@media (max-width: 700px) {
+  .seat-booking { grid-template-columns: minmax(0, 1fr); padding: 16px; gap: 18px; }
+  .seat-plan { padding: 12px; gap: 7px; grid-template-columns: repeat(2, minmax(40px, 1fr)) 14px repeat(2, minmax(40px, 1fr)); }
+  .reservation-facts { grid-template-columns: minmax(0, 1fr); }
+  .reservation-card, .booking-summary { padding: 18px; }
+  .travela-site .site-header { flex-wrap: wrap; gap: 12px; }
+  .travela-site .site-nav { display: flex; flex-wrap: wrap; gap: 14px; }
+  .travela-site .site-actions { flex-wrap: wrap; }
 }

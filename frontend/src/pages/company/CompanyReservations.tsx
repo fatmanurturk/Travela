@@ -1,147 +1,65 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiUrl } from "../../api";
+import { dateTime, money, reservationStatusLabel } from "../../reservations";
+import type { Reservation } from "../../reservations";
 
-type TripItem = {
-  id: number;
-  companyId: number;
-  departureCity: string;
-  arrivalCity: string;
-  departureTime: string;
-  arrivalTime: string;
-  status: string;
-  busCapacity: number;
-  availableSeats: number;
-};
+type CompanyReservation = Reservation & { passengerName: string };
+type Filters = { tripId: string; dateFrom: string; dateTo: string; status: string };
+const emptyFilters: Filters = { tripId: "", dateFrom: "", dateTo: "", status: "" };
 
-function CompanyReservations() {
-  const navigate = useNavigate();
-  const [trips, setTrips] = useState<TripItem[]>([]);
+export default function CompanyReservations() {
+  const [items, setItems] = useState<CompanyReservation[]>([]);
+  const [draft, setDraft] = useState<Filters>(emptyFilters);
+  const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const getHeaders = (): HeadersInit => ({
-    Authorization: `Bearer ${sessionStorage.getItem("travela_token") || ""}`,
-  });
-
+  const [revision, setRevision] = useState(0);
+  const navigate = useNavigate();
+  const pageSize = 20;
   useEffect(() => {
-    const loadTrips = async () => {
+    const controller = new AbortController();
+    void (async () => {
       try {
-        const response = await fetch(`${apiUrl("/api/trips")}?pageNumber=1&pageSize=100`, {
-          headers: getHeaders(),
+        const query = new URLSearchParams({ pageNumber: String(page), pageSize: String(pageSize) });
+        for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
+        const response = await fetch(apiUrl(`/api/reservations/company?${query}`), {
+          headers: { Authorization: `Bearer ${sessionStorage.getItem("travela_token") ?? ""}` }, signal: controller.signal,
         });
-
         if (response.status === 401) {
-          sessionStorage.removeItem("travela_token");
-          sessionStorage.removeItem("travela_user");
-          navigate("/login", { replace: true });
-          return;
+          sessionStorage.removeItem("travela_token"); sessionStorage.removeItem("travela_user");
+          navigate("/login", { replace: true }); return;
         }
-
-        if (!response.ok) {
-          throw new Error("Sefer bilgileri alınamadı.");
-        }
-
-        const data = (await response.json()) as { items?: TripItem[] };
-        if (!Array.isArray(data.items)) {
-          throw new Error("Sefer verileri API tarafından beklenen biçimde döndürülmedi.");
-        }
-        setTrips(data.items);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Rezervasyon verileri yüklenemedi.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadTrips();
-  }, [navigate]);
-
-  const stats = useMemo(() => {
-    if (trips.length === 0) {
-      return {
-        totalTrips: "Henüz Kullanılamıyor",
-        occupiedSeats: "Henüz Kullanılamıyor",
-        occupancyRate: "Henüz Kullanılamıyor",
-        reservationStatus: "Henüz Kullanılamıyor",
-      };
-    }
-
-    const totalCapacity = trips.reduce((sum, trip) => sum + (trip.busCapacity || 0), 0);
-    const reservedSeats = trips.reduce((sum, trip) => sum + Math.max((trip.busCapacity || 0) - (trip.availableSeats || 0), 0), 0);
-    const occupancyRate = totalCapacity > 0 ? Math.round((reservedSeats / totalCapacity) * 100) : 0;
-    const activeTrips = trips.filter((trip) => ["Scheduled", "InProgress", "Planlandı", "Devam Ediyor"].includes(trip.status)).length;
-
-    return {
-      totalTrips: String(trips.length),
-      occupiedSeats: `${reservedSeats} koltuk`,
-      occupancyRate: `${occupancyRate}%`,
-      reservationStatus: activeTrips > 0 ? `${activeTrips} aktif sefer` : "Beklemede",
-    };
-  }, [trips]);
-
-  return (
-    <div className="company-dashboard">
-      <div className="company-dashboard-header">
-        <h1>Bilet ve Rezervasyonlar</h1>
-        <p>Sefer bazlı doluluk ve rezervasyon görünümünü takip edin.</p>
-      </div>
-
-      {error && <p role="alert" style={{ color: "#dc2626", marginBottom: 20 }}>{error}</p>}
-
-      <div className="company-stat-grid">
-        <div className="company-stat-card">
-          <p>Toplam Sefer</p>
-          <h2>{loading ? "Yükleniyor..." : stats.totalTrips}</h2>
-        </div>
-        <div className="company-stat-card">
-          <p>Dolu Koltuk</p>
-          <h2>{loading ? "Yükleniyor..." : stats.occupiedSeats}</h2>
-        </div>
-        <div className="company-stat-card">
-          <p>Doluluk Oranı</p>
-          <h2>{loading ? "Yükleniyor..." : stats.occupancyRate}</h2>
-        </div>
-        <div className="company-stat-card">
-          <p>Rezervasyon Durumu</p>
-          <h2>{loading ? "Yükleniyor..." : stats.reservationStatus}</h2>
-        </div>
-      </div>
-
-      <section className="company-panel">
-        <h3>Sefer Bazlı Doluluk</h3>
-        {trips.length === 0 ? (
-          <div className="company-empty-state">
-            Rezervasyon verisi henüz mevcut değil. Konaklama ve bilet sistemi entegre edilince bu bölüm güncellenecektir.
-          </div>
-        ) : (
-          <ul className="company-list">
-            {trips.slice(0, 8).map((trip) => {
-              const reserved = Math.max((trip.busCapacity || 0) - (trip.availableSeats || 0), 0);
-              const occupancyRate = trip.busCapacity > 0 ? Math.round((reserved / trip.busCapacity) * 100) : 0;
-
-              return (
-                <li key={trip.id}>
-                  <div>
-                    <strong>
-                      {trip.departureCity} → {trip.arrivalCity}
-                    </strong>
-                    <div className="muted">
-                      {new Date(trip.departureTime).toLocaleString("tr-TR")}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div className="muted">{occupancyRate}% doluluk</div>
-                    <span className="pill">{trip.status}</span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-    </div>
-  );
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(response.status === 403 ? "Bu sayfa için aktif bir firma hesabı gereklidir." : data?.message ?? "Rezervasyonlar alınamadı.");
+        setItems(data.items as CompanyReservation[]); setTotal(data.totalCount as number);
+      } catch (cause) {
+        if (!controller.signal.aborted) setError(cause instanceof TypeError ? "Sunucuya bağlanılamadı. Lütfen tekrar deneyiniz." : cause instanceof Error ? cause.message : "Rezervasyonlar alınamadı.");
+      } finally { if (!controller.signal.aborted) setLoading(false); }
+    })();
+    return () => controller.abort();
+  }, [filters, page, revision, navigate]);
+  const reload = () => { setLoading(true); setError(""); setRevision(v => v + 1); };
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  return <div className="company-dashboard">
+    <div className="company-dashboard-header"><h1>Rezervasyonlar</h1><p>Firmanıza ait seferlerin aktif ve iptal edilmiş rezervasyonlarını takip edin. Rezervasyonlar ödenmiş bilet değildir.</p></div>
+    <section className="company-panel">
+      <form className="company-reservation-filters" onSubmit={event => { event.preventDefault(); setFilters({ ...draft }); setPage(1); reload(); }}>
+        <label>Sefer numarası<input type="number" min="1" step="1" value={draft.tripId} onChange={e => setDraft({ ...draft, tripId: e.target.value })} placeholder="Tüm seferler" /></label>
+        <label>Kalkış tarihi başlangıcı<input type="date" value={draft.dateFrom} max={draft.dateTo || undefined} onChange={e => setDraft({ ...draft, dateFrom: e.target.value })} /></label>
+        <label>Kalkış tarihi bitişi<input type="date" value={draft.dateTo} min={draft.dateFrom || undefined} onChange={e => setDraft({ ...draft, dateTo: e.target.value })} /></label>
+        <label>Rezervasyon durumu<select value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value })}><option value="">Tümü</option><option value="Active">Aktif</option><option value="Cancelled">İptal Edildi</option></select></label>
+        <div className="company-form-actions"><button className="primary-button" disabled={loading} type="submit">Filtrele</button><button className="secondary-button" disabled={loading} type="button" onClick={() => { setDraft(emptyFilters); setFilters(emptyFilters); setPage(1); reload(); }}>Temizle</button></div>
+      </form>
+      {loading ? <p className="company-empty-state" role="status">Rezervasyonlar yükleniyor...</p> : error ? <div className="company-profile-error" role="alert"><p>{error}</p><button type="button" className="secondary-button" onClick={reload}>Tekrar dene</button></div> : <>
+        <p role="status">Toplam {total} rezervasyon</p>
+        {items.length === 0 ? <div className="company-empty-state">Seçilen filtrelere uygun rezervasyon bulunmuyor.</div> : <div className="table-wrap"><table className="data-table company-reservation-table"><thead><tr><th>Rezervasyon / Sefer</th><th>Yolcu</th><th>Güzergâh</th><th>Kalkış</th><th>Koltuk</th><th>Fiyat</th><th>Durum</th></tr></thead><tbody>{items.map(item => <tr key={item.reservationNumber}>
+          <td><span className="reservation-number">{item.reservationNumber}</span><br />Sefer #{item.tripId}</td><td>{item.passengerName}</td><td>{item.departureCity} → {item.arrivalCity}</td><td>{dateTime.format(new Date(item.departureTime))}</td><td>{item.seatNumber}</td><td>{money.format(item.price)}</td><td><strong className={`reservation-state ${item.status === "Cancelled" ? "cancelled" : "active"}`}>{reservationStatusLabel(item.status)}</strong>{item.cancelledAt && <p>{dateTime.format(new Date(item.cancelledAt))}</p>}{item.cancellationReason && <p>{item.cancellationReason}</p>}</td>
+        </tr>)}</tbody></table></div>}
+        <div className="company-form-actions"><span>Sayfa {page} / {totalPages}</span><button className="secondary-button" type="button" disabled={page <= 1} onClick={() => { setLoading(true); setError(""); setPage(v => v - 1); }}>Önceki</button><button className="secondary-button" type="button" disabled={page >= totalPages} onClick={() => { setLoading(true); setError(""); setPage(v => v + 1); }}>Sonraki</button><button className="secondary-button" type="button" onClick={reload}>Yenile</button></div>
+      </>}
+    </section>
+  </div>;
 }
-
-export default CompanyReservations;

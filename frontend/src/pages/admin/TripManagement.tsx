@@ -780,7 +780,7 @@ function TripManagement() {
                 <div><strong>Oluşturulma tarihi</strong><span>{formatDate(detail.createdAt)}</span></div>
                 {detail.cancelledAt && <div><strong>İptal tarihi / nedeni</strong><span>{formatDate(detail.cancelledAt)} · {detail.cancellationReason}</span></div>}
               </div>
-              <p className="trip-helper">Rezervasyon/satış tabloları bulunmadığından satılmış koltuk ve doluluk oranı gösterilmiyor.</p>
+              <p className="trip-helper">Boş koltuk sayısı rezervasyonlarla güncellenir. Rezervasyonlar ödenmiş bilet değildir; ödeme entegrasyonu bulunmuyor.</p>
               <div className="detail-actions">
                 {isAdmin && <>
                   <button className="secondary-button" type="button" onClick={() => navigate(`/admin/companies/${detail.companyId}`)}>Firmayı Görüntüle</button>
@@ -798,7 +798,7 @@ function TripManagement() {
         <div className="modal-backdrop">
           <section className="modal-card trip-cancel-modal" role="dialog" aria-modal="true" aria-labelledby="trip-cancel-heading">
             <h3 id="trip-cancel-heading">Sefer #{cancelTrip.id} iptal edilsin mi?</h3>
-            <p>İptal edilen sefer silinmez ve yeni satışa kapatılır. Rezervasyon/ödeme entegrasyonu bulunmadığından otomatik iade veya bildirim yapılmaz.</p>
+            <p>İptal edilen sefer silinmez ve yeni rezervasyona kapatılır. İlgili aktif rezervasyonlar da iptal edilir; yolcular iptal nedenini görebilir. Ödeme alınmadığından iade işlemi yoktur; otomatik bildirim yapılmaz.</p>
             <form className="user-form" onSubmit={submitCancellation}>
               <label>İptal nedeni *
                 <textarea required maxLength={500} rows={4} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} />

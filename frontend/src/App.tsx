@@ -17,6 +17,7 @@ import CompanyProfile from "./pages/company/CompanyProfile";
 import HomePage from "./pages/HomePage";
 import SearchResultsPage from "./pages/SearchResultsPage";
 import PublicTripDetailsPage from "./pages/PublicTripDetailsPage";
+import MyReservationsPage from "./pages/MyReservationsPage";
 import Register from "./pages/Register";
 import FirstLoginPasswordChange from "./pages/FirstLoginPasswordChange";
 import Profile from "./pages/Profile";
@@ -28,6 +29,7 @@ function App() {
       <Route path="/" element={<HomePage />} />
       <Route path="/search" element={<SearchResultsPage />} />
       <Route path="/trips/:id" element={<PublicTripDetailsPage />} />
+      <Route path="/reservations" element={<ProtectedRoute allowedRole="Passenger"><MyReservationsPage /></ProtectedRoute>} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/first-login-password-change" element={<FirstLoginPasswordChange />} />

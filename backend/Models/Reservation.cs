@@ -1,0 +1,19 @@
+using Travela.Models;
+
+namespace Travela.Api.Models;
+
+public class Reservation
+{
+    public int Id { get; set; }
+    public string ReservationNumber { get; set; } = Guid.NewGuid().ToString("N").ToUpperInvariant();
+    public int TripId { get; set; }
+    public int PassengerId { get; set; }
+    public int SeatNumber { get; set; }
+    public decimal Price { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string Status { get; set; } = "Active";
+    public DateTime? CancelledAt { get; set; }
+    public string? CancellationReason { get; set; }
+    public Trip Trip { get; set; } = null!;
+    public User Passenger { get; set; } = null!;
+}

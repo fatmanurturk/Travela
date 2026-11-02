@@ -1,5 +1,15 @@
 namespace Travela.DTOs
 {
+    public class PublicTripDetailDto : PublicTripDto
+    {
+        public int SeatCapacity { get; set; }
+        public List<int> OccupiedSeats { get; set; } = new();
+        public bool CanReserve { get; set; }
+        public bool SeatPlanAvailable { get; set; }
+        public bool DepartureHasPassed { get; set; }
+        public string Status { get; set; } = string.Empty;
+    }
+
     public class PublicTripDto
     {
         public int Id { get; set; }

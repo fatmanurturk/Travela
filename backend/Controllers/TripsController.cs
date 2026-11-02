@@ -296,24 +296,21 @@ namespace Travela.Api.Controllers
 
         [HttpGet("public/{id:int}")]
         [AllowAnonymous]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> GetPublicTripById(int id)
         {
             var now = DateTime.UtcNow;
             var trip = await _context.Trips
                 .AsNoTracking()
-                .Where(item =>
-                    item.Id == id &&
-                    item.Company.IsActive &&
-                    item.Bus.IsActive &&
-                    item.Bus.CompanyId == item.CompanyId &&
-                    item.Route.IsActive &&
-                    item.DepartureTime > now &&
-                    item.AvailableSeats > 0 &&
-                    (item.Status.ToLower() == "scheduled" ||
-                     item.Status.ToLower() == "planlandı" ||
-                     item.Status.ToLower() == "planlandi"))
-                .Select(item => new PublicTripDto
+                .Where(item => item.Id == id)
+                .Select(item => new PublicTripDetailDto
                 {
+                    SeatCapacity = item.Bus.SeatCapacity,
+                    Status = item.Status,
+                    OccupiedSeats = _context.Reservations.Where(r => r.TripId == item.Id && r.Status == "Active").Select(r => r.SeatNumber).ToList(),
+                    CanReserve = item.Company.IsActive && item.Bus.IsActive && item.Route.IsActive &&
+                        item.Bus.CompanyId == item.CompanyId && item.DepartureTime > now && item.AvailableSeats > 0 &&
+                        (item.Status.ToLower() == "scheduled" || item.Status.ToLower() == "planlandı" || item.Status.ToLower() == "planlandi"),
                     Id = item.Id,
                     CompanyId = item.CompanyId,
                     CompanyName = item.Company.Name,
@@ -329,11 +326,14 @@ namespace Travela.Api.Controllers
 
             if (trip == null)
             {
-                return NotFound(new { message = "Sefer bulunamadı veya artık satışta değil." });
+                return NotFound(new { message = "Sefer bulunamadı." });
             }
 
             trip.DepartureTime = AsUtc(trip.DepartureTime);
             trip.ArrivalTime = AsUtc(trip.ArrivalTime);
+            trip.SeatPlanAvailable = trip.AvailableSeats == trip.SeatCapacity - trip.OccupiedSeats.Count;
+            trip.DepartureHasPassed = trip.DepartureTime <= now;
+            trip.CanReserve = trip.CanReserve && trip.SeatPlanAvailable;
             return Ok(trip);
         }
 
@@ -721,7 +721,9 @@ namespace Travela.Api.Controllers
                 return Unauthorized(new { message = "Kullanıcı kimliği doğrulanamadı." });
             }
 
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
             var trip = await _context.Trips
+                .FromSqlInterpolated($"SELECT * FROM [Trips] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {id}")
                 .Include(item => item.Bus)
                 .FirstOrDefaultAsync(item => item.Id == id);
             if (trip == null || !CanAccessTrip(user, trip))
@@ -759,7 +761,10 @@ namespace Travela.Api.Controllers
                 return Forbid();
             }
 
-            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            if (await _context.Reservations.AnyAsync(r => r.TripId == id))
+            {
+                return Conflict(new { message = "Rezervasyonu bulunan seferin bilgileri değiştirilemez. Gerekirse seferi iptal ediniz." });
+            }
             var company = await _context.Companies.FirstOrDefaultAsync(item => item.Id == companyId.Value);
             var bus = await _context.Buses.FirstOrDefaultAsync(item => item.Id == dto.BusId);
             var route = await _context.Routes.FirstOrDefaultAsync(item => item.Id == dto.RouteId);
@@ -773,7 +778,7 @@ namespace Travela.Api.Controllers
             {
                 return Conflict(new
                 {
-                    message = "Fiyat değiştirilemiyor: mevcut boş koltuk sayısı otobüs kapasitesinden farklı. Rezervasyon altyapısı olmadığı için satılmış bilet durumu güvenle doğrulanamıyor."
+                    message = "Mevcut kontenjan kullanımı nedeniyle fiyat değiştirilemiyor."
                 });
             }
 
@@ -881,7 +886,9 @@ namespace Travela.Api.Controllers
                 return Unauthorized(new { message = "Kullanıcı kimliği doğrulanamadı." });
             }
 
-            var trip = await _context.Trips.FirstOrDefaultAsync(item => item.Id == id);
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            var trip = await _context.Trips.FromSqlInterpolated($"SELECT * FROM [Trips] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {id}")
+                .SingleOrDefaultAsync();
             if (trip == null || !CanAccessTrip(user, trip))
             {
                 return NotFound(new { message = "Sefer bulunamadı." });
@@ -905,7 +912,16 @@ namespace Travela.Api.Controllers
             trip.CancelledAt = DateTime.UtcNow;
             trip.CancelledByUserId = GetCurrentUserId();
             trip.UpdatedAt = DateTime.UtcNow;
+            var activeReservations = await _context.Reservations.Where(r => r.TripId == id && r.Status == "Active").ToListAsync();
+            foreach (var reservation in activeReservations)
+            {
+                reservation.Status = "Cancelled";
+                reservation.CancelledAt = trip.CancelledAt;
+                reservation.CancellationReason = "Sefer iptal edildi: " + trip.CancellationReason;
+            }
+            trip.AvailableSeats += activeReservations.Count;
             await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
             return Ok(new { message = "Sefer iptal edildi." });
         }
 
