@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiUrl } from "../api";
 import SiteHeader from "../components/SiteHeader";
-import ReservationSummary from "../components/ReservationSummary";
-import { currentRole, reservationNotice, tripStatusLabel } from "../reservations";
-import type { Reservation } from "../reservations";
+
+import { currentRole, tripStatusLabel } from "../reservations";
+import { safeCheckoutPath } from "../payments";
 
 type PublicTrip = {
   id: number;
@@ -48,7 +48,7 @@ function TripDetails({ id }: { id: string | undefined }) {
   const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [bookingError, setBookingError] = useState("");
-  const [reservation, setReservation] = useState<Reservation | null>(null);
+  const requestKey = useRef(crypto.randomUUID());
   const [revision, setRevision] = useState(0);
   const navigate = useNavigate();
   const token = sessionStorage.getItem("travela_token");
@@ -85,11 +85,11 @@ function TripDetails({ id }: { id: string | undefined }) {
   const reserve = async () => {
     if (!token) { navigate(loginPath); return; }
     if (!trip || selectedSeat === null || saving) return;
-    setSaving(true); setBookingError(""); setReservation(null);
+    setSaving(true); setBookingError("");
     try {
-      const response = await fetch(apiUrl("/api/reservations"), {
+      const response = await fetch(apiUrl("/api/tickets/checkout"), {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ tripId: trip.id, seatNumber: selectedSeat }),
+        body: JSON.stringify({ tripId: trip.id, seatNumber: selectedSeat, requestKey: requestKey.current }),
       });
       if (response.status === 401) {
         sessionStorage.removeItem("travela_token"); sessionStorage.removeItem("travela_user");
@@ -98,13 +98,13 @@ function TripDetails({ id }: { id: string | undefined }) {
       const data = await response.json().catch(() => null);
       if (!response.ok) {
         if (response.status === 409) refresh();
-        throw new Error(response.status === 403 ? "Rezervasyon için Passenger (yolcu) hesabıyla giriş yapınız." : data?.message ?? "Rezervasyon yapılamadı. Lütfen tekrar deneyiniz.");
+        throw new Error(response.status === 403 ? "Bilet satın almak için Passenger (yolcu) hesabıyla giriş yapınız." : data?.message ?? "Ödeme adımı açılamadı. Lütfen tekrar deneyiniz.");
       }
-      setReservation(data as Reservation);
-      setSelectedSeat(null);
-      refresh();
+      const path = safeCheckoutPath(data.checkoutUrl);
+      if (!path) throw new Error("Ödeme adresi alınamadı. Biletlerim sayfasını kontrol ediniz.");
+      navigate(path);
     } catch (cause) {
-      setBookingError(cause instanceof TypeError ? "Sunucu yanıtı alınamadı. Yeniden denemeden önce Rezervasyonlarım sayfasını kontrol ediniz." : cause instanceof Error ? cause.message : "Rezervasyon sonucu alınamadı. Yeniden denemeden önce Rezervasyonlarım sayfasını kontrol ediniz.");
+      setBookingError(cause instanceof TypeError ? "Sunucu yanıtı alınamadı. Yeniden denemeden önce Biletlerim sayfasını kontrol ediniz." : cause instanceof Error ? cause.message : "Ödeme sonucu alınamadı. Yeniden denemeden önce Biletlerim sayfasını kontrol ediniz.");
     } finally { setSaving(false); }
   };
 
@@ -113,8 +113,7 @@ function TripDetails({ id }: { id: string | undefined }) {
       <SiteHeader />
       <main className="trip-detail-page">
         <Link to="/" className="back-home">← Ana sayfaya dön</Link>
-        {reservation && <section className="reservation-success" aria-live="polite"><p role="status">Rezervasyonunuz başarıyla oluşturuldu.</p><ReservationSummary reservation={reservation} /><Link to="/reservations">Rezervasyonlarım sayfasına git</Link></section>}
-        {bookingError && <div className="results-message error" role="alert">{bookingError} <Link to="/reservations">Rezervasyonlarımı kontrol et</Link></div>}
+        {bookingError && <div className="results-message error" role="alert">{bookingError} <Link to="/tickets">Biletlerimi kontrol et</Link></div>}
         {loading ? <div className="site-empty-state">Sefer bilgileri yükleniyor...</div> : error ? (
           <div className="results-message error" role="alert"><p>{error}</p><button type="button" className="site-button secondary" onClick={refresh}>Tekrar dene</button> <Link to="/search?all=true" className="site-button primary">Diğer seferleri gör</Link></div>
         ) : trip ? (
@@ -129,7 +128,7 @@ function TripDetails({ id }: { id: string | undefined }) {
               </div>
               <div className="trip-detail-facts"><span>{Math.floor(trip.durationMinutes / 60)} sa {trip.durationMinutes % 60} dk yolculuk</span><span>{trip.availableSeats} boş koltuk</span></div>
               <div className="trip-detail-price"><span>Kişi başı</span><strong>{currencyFormatter.format(trip.price)}</strong></div>
-              <p className="booking-notice">{reservationNotice}</p>
+              <p className="booking-notice">Ödeme doğrulanmadan bilet düzenlenmez. Geliştirme ortamındaki işlemler yalnızca testtir.</p>
               <Link to="/#sefer-ara" className="site-button secondary">Başka sefer ara</Link>
             </section>
             <section className="seat-booking" aria-labelledby="seat-heading">
@@ -138,7 +137,7 @@ function TripDetails({ id }: { id: string | undefined }) {
                 <p>{trip.seatCapacity} koltuk · Sefer durumu: {tripStatusLabel(trip.status)}</p>
                 <p className="seat-legend"><span>□ Boş</span><span>▧ Dolu</span><span>✓ Seçili</span></p>
                 <p className="booking-notice">Numaralı plan kapasiteye göre hazırlanmıştır; otobüsün fiziksel yerleşimini temsil etmez.</p>
-                {!trip.canReserve && <p role="status">{trip.departureHasPassed ? "Bu seferin kalkış zamanı geçtiği için rezervasyon yapılamaz." : tripStatusLabel(trip.status) === "İptal edildi" ? "Bu sefer iptal edildiği için rezervasyon yapılamaz." : !trip.seatPlanAvailable ? "Bu seferin eski kontenjan bilgileri koltuk kayıtlarıyla eşleşmiyor. Firma doğrulaması bekleniyor." : trip.availableSeats === 0 ? "Bu seferde boş koltuk kalmadı." : "Bu sefer rezervasyona kapalı."}</p>}
+                {!trip.canReserve && <p role="status">{trip.departureHasPassed ? "Bu seferin kalkış zamanı geçtiği için bilet alınamaz." : tripStatusLabel(trip.status) === "İptal edildi" ? "Bu sefer iptal edildiği için bilet alınamaz." : !trip.seatPlanAvailable ? "Bu seferin eski kontenjan bilgileri koltuk kayıtlarıyla eşleşmiyor. Firma doğrulaması bekleniyor." : trip.availableSeats === 0 ? "Bu seferde boş koltuk kalmadı." : "Bu sefer bilet satışına kapalı."}</p>}
                 {trip.seatPlanAvailable && <div className="seat-plan" role="group" aria-label="Numaralı koltuk planı">
                   <div className="bus-front" aria-hidden="true">Otobüsün önü ↑</div>
                   {Array.from({ length: trip.seatCapacity }, (_, index) => index + 1).map(seat => {
@@ -147,7 +146,7 @@ function TripDetails({ id }: { id: string | undefined }) {
                     return <button key={seat} type="button" className={`seat ${occupied ? "occupied" : selected ? "selected" : "available"}`}
                       aria-label={`Koltuk ${seat}, ${occupied ? "dolu" : selected ? "seçili" : "boş"}`} aria-pressed={selected}
                       disabled={occupied || !trip.canReserve || saving}
-                      onClick={() => { setSelectedSeat(selected ? null : seat); setBookingError(""); }}>
+                      onClick={() => { setSelectedSeat(selected ? null : seat); requestKey.current = crypto.randomUUID(); setBookingError(""); }}>
                       {seat}<small>{occupied ? "Dolu" : selected ? "✓" : "Boş"}</small>
                     </button>;
                   })}
@@ -155,18 +154,18 @@ function TripDetails({ id }: { id: string | undefined }) {
                 <button type="button" className="site-button secondary" disabled={saving} onClick={refresh}>Koltuk planını yenile</button>
               </div>
               <aside className="booking-summary" aria-live="polite">
-                <h2>Rezervasyon özeti</h2>
+                <h2>Sipariş özeti</h2>
                 {selectedSeat !== null ? <>
                   <p>{trip.companyName} · Sefer #{trip.id}</p>
                   <p>{trip.departureCity} → {trip.arrivalCity}</p>
                   <p>{dateTimeFormatter.format(new Date(trip.departureTime))}</p>
                   <p><strong>Koltuk {selectedSeat}</strong></p>
-                  <p>Rezervasyon fiyatı: <strong>{currencyFormatter.format(trip.price)}</strong></p>
+                  <p>Bilet fiyatı: <strong>{currencyFormatter.format(trip.price)}</strong></p>
                 </> : <p>Devam etmek için boş bir koltuk seçiniz.</p>}
-                <p className="booking-notice">{reservationNotice} Seçim yapmak koltuğu ayırmaz; uygunluk kaydetme sırasında tekrar kontrol edilir.</p>
-                {token && role !== "Passenger" ? <p role="status">Rezervasyon için Passenger (yolcu) hesabıyla giriş yapmalısınız.</p> :
+                <p className="booking-notice">Ödeme doğrulanmadan bilet düzenlenmez. Geliştirme ortamındaki işlemler yalnızca testtir. Seçim yapmak koltuğu ayırmaz. Ödeme adımında en fazla 10 dakikalık dahili tutma uygulanır.</p>
+                {token && role !== "Passenger" ? <p role="status">Bilet satın almak için Passenger (yolcu) hesabıyla giriş yapmalısınız.</p> :
                   <button type="button" className="site-button primary" disabled={selectedSeat === null || !trip.canReserve || saving}
-                    onClick={() => void reserve()}>{saving ? "Rezervasyon yapılıyor..." : token ? "Rezervasyonu oluştur" : "Giriş yap ve devam et"}</button>}
+                    onClick={() => void reserve()}>{saving ? "Ödeme adımı hazırlanıyor..." : token ? "Test ödeme adımına geç" : "Giriş yap ve devam et"}</button>}
               </aside>
             </section>
           </>

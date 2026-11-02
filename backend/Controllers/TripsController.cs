@@ -1,3 +1,4 @@
+using Travela.Api.Payments;
 using System.Data;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
@@ -297,8 +298,9 @@ namespace Travela.Api.Controllers
         [HttpGet("public/{id:int}")]
         [AllowAnonymous]
         [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-        public async Task<IActionResult> GetPublicTripById(int id)
+        public async Task<IActionResult> GetPublicTripById(int id, [FromServices] PaymentService payments)
         {
+            await payments.ExpireHolds(HttpContext.RequestAborted);
             var now = DateTime.UtcNow;
             var trip = await _context.Trips
                 .AsNoTracking()
@@ -912,9 +914,10 @@ namespace Travela.Api.Controllers
             trip.CancelledAt = DateTime.UtcNow;
             trip.CancelledByUserId = GetCurrentUserId();
             trip.UpdatedAt = DateTime.UtcNow;
-            var activeReservations = await _context.Reservations.Where(r => r.TripId == id && r.Status == "Active").ToListAsync();
+            var activeReservations = await _context.Reservations.Include(r => r.Payment).Where(r => r.TripId == id && r.Status == "Active").ToListAsync();
             foreach (var reservation in activeReservations)
             {
+                if (reservation.Payment != null) PaymentService.RequestRefund(reservation.Payment, DateTime.UtcNow);
                 reservation.Status = "Cancelled";
                 reservation.CancelledAt = trip.CancelledAt;
                 reservation.CancellationReason = "Sefer iptal edildi: " + trip.CancellationReason;

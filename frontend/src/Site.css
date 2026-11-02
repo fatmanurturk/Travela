@@ -1514,6 +1514,9 @@
 .reservation-facts dd { margin: 5px 0 0; font-weight: 600; overflow-wrap: anywhere; }
 .reservation-number { font-family: monospace; }
 .reservation-state.active { color: #166534; }
+.test-payment-badge { background: #fff8dc; color: #78520a; padding: 14px; border: 1px solid #e3c471; border-radius: 10px; font-weight: 700; }
+.booking-summary select { width: 100%; padding: 10px; border: 1px solid #cbd8eb; border-radius: 8px; font: inherit; margin: 10px 0; }
+.reservation-list { margin-top: 20px; }
 .reservation-state.cancelled { color: #a12626; }
 .reservation-cancel { color: #a12626; border-color: #efbcbc; background: #fff4f4; margin: 8px; }
 .reservation-confirm::backdrop { background: #172b4d99; }

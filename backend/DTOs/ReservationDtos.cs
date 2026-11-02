@@ -28,10 +28,19 @@ public class ReservationDto
     public DateTime? CancelledAt { get; set; }
     public string? CancellationReason { get; set; }
     public bool CanCancel { get; set; }
-    public bool IsPaid => false;
+    public string Kind { get; set; } = "Legacy";
+    public string? Pnr { get; set; }
+    public string PaymentStatus { get; set; } = "Unpaid";
+    public string RefundStatus { get; set; } = "None";
+    public decimal RefundAmount { get; set; }
+    public bool IsTest { get; set; }
+    public bool IsPaid => PaymentStatus == "Paid";
 }
 
 public class CompanyReservationDto : ReservationDto
 {
     public string PassengerName { get; set; } = "";
+    public string? LastError { get; set; }
+    public bool NeedsAttention { get; set; }
+    public int RefundAttempts { get; set; }
 }

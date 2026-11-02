@@ -448,7 +448,7 @@ function TripManagement() {
       if (!response.ok) throw new Error(await readError(response, "Sefer iptal edilemedi"));
       setCancelTrip(null);
       setCancelReason("");
-      setMessage("Sefer iptal edildi. Rezervasyon/ödeme altyapısı bağlı olmadığından iade veya yolcu bildirimi yapılmadı.");
+      setMessage("Sefer iptal edildi. Satılmış biletler için tam iade talepleri kaydedildi; tamamlanma durumu sağlayıcı sonucuyla güncellenir. Geliştirme işlemleri yalnızca testtir.");
       await Promise.all([loadTrips(), loadSummary()]);
       if (detail?.id === cancelTrip.id) await openDetail(cancelTrip.id);
     } catch (err) {
@@ -780,7 +780,7 @@ function TripManagement() {
                 <div><strong>Oluşturulma tarihi</strong><span>{formatDate(detail.createdAt)}</span></div>
                 {detail.cancelledAt && <div><strong>İptal tarihi / nedeni</strong><span>{formatDate(detail.cancelledAt)} · {detail.cancellationReason}</span></div>}
               </div>
-              <p className="trip-helper">Boş koltuk sayısı rezervasyonlarla güncellenir. Rezervasyonlar ödenmiş bilet değildir; ödeme entegrasyonu bulunmuyor.</p>
+              <p className="trip-helper">Boş koltuk sayısı ödeme tutmaları ve satılmış biletlerle güncellenir. Eski ücretsiz kayıtlar korunur; ödenmiş bilet sayılmaz. Yerel ödeme adaptörü yalnızca test içindir.</p>
               <div className="detail-actions">
                 {isAdmin && <>
                   <button className="secondary-button" type="button" onClick={() => navigate(`/admin/companies/${detail.companyId}`)}>Firmayı Görüntüle</button>
@@ -798,7 +798,7 @@ function TripManagement() {
         <div className="modal-backdrop">
           <section className="modal-card trip-cancel-modal" role="dialog" aria-modal="true" aria-labelledby="trip-cancel-heading">
             <h3 id="trip-cancel-heading">Sefer #{cancelTrip.id} iptal edilsin mi?</h3>
-            <p>İptal edilen sefer silinmez ve yeni rezervasyona kapatılır. İlgili aktif rezervasyonlar da iptal edilir; yolcular iptal nedenini görebilir. Ödeme alınmadığından iade işlemi yoktur; otomatik bildirim yapılmaz.</p>
+            <p>İptal edilen sefer silinmez ve yeni satışa kapatılır. İlgili aktif biletler iptal edilir ve iki saat kuralından bağımsız tam iade süreci başlatılır. İadenin tamamlanması sağlayıcı sonucuyla takip edilir; otomatik yolcu bildirimi yapılmaz. Test işlemlerinde gerçek para hareketi yoktur.</p>
             <form className="user-form" onSubmit={submitCancellation}>
               <label>İptal nedeni *
                 <textarea required maxLength={500} rows={4} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} />

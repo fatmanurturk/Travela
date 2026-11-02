@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Travela.Api.Authorization;
 using Travela.Data;
+using Travela.Api.Payments;
 
 var builder = WebApplication.CreateBuilder(args);
 var jwtKey = builder.Configuration["Jwt:Key"]
@@ -76,6 +77,15 @@ builder.Services.AddAuthorization(options =>
 });
 
 builder.Services.AddControllers();
+// No live provider is installed. Fail closed outside development/test instead of charging money.
+if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
+    throw new InvalidOperationException("Gerçek ödeme sağlayıcısı yapılandırılmadı. LocalTest yalnızca geliştirme/test ortamında çalışır.");
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<LocalWebhookKey>();
+builder.Services.AddScoped<LocalTestPaymentProvider>();
+builder.Services.AddScoped<IPaymentProvider>(sp => sp.GetRequiredService<LocalTestPaymentProvider>());
+builder.Services.AddScoped<PaymentService>();
+if (builder.Configuration["Payments:RecoveryEnabled"] != "false") builder.Services.AddHostedService<PaymentRecoveryWorker>();
 
 builder.Services.AddDbContext<TravelaDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));

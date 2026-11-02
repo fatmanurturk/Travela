@@ -18,6 +18,9 @@ namespace Travela.Data
        public DbSet<Travela.Api.Models.Route> Routes { get; set; }
         public DbSet<Trip> Trips { get; set; }
         public DbSet<Reservation> Reservations { get; set; }
+        public DbSet<PaymentOrder> PaymentOrders { get; set; }
+        public DbSet<LocalPaymentRecord> LocalPaymentRecords { get; set; }
+        public DbSet<PaymentNotification> PaymentNotifications { get; set; }
         public DbSet<Role> Roles { get; set; }
         public DbSet<Permission> Permissions { get; set; }
         public DbSet<RolePermission> RolePermissions { get; set; }
@@ -32,6 +35,10 @@ namespace Travela.Data
         entity.Property(r => r.Price).HasPrecision(18, 2);
         entity.Property(r => r.Status).HasMaxLength(20).HasDefaultValue("Active");
         entity.Property(r => r.CancellationReason).HasMaxLength(1000);
+        entity.Property(r => r.Kind).HasMaxLength(20).HasDefaultValue("Legacy");
+        entity.Property(r => r.Pnr).HasMaxLength(32);
+        entity.HasIndex(r => r.Pnr).IsUnique().HasFilter("[Pnr] IS NOT NULL");
+        entity.ToTable(t => t.HasCheckConstraint("CK_Reservations_Kind", "([Kind] = N'Legacy' AND [Pnr] IS NULL) OR ([Kind] = N'Hold' AND [Pnr] IS NULL AND [HoldExpiresAt] IS NOT NULL) OR ([Kind] = N'Ticket' AND [Pnr] IS NOT NULL)"));
         entity.HasIndex(r => r.ReservationNumber).IsUnique();
         entity.HasIndex(r => new { r.TripId, r.SeatNumber }).IsUnique().HasFilter("[Status] = N'Active'");
         entity.HasIndex(r => new { r.PassengerId, r.CreatedAt });
@@ -39,6 +46,43 @@ namespace Travela.Data
         entity.ToTable(t => t.HasCheckConstraint("CK_Reservations_Status", "([Status] = N'Active' AND [CancelledAt] IS NULL) OR ([Status] = N'Cancelled' AND [CancelledAt] IS NOT NULL)"));
         entity.HasOne(r => r.Trip).WithMany().HasForeignKey(r => r.TripId).OnDelete(DeleteBehavior.NoAction);
         entity.HasOne(r => r.Passenger).WithMany().HasForeignKey(r => r.PassengerId).OnDelete(DeleteBehavior.NoAction);
+    });
+
+    modelBuilder.Entity<PaymentOrder>(e =>
+    {
+        e.Property(p => p.Amount).HasPrecision(18, 2);
+        e.Property(p => p.RefundAmount).HasPrecision(18, 2);
+        e.Property(p => p.Currency).HasMaxLength(3);
+        e.Property(p => p.Provider).HasMaxLength(30);
+        e.Property(p => p.PaymentStatus).HasMaxLength(20);
+        e.Property(p => p.RefundStatus).HasMaxLength(20);
+        e.Property(p => p.RefundKey).HasMaxLength(32);
+        e.Property(p => p.LastError).HasMaxLength(1000);
+        e.Property(p => p.ProviderReference).HasMaxLength(128);
+        e.HasIndex(p => new { p.Provider, p.ProviderReference }).IsUnique().HasFilter("[ProviderReference] IS NOT NULL");
+        e.ToTable(t => t.HasCheckConstraint("CK_PaymentOrders_Amount", "[Amount] > 0 AND [RefundAmount] >= 0 AND [RefundAmount] <= [Amount]"));
+        e.ToTable(t => t.HasCheckConstraint("CK_PaymentOrders_Paid", "[PaymentStatus] <> N'Paid' OR ([PaidAt] IS NOT NULL AND [ProviderReference] IS NOT NULL)"));
+        e.ToTable(t => t.HasCheckConstraint("CK_PaymentOrders_Refund", "([RefundStatus] = N'None' AND [RefundAmount] = 0) OR ([PaymentStatus] = N'Paid' AND [RefundAmount] = [Amount] AND ([RefundStatus] IN (N'Pending', N'Failed') OR ([RefundStatus] = N'Succeeded' AND [RefundedAt] IS NOT NULL AND [RefundReference] IS NOT NULL)))"));
+        e.HasIndex(p => new { p.PassengerId, p.RequestKey }).IsUnique();
+        e.HasIndex(p => p.RefundKey).IsUnique();
+        e.HasOne(p => p.Reservation).WithOne(r => r.Payment).HasForeignKey<PaymentOrder>(p => p.ReservationId).OnDelete(DeleteBehavior.NoAction);
+        e.HasIndex(p => new { p.RefundStatus, p.NextRefundAttemptAt });
+    });
+    modelBuilder.Entity<LocalPaymentRecord>(e =>
+    {
+        e.Property(p => p.Amount).HasPrecision(18, 2);
+        e.Property(p => p.EventId).HasMaxLength(32);
+        e.Property(p => p.Currency).HasMaxLength(3);
+        e.Property(p => p.Status).HasMaxLength(20);
+        e.Property(p => p.RefundOutcome).HasMaxLength(20);
+        e.Property(p => p.RefundKey).HasMaxLength(32);
+        e.ToTable(t => t.HasCheckConstraint("CK_LocalPaymentRecords_RefundTransfers", "[RefundTransfers] IN (0, 1)"));
+    });
+    modelBuilder.Entity<PaymentNotification>(e =>
+    {
+        e.Property(p => p.Provider).HasMaxLength(30);
+        e.Property(p => p.EventId).HasMaxLength(100);
+        e.HasIndex(p => new { p.Provider, p.EventId }).IsUnique();
     });
 
     modelBuilder.Entity<User>()

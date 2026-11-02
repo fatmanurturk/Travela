@@ -4,6 +4,7 @@ import type { Reservation } from "../reservations";
 
 export default function ReservationSummary({ reservation, onCancel, cancelling = false }: { reservation: Reservation; onCancel?: (reservation: Reservation) => void; cancelling?: boolean }) {
   return <article className="reservation-card">
+    <p>Eski ücretsiz kayıt — ödenmiş bilet değildir.</p>
     <h2>{reservation.departureCity} → {reservation.arrivalCity}</h2>
     <p>{reservation.companyName} · Sefer #{reservation.tripId}</p>
     <dl className="reservation-facts">
@@ -21,6 +22,6 @@ export default function ReservationSummary({ reservation, onCancel, cancelling =
     </dl>
     <p className="booking-notice">{reservationNotice}</p>
     <Link to={`/trips/${reservation.tripId}`} className="site-button secondary">Sefer detayını gör</Link>
-    {onCancel && reservation.status === "Active" && reservation.canCancel && <button type="button" className="site-button reservation-cancel" disabled={cancelling} onClick={() => onCancel(reservation)}>{cancelling ? "İptal ediliyor..." : "Rezervasyonu İptal Et"}</button>}
+    {onCancel && reservation.status === "Active" && reservation.canCancel && <button type="button" className="site-button reservation-cancel" disabled={cancelling} onClick={() => onCancel(reservation)}>{cancelling ? "İşleniyor..." : "Ücretsiz kaydı serbest bırak"}</button>}
   </article>;
 }

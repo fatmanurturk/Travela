@@ -21,7 +21,7 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
     {
         var passengerId = await GetPassengerId(cancellationToken);
         if (passengerId == null) return Unauthorized(new { message = "Aktif bir yolcu hesabıyla giriş yapınız." });
-        var items = await Project(db.Reservations.AsNoTracking().Where(r => r.PassengerId == passengerId))
+        var items = await Project(db.Reservations.AsNoTracking().Where(r => r.PassengerId == passengerId && r.Kind == "Legacy"))
             .OrderByDescending(r => r.CreatedAt).ToListAsync(cancellationToken);
         items.ForEach(SetUtc);
         return Ok(items);
@@ -29,51 +29,7 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "Passenger")]
-    public async Task<IActionResult> Create(CreateReservationDto dto, CancellationToken cancellationToken)
-    {
-        var passengerId = await GetPassengerId(cancellationToken);
-        if (passengerId == null) return Unauthorized(new { message = "Aktif bir yolcu hesabıyla giriş yapınız." });
-        try
-        {
-            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-            // Lock the trip before reading availability. All reservations on this trip serialize here.
-            // The unique index remains the final database-level guarantee for seat ownership.
-            var trip = await db.Trips.FromSqlInterpolated($"SELECT * FROM [Trips] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {dto.TripId}")
-                .SingleOrDefaultAsync(cancellationToken);
-            if (trip == null) return NotFound(new { message = "Sefer bulunamadı." });
-            await db.Entry(trip).Reference(t => t.Bus).LoadAsync(cancellationToken);
-            await db.Entry(trip).Reference(t => t.Company).LoadAsync(cancellationToken);
-            await db.Entry(trip).Reference(t => t.Route).LoadAsync(cancellationToken);
-            var status = trip.Status.ToLowerInvariant();
-            if (status is not ("scheduled" or "planlandı" or "planlandi") || trip.DepartureTime <= DateTime.UtcNow ||
-                !trip.Company.IsActive || !trip.Bus.IsActive || !trip.Route.IsActive || trip.Bus.CompanyId != trip.CompanyId)
-                return Conflict(new { message = "Bu sefer rezervasyona açık değil. İptal edilmiş veya kalkış zamanı geçmiş olabilir." });
-            if (dto.SeatNumber < 1 || dto.SeatNumber > trip.Bus.SeatCapacity)
-                return BadRequest(new { message = "Koltuk numarası otobüs kapasitesi içinde olmalıdır." });
-            var reservedCount = await db.Reservations.CountAsync(r => r.TripId == trip.Id && r.Status == "Active", cancellationToken);
-            if (trip.AvailableSeats != trip.Bus.SeatCapacity - reservedCount)
-                return Conflict(new { message = "Seferin eski kontenjan bilgileri koltuk kayıtlarıyla eşleşmiyor. Firma tarafından doğrulanana kadar rezervasyon yapılamaz." });
-            if (await db.Reservations.AnyAsync(r => r.TripId == trip.Id && r.SeatNumber == dto.SeatNumber && r.Status == "Active", cancellationToken))
-                return Conflict(new { message = "Bu koltuk az önce rezerve edildi. Başka bir koltuk seçiniz." });
-            if (trip.AvailableSeats <= 0)
-                return Conflict(new { message = "Bu seferde boş koltuk kalmadı." });
-
-            var reservation = new Reservation { TripId = trip.Id, PassengerId = passengerId.Value, SeatNumber = dto.SeatNumber, Price = trip.Price };
-            db.Reservations.Add(reservation);
-            trip.AvailableSeats--;
-            trip.UpdatedAt = DateTime.UtcNow;
-            await db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            var result = await Project(db.Reservations.AsNoTracking().Where(r => r.Id == reservation.Id)).SingleAsync(cancellationToken);
-            SetUtc(result);
-            return StatusCode(StatusCodes.Status201Created, result);
-        }
-        catch (Exception exception) when (exception is SqlException { Number: 1205 or 2601 or 2627 } ||
-            exception is DbUpdateException { InnerException: SqlException { Number: 1205 or 2601 or 2627 } })
-        {
-            return Conflict(new { message = "Koltuk başka bir işlemde rezerve edilmiş olabilir. Koltuk planını yenileyip tekrar deneyiniz." });
-        }
-    }
+    public IActionResult Create() => StatusCode(410, new { message = "Bağımsız rezervasyon kapatıldı. Bilet almak için ödeme adımını kullanınız." });
 
     [HttpPost("{number}/cancel")]
     [Authorize(Roles = "Passenger")]
@@ -82,7 +38,7 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
         var passengerId = await GetPassengerId(cancellationToken);
         if (passengerId == null) return Unauthorized(new { message = "Aktif bir yolcu hesabıyla giriş yapınız." });
         var tripId = await db.Reservations.AsNoTracking()
-            .Where(r => r.ReservationNumber == number && r.PassengerId == passengerId)
+            .Where(r => r.ReservationNumber == number && r.PassengerId == passengerId && r.Kind == "Legacy")
             .Select(r => (int?)r.TripId).SingleOrDefaultAsync(cancellationToken);
         if (tripId == null) return NotFound(new { message = "Rezervasyon bulunamadı." });
         try
@@ -91,7 +47,7 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
             // Use the same lock order as Create and trip cancellation: trip first, reservations second.
             var trip = await db.Trips.FromSqlInterpolated($"SELECT * FROM [Trips] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {tripId.Value}")
                 .SingleAsync(cancellationToken);
-            var reservation = await db.Reservations.SingleAsync(r => r.ReservationNumber == number && r.PassengerId == passengerId, cancellationToken);
+            var reservation = await db.Reservations.SingleAsync(r => r.ReservationNumber == number && r.PassengerId == passengerId && r.Kind == "Legacy", cancellationToken);
             if (reservation.Status == "Active")
             {
                 if (trip.DepartureTime <= DateTime.UtcNow)
@@ -151,9 +107,15 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
             {
                 ReservationNumber = r.ReservationNumber, TripId = r.TripId, SeatNumber = r.SeatNumber, Price = r.Price,
                 PassengerName = r.Passenger.FullName, CompanyName = r.Trip.Company.Name,
+                LastError = r.Payment == null ? null : r.Payment.LastError,
+                NeedsAttention = r.Payment != null && r.Payment.NeedsAttention,
+                RefundAttempts = r.Payment == null ? 0 : r.Payment.RefundAttempts,
                 DepartureCity = r.Trip.Route.DepartureCity, ArrivalCity = r.Trip.Route.ArrivalCity,
                 DepartureTime = r.Trip.DepartureTime, ArrivalTime = r.Trip.ArrivalTime, CreatedAt = r.CreatedAt,
-                TripStatus = r.Trip.Status, Status = r.Status, CancelledAt = r.CancelledAt, CancellationReason = r.CancellationReason
+                TripStatus = r.Trip.Status, Status = r.Status, CancelledAt = r.CancelledAt, CancellationReason = r.CancellationReason,
+                Kind = r.Kind, Pnr = r.Pnr, PaymentStatus = r.Payment == null ? "Unpaid" : r.Payment.PaymentStatus,
+                RefundStatus = r.Payment == null ? "None" : r.Payment.RefundStatus,
+                RefundAmount = r.Payment == null ? 0 : r.Payment.RefundAmount, IsTest = r.Payment != null && r.Payment.IsTest
             }).ToListAsync(cancellationToken);
         items.ForEach(SetUtc);
         return Ok(new { items, totalCount, pageNumber, pageSize });
@@ -172,7 +134,7 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
         DepartureCity = r.Trip.Route.DepartureCity, ArrivalCity = r.Trip.Route.ArrivalCity,
         DepartureTime = r.Trip.DepartureTime, ArrivalTime = r.Trip.ArrivalTime, TripStatus = r.Trip.Status,
         Status = r.Status, CancelledAt = r.CancelledAt, CancellationReason = r.CancellationReason,
-        CanCancel = r.Status == "Active" && r.Trip.DepartureTime > DateTime.UtcNow
+        CanCancel = r.Kind == "Legacy" && r.Status == "Active" && r.Trip.DepartureTime > DateTime.UtcNow
     });
 
     private static void SetUtc(ReservationDto item)

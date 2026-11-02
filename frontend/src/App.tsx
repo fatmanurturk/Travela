@@ -1,5 +1,5 @@
 import "./App.css";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Admin from "./pages/Admin";
@@ -17,6 +17,7 @@ import CompanyProfile from "./pages/company/CompanyProfile";
 import HomePage from "./pages/HomePage";
 import SearchResultsPage from "./pages/SearchResultsPage";
 import PublicTripDetailsPage from "./pages/PublicTripDetailsPage";
+import CheckoutPage from "./pages/CheckoutPage";
 import MyReservationsPage from "./pages/MyReservationsPage";
 import Register from "./pages/Register";
 import FirstLoginPasswordChange from "./pages/FirstLoginPasswordChange";
@@ -29,7 +30,9 @@ function App() {
       <Route path="/" element={<HomePage />} />
       <Route path="/search" element={<SearchResultsPage />} />
       <Route path="/trips/:id" element={<PublicTripDetailsPage />} />
-      <Route path="/reservations" element={<ProtectedRoute allowedRole="Passenger"><MyReservationsPage /></ProtectedRoute>} />
+      <Route path="/tickets" element={<ProtectedRoute allowedRole="Passenger"><MyReservationsPage /></ProtectedRoute>} />
+      <Route path="/reservations" element={<Navigate to="/tickets" replace />} />
+      <Route path="/test-payment/:id" element={<ProtectedRoute allowedRole="Passenger"><CheckoutPage /></ProtectedRoute>} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/first-login-password-change" element={<FirstLoginPasswordChange />} />

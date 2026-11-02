@@ -92,7 +92,7 @@ const menuItems = [
   { path: "/company", label: "Genel Bakış", icon: "dashboard" as const, end: true },
   { path: "/company/buses", label: "Otobüs Yönetimi", icon: "buses" as const },
   { path: "/company/trips", label: "Sefer Yönetimi", icon: "trips" as const },
-  { path: "/company/reservations", label: "Bilet ve Rezervasyonlar", icon: "reservations" as const },
+  { path: "/company/reservations", label: "Bilet ve Ödeme Yönetimi", icon: "reservations" as const },
   { path: "/company/reports", label: "Raporlar", icon: "reports" as const },
   { path: "/company/profile", label: "Firma Bilgileri", icon: "profile" as const },
 ];

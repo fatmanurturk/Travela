@@ -103,6 +103,199 @@ namespace Travela.API.Migrations
                     b.ToTable("Companies");
                 });
 
+            modelBuilder.Entity("Travela.Api.Models.LocalPaymentRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("EventId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("RefundKey")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("RefundOutcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("RefundTransfers")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LocalPaymentRecords", t =>
+                        {
+                            t.HasCheckConstraint("CK_LocalPaymentRecords_RefundTransfers", "[RefundTransfers] IN (0, 1)");
+                        });
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.PaymentNotification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("EventId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ProcessedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Provider", "EventId")
+                        .IsUnique();
+
+                    b.ToTable("PaymentNotifications");
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.PaymentOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("CheckoutUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<bool>("IsTest")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("NeedsAttention")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("NextRefundAttemptAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PassengerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PaymentStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("ProviderReference")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<decimal>("RefundAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("RefundAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RefundKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid?>("RefundLeaseToken")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("RefundLeaseUntil")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RefundReference")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RefundStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("RefundedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("RequestKey")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ReservationId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RefundKey")
+                        .IsUnique();
+
+                    b.HasIndex("ReservationId")
+                        .IsUnique();
+
+                    b.HasIndex("PassengerId", "RequestKey")
+                        .IsUnique();
+
+                    b.HasIndex("Provider", "ProviderReference")
+                        .IsUnique()
+                        .HasFilter("[ProviderReference] IS NOT NULL");
+
+                    b.HasIndex("RefundStatus", "NextRefundAttemptAt");
+
+                    b.ToTable("PaymentOrders", t =>
+                        {
+                            t.HasCheckConstraint("CK_PaymentOrders_Amount", "[Amount] > 0 AND [RefundAmount] >= 0 AND [RefundAmount] <= [Amount]");
+
+                            t.HasCheckConstraint("CK_PaymentOrders_Paid", "[PaymentStatus] <> N'Paid' OR ([PaidAt] IS NOT NULL AND [ProviderReference] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_PaymentOrders_Refund", "([RefundStatus] = N'None' AND [RefundAmount] = 0) OR ([PaymentStatus] = N'Paid' AND [RefundAmount] = [Amount] AND ([RefundStatus] IN (N'Pending', N'Failed') OR ([RefundStatus] = N'Succeeded' AND [RefundedAt] IS NOT NULL AND [RefundReference] IS NOT NULL)))");
+                        });
+                });
+
             modelBuilder.Entity("Travela.Api.Models.Reservation", b =>
                 {
                     b.Property<int>("Id")
@@ -121,8 +314,22 @@ namespace Travela.API.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("HoldExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Legacy");
+
                     b.Property<int>("PassengerId")
                         .HasColumnType("int");
+
+                    b.Property<string>("Pnr")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<decimal>("Price")
                         .HasPrecision(18, 2)
@@ -148,6 +355,10 @@ namespace Travela.API.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Pnr")
+                        .IsUnique()
+                        .HasFilter("[Pnr] IS NOT NULL");
+
                     b.HasIndex("ReservationNumber")
                         .IsUnique();
 
@@ -159,6 +370,8 @@ namespace Travela.API.Migrations
 
                     b.ToTable("Reservations", t =>
                         {
+                            t.HasCheckConstraint("CK_Reservations_Kind", "([Kind] = N'Legacy' AND [Pnr] IS NULL) OR ([Kind] = N'Hold' AND [Pnr] IS NULL AND [HoldExpiresAt] IS NOT NULL) OR ([Kind] = N'Ticket' AND [Pnr] IS NOT NULL)");
+
                             t.HasCheckConstraint("CK_Reservations_SeatNumber", "[SeatNumber] > 0");
 
                             t.HasCheckConstraint("CK_Reservations_Status", "([Status] = N'Active' AND [CancelledAt] IS NULL) OR ([Status] = N'Cancelled' AND [CancelledAt] IS NOT NULL)");
@@ -402,6 +615,17 @@ namespace Travela.API.Migrations
                     b.Navigation("Company");
                 });
 
+            modelBuilder.Entity("Travela.Api.Models.PaymentOrder", b =>
+                {
+                    b.HasOne("Travela.Api.Models.Reservation", "Reservation")
+                        .WithOne("Payment")
+                        .HasForeignKey("Travela.Api.Models.PaymentOrder", "ReservationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Reservation");
+                });
+
             modelBuilder.Entity("Travela.Api.Models.Reservation", b =>
                 {
                     b.HasOne("Travela.Models.User", "Passenger")
@@ -478,6 +702,11 @@ namespace Travela.API.Migrations
                         .WithMany()
                         .HasForeignKey("CompanyId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.Reservation", b =>
+                {
+                    b.Navigation("Payment");
                 });
 #pragma warning restore 612, 618
         }

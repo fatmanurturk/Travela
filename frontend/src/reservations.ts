@@ -34,7 +34,7 @@ export function currentRole(): string | null {
 
 // Limit login destinations to known local passenger routes (no external redirect).
 export function passengerReturnTo(value: string | null): string {
-  return value && (/^\/trips\/\d+$/.test(value) || value === "/reservations") ? value : "/";
+  return value && (/^\/trips\/\d+$/.test(value) || (value === "/tickets" || value === "/reservations" || /^\/test-payment\/[a-f0-9-]{36}$/i.test(value))) ? value : "/";
 }
 
 export function tripStatusLabel(value: string): string {

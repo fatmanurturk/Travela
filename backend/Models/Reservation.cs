@@ -12,6 +12,10 @@ public class Reservation
     public decimal Price { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string Status { get; set; } = "Active";
+    public string Kind { get; set; } = "Legacy";
+    public DateTime? HoldExpiresAt { get; set; }
+    public string? Pnr { get; set; }
+    public PaymentOrder? Payment { get; set; }
     public DateTime? CancelledAt { get; set; }
     public string? CancellationReason { get; set; }
     public Trip Trip { get; set; } = null!;

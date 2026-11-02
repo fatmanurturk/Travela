@@ -42,7 +42,7 @@ function SiteHeader() {
       <nav className="site-nav" aria-label="Ana menü">
         <Link to="/">Ana Sayfa</Link>
         <Link to="/#sefer-ara">Sefer Ara</Link>
-        {isLoggedIn && user?.role === "Passenger" && <Link to="/reservations">Rezervasyonlarım</Link>}
+        {isLoggedIn && user?.role === "Passenger" && <Link to="/tickets">Biletlerim</Link>}
       </nav>
 
       <div className="site-actions">

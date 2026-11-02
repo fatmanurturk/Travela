@@ -1,89 +1,80 @@
 import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiUrl } from "../api";
 import SiteHeader from "../components/SiteHeader";
+import TicketCard from "../components/TicketCard";
 import ReservationSummary from "../components/ReservationSummary";
+import { dateTime, money } from "../reservations";
 import type { Reservation } from "../reservations";
+import type { Purchase } from "../payments";
 
 export default function MyReservationsPage() {
-  const [items, setItems] = useState<Reservation[]>([]);
+  const [items, setItems] = useState<Purchase[]>([]);
+  const [legacy, setLegacy] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [attempt, setAttempt] = useState(0);
-  const [confirming, setConfirming] = useState<Reservation | null>(null);
-  const [cancelling, setCancelling] = useState(false);
-  const [actionError, setActionError] = useState("");
   const [success, setSuccess] = useState("");
+  const [confirming, setConfirming] = useState<{ ticket?: Purchase; legacy?: Reservation } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [revision, setRevision] = useState(0);
   const [now, setNow] = useState(Date.now);
   const navigate = useNavigate();
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
+    const tick = window.setInterval(() => setNow(Date.now()), 1000);
+    const poll = window.setInterval(() => setRevision(v => v + 1), 10000);
+    return () => { window.clearInterval(tick); window.clearInterval(poll); };
   }, []);
   useEffect(() => {
-    const controller = new AbortController();
+    const abort = new AbortController();
     void (async () => {
       try {
-        const response = await fetch(apiUrl("/api/reservations/mine"), {
-          headers: { Authorization: `Bearer ${sessionStorage.getItem("travela_token")}` }, signal: controller.signal,
-        });
-        if (response.status === 401) {
+        const options = { headers: { Authorization: `Bearer ${sessionStorage.getItem("travela_token")}` }, signal: abort.signal };
+        const responses = await Promise.all([fetch(apiUrl("/api/tickets/mine"), options), fetch(apiUrl("/api/reservations/mine"), options)]);
+        if (responses.some(r => r.status === 401)) {
           sessionStorage.removeItem("travela_token"); sessionStorage.removeItem("travela_user");
-          navigate("/login?returnTo=%2Freservations", { replace: true }); return;
+          navigate("/login?returnTo=%2Ftickets", { replace: true }); return;
         }
-        if (!response.ok) throw new Error(response.status === 403 ? "Rezervasyonlar yalnızca yolcu hesabıyla görüntülenebilir." : "Rezervasyonlarınız alınamadı. Lütfen tekrar deneyiniz.");
-        setItems(await response.json() as Reservation[]);
-      } catch (cause) {
-        if (!controller.signal.aborted) setError(cause instanceof TypeError ? "Sunucuya bağlanılamadı. Lütfen tekrar deneyiniz." : cause instanceof Error ? cause.message : "Rezervasyonlarınız alınamadı.");
-      } finally { if (!controller.signal.aborted) setLoading(false); }
+        if (responses.some(r => !r.ok)) throw new Error("Bilet ve geçmiş kayıtlarınız alınamadı. Lütfen tekrar deneyiniz.");
+        const [tickets, archive] = await Promise.all(responses.map(r => r.json()));
+        setItems(tickets as Purchase[]); setLegacy(archive as Reservation[]); setError("");
+      } catch (e) { if (!abort.signal.aborted) setError(e instanceof TypeError ? "Sunucuya bağlanılamadı." : e instanceof Error ? e.message : "Biletler alınamadı."); }
+      finally { if (!abort.signal.aborted) setLoading(false); }
     })();
-    return () => controller.abort();
-  }, [navigate, attempt]);
-  const cancelReservation = async () => {
-    if (!confirming || cancelling) return;
-    setCancelling(true); setActionError(""); setSuccess("");
+    return () => abort.abort();
+  }, [navigate, revision]);
+  const cancel = async () => {
+    if (!confirming || busy) return;
+    setBusy(true); setError(""); setSuccess("");
+    const path = confirming.ticket ? `/api/tickets/${confirming.ticket.pnr}/cancel` : `/api/reservations/${confirming.legacy!.reservationNumber}/cancel`;
     try {
-      const response = await fetch(apiUrl(`/api/reservations/${encodeURIComponent(confirming.reservationNumber)}/cancel`), {
-        method: "POST", headers: { Authorization: `Bearer ${sessionStorage.getItem("travela_token")}` },
-      });
-      if (response.status === 401) {
-        sessionStorage.removeItem("travela_token"); sessionStorage.removeItem("travela_user");
-        navigate("/login?returnTo=%2Freservations", { replace: true }); return;
-      }
+      const response = await fetch(apiUrl(path), { method: "POST", headers: { Authorization: `Bearer ${sessionStorage.getItem("travela_token")}` } });
       const data = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(data?.message ?? "Rezervasyon iptal edilemedi. Listeyi yenileyip tekrar deneyiniz.");
-      setItems(current => current.map(item => item.reservationNumber === data.reservationNumber ? data as Reservation : item));
-      setConfirming(null); setSuccess("Rezervasyonunuz iptal edildi. Güncel bilgileri listede görebilirsiniz.");
-    } catch (cause) {
-      setActionError(cause instanceof TypeError ? "Sunucu yanıtı alınamadı. Güncel durumu görmek için listeyi yenileyiniz." : cause instanceof Error ? cause.message : "İptal tamamlanamadı.");
-    } finally { setCancelling(false); }
+      if (!response.ok) throw new Error(data?.message ?? "İptal tamamlanamadı. Güncel durumu kontrol ediniz.");
+      setSuccess(confirming.ticket ? "Bilet iptal edildi; tam iade talebi kaydedildi. İadenin tamamlanması sağlayıcı sonucuyla ayrıca gösterilecektir." : "Eski ücretsiz kayıt serbest bırakıldı. Bu kayıt için ödeme veya iade yoktur.");
+      setConfirming(null); setRevision(v => v + 1);
+    } catch (e) { setError(e instanceof TypeError ? "Yanıt alınamadı. İptali tekrar denemeden önce güncel durumu kontrol ediniz." : e instanceof Error ? e.message : "İptal tamamlanamadı."); }
+    finally { setBusy(false); }
   };
-  return <div className="travela-site"><SiteHeader /><main className="trip-detail-page">
-    <h1>Rezervasyonlarım</h1>
+  const target = confirming?.ticket ?? confirming?.legacy;
+  return <div className="travela-site"><SiteHeader /><main className="trip-detail-page"><h1>Biletlerim</h1>
     {success && <p className="reservation-success" role="status">{success}</p>}
-    {actionError && !confirming && <p className="results-message error" role="alert">{actionError}</p>}
-    <button type="button" className="site-button secondary" disabled={loading || cancelling} onClick={() => { setLoading(true); setError(""); setAttempt(v => v + 1); }}>Listeyi yenile</button>
-    {loading ? <p className="site-empty-state" role="status">Rezervasyonlarınız yükleniyor...</p> : error ?
-      <div className="results-message error" role="alert"><p>{error}</p><button type="button" className="site-button secondary" onClick={() => { setLoading(true); setError(""); setAttempt(v => v + 1); }}>Tekrar dene</button></div> :
-      items.length === 0 ? <div className="site-empty-state"><p>Henüz rezervasyonunuz bulunmuyor.</p><Link to="/#sefer-ara" className="site-button primary">Sefer ara</Link></div> :
-      <div className="reservation-list">{items.map(item => <ReservationSummary key={item.reservationNumber} reservation={item} cancelling={cancelling} onCancel={new Date(item.departureTime).getTime() > now ? item => { setConfirming(item); setActionError(""); setSuccess(""); } : undefined} />)}</div>}
-    {confirming && <CancelConfirmation busy={cancelling} onClose={() => setConfirming(null)}>
-      <h2 id="cancel-title">Rezervasyon iptal edilsin mi?</h2>
-      <p id="cancel-description">{confirming.departureCity} → {confirming.arrivalCity}, koltuk {confirming.seatNumber}. İptal sonrası koltuk başka bir yolcu tarafından rezerve edilebilir.</p>
-      {actionError && <p role="alert" className="profile-error">{actionError}</p>}
-      <div className="reservation-confirm-actions"><button autoFocus type="button" className="site-button secondary" disabled={cancelling} onClick={() => setConfirming(null)}>Vazgeç</button><button type="button" className="site-button reservation-cancel" disabled={cancelling} onClick={() => void cancelReservation()}>{cancelling ? "İptal ediliyor..." : "Evet, iptal et"}</button></div>
-    </CancelConfirmation>}
+    {error && !confirming && <p className="results-message error" role="alert">{error}</p>}
+    <button className="site-button secondary" disabled={busy} onClick={() => setRevision(v => v + 1)}>Durumları yenile</button>
+    {loading ? <p role="status">Biletleriniz yükleniyor...</p> : <>
+      {items.length === 0 ? <div className="site-empty-state"><p>Henüz biletiniz veya ödeme işleminiz yok.</p><Link to="/#sefer-ara" className="site-button primary">Sefer ara</Link></div> : <div className="reservation-list">{items.map(item => <TicketCard key={item.id} item={{ ...item, canCancel: item.canCancel && now <= new Date(item.cancelDeadline).getTime() }} busy={busy} onCancel={ticket => { setConfirming({ ticket }); setError(""); }} />)}</div>}
+      {legacy.length > 0 && <section><h2>Eski ücretsiz kayıtlar</h2><p>Bu kayıtlar korunmuştur; satın alınmış veya ödenmiş bilet değildir. Yeni satın alma için bu kaydı serbest bırakıp seferden ödeme adımını başlatabilirsiniz.</p><div className="reservation-list">{legacy.map(item => <ReservationSummary key={item.reservationNumber} reservation={item} cancelling={busy} onCancel={item.canCancel && new Date(item.departureTime).getTime() > now ? r => { setConfirming({ legacy: r }); setError(""); } : undefined} />)}</div></section>}
+    </>}
+    {target && confirming && <Confirm busy={busy} close={() => setConfirming(null)}>
+      <h2 id="cancel-title">{confirming.ticket ? "Bilet iptal edilsin mi?" : "Eski ücretsiz kayıt serbest bırakılsın mı?"}</h2>
+      <p>{target.departureCity} → {target.arrivalCity} · Koltuk {target.seatNumber}</p><p>Kalkış: {dateTime.format(new Date(target.departureTime))}</p>
+      {confirming.ticket ? <><p>Tam iade tutarı: <strong>{money.format(confirming.ticket.amount)}</strong>{confirming.ticket.isTest && " (yerel test)"}</p><p>İptal son zamanı: {dateTime.format(new Date(confirming.ticket.cancelDeadline))}. İade talebi, tamamlanmış iade anlamına gelmez.</p></> : <p>Ücretsiz kayıt için ödeme veya iade işlemi bulunmuyor.</p>}
+      {error && <p role="alert">{error}</p>}<div className="reservation-confirm-actions"><button autoFocus className="site-button secondary" disabled={busy} onClick={() => setConfirming(null)}>Vazgeç</button><button className="site-button reservation-cancel" disabled={busy} onClick={() => void cancel()}>{busy ? "İşleniyor..." : "Evet, iptal et"}</button></div>
+    </Confirm>}
   </main></div>;
 }
 
-function CancelConfirmation({ busy, onClose, children }: { busy: boolean; onClose: () => void; children: ReactNode }) {
+function Confirm({ children, busy, close }: { children: React.ReactNode; busy: boolean; close: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const element = dialog.current;
-    element?.showModal();
-    return () => element?.close();
-  }, []);
-  return <dialog ref={dialog} className="reservation-confirm" aria-labelledby="cancel-title" aria-describedby="cancel-description"
-    onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>{children}</dialog>;
+  useEffect(() => { const d = dialog.current; d?.showModal(); return () => d?.close(); }, []);
+  return <dialog ref={dialog} className="reservation-confirm" aria-labelledby="cancel-title" onCancel={e => { e.preventDefault(); if (!busy) close(); }}>{children}</dialog>;
 }
