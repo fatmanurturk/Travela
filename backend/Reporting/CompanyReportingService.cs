@@ -14,7 +14,7 @@ public class CompanyReportingService(TravelaDbContext db, TimeProvider clock)
     public const int CsvLimit = 10000;
     public ReportScope Scope(CompanyReportQuery q)
     {
-        if (q.Environment is not ("real" or "test") || q.Basis is not ("transaction" or "departure") ||
+        if (q.Environment is not ("all" or "real" or "test") || q.Basis is not ("transaction" or "departure") ||
             q.Period is not ("today" or "week" or "month" or "custom") || q.Page < 1 || q.PageSize is < 1 or > 100 ||
             q.Sort is not ("departure" or "sold" or "collected" or "refunded" or "occupancy" or "available") ||
             q.Direction is not ("asc" or "desc") || q.RouteSort is not ("sold" or "collected" or "refunded") || q.TripId <= 0 || q.RouteId <= 0)
@@ -26,7 +26,7 @@ public class CompanyReportingService(TravelaDbContext db, TimeProvider clock)
         if (from.Year < 2000 || to.Year > 2100 || to < from || to.DayNumber - from.DayNumber >= 366)
             throw new ReportQueryException("Tarih aralığı 2000–2100 yılları arasında ve en fazla 366 gün olmalıdır; bitiş başlangıçtan önce olamaz.");
         DateTime Utc(DateOnly day) => new DateTimeOffset(day.ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(3)).UtcDateTime;
-        return new(from, to, Utc(from), Utc(to.AddDays(1)), q.Environment, q.Basis, now.UtcDateTime,
+        return new(from, to, Utc(from), Utc(to.AddDays(1)), "all", q.Basis, now.UtcDateTime,
             q.Basis == "transaction"
                 ? "İşlem tarihi: satış düzenlenme, iptal iptal zamanı, tahsilat doğrulanma, tamamlanan iade tamamlanma, bekleyen/başarısız iade güncel duruma geçiş tarihindedir. İade önceki dönemin satışına ait olabilir. Aktif bilet, dönemde düzenlenip halen aktif olan bilettir."
                 : "Sefer kalkış tarihi: seçili tarihlerdeki seferlere ait kayıtların güncel durumları ve tüm ilgili doğrulanmış ödeme/iadeleridir; işlem dönemine ait nakit hareketi değildir.");
@@ -41,7 +41,7 @@ public class CompanyReportingService(TravelaDbContext db, TimeProvider clock)
         .Where(t => t.CompanyId == companyId && (!q.TripId.HasValue || t.Id == q.TripId) && (!q.RouteId.HasValue || t.RouteId == q.RouteId));
     private IQueryable<PaymentOrder> Orders(int companyId, CompanyReportQuery q, ReportScope s)
     {
-        var query = db.PaymentOrders.AsNoTracking().Where(p => p.Reservation.Trip.CompanyId == companyId && p.IsTest == (q.Environment == "test") &&
+        var query = db.PaymentOrders.AsNoTracking().Where(p => p.Reservation.Trip.CompanyId == companyId &&
             (!q.TripId.HasValue || p.Reservation.TripId == q.TripId) && (!q.RouteId.HasValue || p.Reservation.Trip.RouteId == q.RouteId));
         return q.Basis == "departure" ? query.Where(p => p.Reservation.Trip.DepartureTime >= s.StartUtc && p.Reservation.Trip.DepartureTime < s.EndExclusiveUtc) : query;
     }
@@ -74,17 +74,17 @@ public class CompanyReportingService(TravelaDbContext db, TimeProvider clock)
 
     private IQueryable<TripInventory> Inventories(int companyId, CompanyReportQuery q, ReportScope s, IQueryable<ReportFact> facts)
     {
-        var test = q.Environment == "test"; var now = s.GeneratedAt;
+        var now = s.GeneratedAt;
         var trips = CompanyTrips(companyId, q);
         trips = q.Basis == "departure" ? trips.Where(t => t.DepartureTime >= s.StartUtc && t.DepartureTime < s.EndExclusiveUtc) : trips.Where(t => facts.Any(f => f.TripId == t.Id));
         return trips.Select(t => new TripInventory
         {
             Id = t.Id, RouteId = t.RouteId, DepartureCity = t.Route.DepartureCity, ArrivalCity = t.Route.ArrivalCity,
             Departure = t.DepartureTime, Plate = t.Bus.PlateNumber, Capacity = t.Bus.SeatCapacity, StoredAvailable = t.AvailableSeats, Status = t.Status,
-            ActiveSold = db.Reservations.Count(r => r.TripId == t.Id && r.Status == "Active" && r.Kind == "Ticket" && r.Pnr != null && r.Payment != null && r.Payment.PaymentStatus == "Paid" && r.Payment.IsTest == test),
-            Held = db.Reservations.Count(r => r.TripId == t.Id && r.Status == "Active" && r.Kind == "Hold" && r.HoldExpiresAt > now && r.Payment != null && r.Payment.IsTest == test),
+            ActiveSold = db.Reservations.Count(r => r.TripId == t.Id && r.Status == "Active" && r.Kind == "Ticket" && r.Pnr != null && r.Payment != null && r.Payment.PaymentStatus == "Paid"),
+            Held = db.Reservations.Count(r => r.TripId == t.Id && r.Status == "Active" && r.Kind == "Hold" && r.HoldExpiresAt > now && r.Payment != null),
             Legacy = db.Reservations.Count(r => r.TripId == t.Id && r.Status == "Active" && r.Kind == "Legacy"),
-            OtherEnvironment = db.Reservations.Count(r => r.TripId == t.Id && r.Status == "Active" && r.Kind != "Legacy" && r.Payment != null && r.Payment.IsTest != test && (r.Kind == "Ticket" || r.HoldExpiresAt > now)),
+            OtherEnvironment = 0,
             Expired = db.Reservations.Count(r => r.TripId == t.Id && r.Status == "Active" && r.Kind == "Hold" && r.HoldExpiresAt <= now),
             AllActive = db.Reservations.Count(r => r.TripId == t.Id && r.Status == "Active"),
             Invalid = db.Reservations.Any(r => r.TripId == t.Id && r.Status == "Active" &&
@@ -167,7 +167,7 @@ public class CompanyReportingService(TravelaDbContext db, TimeProvider clock)
         var attention = await orders.Where(p => p.PaymentStatus == "Paid" && p.RefundStatus == "Failed" &&
             (q.Basis == "departure" || p.RefundStatusChangedAt == null || (p.RefundStatusChangedAt >= scope.StartUtc && p.RefundStatusChangedAt < scope.EndExclusiveUtc)))
             .OrderByDescending(p => p.NeedsAttention).ThenBy(p => p.RefundStatusChangedAt).Select(p => new { p.Id, p.Reservation.TripId, p.Reservation.Pnr, p.RefundAmount, p.LastError, p.RefundStatusChangedAt }).Take(10).ToListAsync(ct);
-        result.FailedRefunds = attention.Select(p => new ReportRefundAttention(p.Id, p.TripId, p.Pnr, p.RefundAmount, p.LastError, p.RefundStatusChangedAt.HasValue ? DateTime.SpecifyKind(p.RefundStatusChangedAt.Value, DateTimeKind.Utc) : null)).ToList();
+        result.FailedRefunds = attention.Select(p => new ReportRefundAttention(p.Id, p.TripId, p.Pnr, p.RefundAmount, p.LastError?.Replace("Yerel test adaptörü iade hatası.", "İade işlemi tamamlanamadı."), p.RefundStatusChangedAt.HasValue ? DateTime.SpecifyKind(p.RefundStatusChangedAt.Value, DateTimeKind.Utc) : null)).ToList();
         return result;
     }
     private static async Task<List<ReportDay>> Daily(IQueryable<ReportFact> facts, ReportScope s, CancellationToken ct)
@@ -189,7 +189,7 @@ public class CompanyReportingService(TravelaDbContext db, TimeProvider clock)
         var items = await Sort(rows, q).Take(CsvLimit + 1).ToListAsync(ct);
         if (items.Count > CsvLimit) throw new ReportQueryException($"CSV en fazla {CsvLimit} sefer içerebilir. Filtreyi daraltınız; sonuçlar kesilmedi.", 422);
         items.ForEach(Utc);
-        var label = q.Environment == "test" ? "YEREL TEST - Gerçek satış/tahsilat/iade değildir" : "Gerçek işlemler";
+        const string label = "Firma işlemleri";
         var csv = new StringBuilder();
         void Line(params string[] cells) => csv.AppendLine(string.Join(";", cells.Select(Escape)));
         Line("Travela sefer raporu", label); Line("Tarih kapsamı", q.Basis == "transaction" ? "İşlem tarihi" : "Sefer kalkış tarihi", scope.From.ToString("yyyy-MM-dd"), scope.To.ToString("yyyy-MM-dd"));
@@ -198,12 +198,12 @@ public class CompanyReportingService(TravelaDbContext db, TimeProvider clock)
         var unknown = await Orders(companyId, q, scope).Where(p => p.PaymentStatus == "Paid" && (p.RefundStatus == "Pending" || p.RefundStatus == "Failed") && p.RefundStatusChangedAt == null)
             .GroupBy(_ => 1).Select(g => new { Count = g.Count(), Amount = g.Sum(p => p.RefundAmount) }).SingleOrDefaultAsync(ct);
         if (unknown != null) Line("Eski iade tarihi uyarısı", $"{unknown.Count} iadenin ({unknown.Amount.ToString("F2", CultureInfo.GetCultureInfo("tr-TR"))} TRY) durum tarihi bilinmiyor; işlem tarihi toplamlarına dahil değildir, sefer tarihi kapsamına dahildir.");
-        Line("Ortam", "Sefer", "Güzergâh", "Kalkış (Türkiye)", "Plaka", "Kapasite", "Aktif satılmış koltuk", "Geçici ödeme tutması", "Eski ücretsiz blokaj", "Diğer ortam blokajı", "Satışa açık", "Doluluk (%)", "Satılan bilet", "Dönem aktif bilet", "İptal bilet", "Tahsilat (TRY)", "Tamamlanan iade (TRY)", "Bekleyen iade (TRY)", "Başarısız iade sayısı", "Başarısız iade (TRY)", "Tahsilat − tamamlanan iade (TRY)", "Sefer durumu", "Veri açıklaması");
+        Line("Ortam", "Sefer", "Güzergâh", "Kalkış (Türkiye)", "Plaka", "Kapasite", "Aktif satılmış koltuk", "Geçici ödeme tutması", "Eski ücretsiz blokaj", "Satışa açık", "Doluluk (%)", "Satılan bilet", "Dönem aktif bilet", "İptal bilet", "Tahsilat (TRY)", "Tamamlanan iade (TRY)", "Bekleyen iade (TRY)", "Başarısız iade sayısı", "Başarısız iade (TRY)", "Tahsilat − tamamlanan iade (TRY)", "Sefer durumu", "Veri açıklaması");
         var tr = CultureInfo.GetCultureInfo("tr-TR");
         foreach (var t in items)
         {
             Line(label, t.Id.ToString(), SafeText(t.DepartureCity + " → " + t.ArrivalCity), new DateTimeOffset(t.DepartureTime).ToOffset(TimeSpan.FromHours(3)).ToString("dd.MM.yyyy HH:mm", tr), SafeText(t.Plate),
-                t.Capacity.ToString(), t.ActiveSoldSeats.ToString(), t.HeldSeats.ToString(), t.LegacyBlockedSeats.ToString(), t.OtherEnvironmentBlocks.ToString(), t.AvailableForSale?.ToString() ?? "Hesaplanamadı", t.OccupancyPercent?.ToString("F2", tr) ?? "Hesaplanamadı",
+                t.Capacity.ToString(), t.ActiveSoldSeats.ToString(), t.HeldSeats.ToString(), t.LegacyBlockedSeats.ToString(), t.AvailableForSale?.ToString() ?? "Hesaplanamadı", t.OccupancyPercent?.ToString("F2", tr) ?? "Hesaplanamadı",
                 t.Sold.ToString(), t.Active.ToString(), t.Cancelled.ToString(), t.Collected.ToString("F2", tr), t.Refunded.ToString("F2", tr), t.PendingRefund.ToString("F2", tr), t.FailedRefundCount.ToString(), t.FailedRefundAmount.ToString("F2", tr), t.CollectedMinusRefunded.ToString("F2", tr), SafeText(t.Status), t.DataWarning ?? "");
         }
         return Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();

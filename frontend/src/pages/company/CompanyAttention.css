@@ -1,0 +1,14 @@
+.company-attention { margin-bottom: 20px; }
+.company-attention > h2 { margin: 0 0 8px; }
+.company-attention > p { color: #52627a; line-height: 1.6; }
+.attention-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 18px 0; }
+.attention-group { min-width: 0; padding: 18px; border: 1px solid #dce4ef; border-left: 4px solid #2563eb; border-radius: 10px; background: #f8faff; }
+.attention-resources, .attention-refunds { border-left-color: #b45309; }
+.attention-group h3 { margin: 0 0 12px; font-size: 16px; line-height: 1.5; }
+.attention-count { display: inline-block; padding: 1px 8px; border-radius: 20px; background: #e2eaff; color: #163b83; }
+.attention-group ul { margin: 0; padding: 0; list-style: none; }
+.attention-group li { padding: 12px 0; border-top: 1px solid #dce4ef; overflow-wrap: anywhere; }
+.attention-group li p { margin: 5px 0; color: #52627a; line-height: 1.5; }
+.attention-group time, .company-attention small { font-size: 13px; color: #52627a; }
+.attention-group a { color: #154fba; }
+@media (max-width: 760px) { .attention-grid { grid-template-columns: minmax(0, 1fr); } }

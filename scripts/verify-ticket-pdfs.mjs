@@ -27,7 +27,7 @@ for (const [state, relative] of cases) {
   for (const value of [expected.pnr, expected.passengerName, expected.companyName, expected.departureCity, expected.arrivalCity, expected.refundDescription]) {
     assert.ok(text.includes(normalize(value)), `${state}: PDF içeriği API ile eşleşmiyor: ${value}`);
   }
-  assert.ok(text.includes("TEST BİLETİ — Gerçek seyahat için geçerli değildir"));
+  assert.ok(!text.includes("TEST BİLETİ"));
   assert.equal(text.includes("İPTAL EDİLDİ"), state !== "active");
   assert.ok(text.includes(new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(expected.amount) + " " + expected.currency));
   assert.ok(text.includes("Koltuk " + expected.seatNumber));

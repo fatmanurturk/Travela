@@ -23,6 +23,9 @@ test("Bilet detay bağlantısı yalnızca ödenmiş ve PNR düzenlenmiş kayıtt
 test("Ödeme ekranı ve giriş dönüşü yalnızca izin verilen yerel adrese gider", () => {
   const path = "/test-payment/12345678-1234-1234-1234-123456789012";
   assert.equal(safeCheckoutPath(path), path);
+  const payment = path.replace("test-payment", "payment");
+  assert.equal(safeCheckoutPath(payment), payment);
+  assert.equal(passengerReturnTo(payment), payment);
   assert.equal(passengerReturnTo(path), path);
   assert.equal(passengerReturnTo("/tickets"), "/tickets");
   for (const value of ["//example.com", "https://example.com", "/test-payment/../admin", "javascript:alert(1)"]) assert.equal(safeCheckoutPath(value), null);

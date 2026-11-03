@@ -16,17 +16,18 @@ async function setup(page, width, handler) {
   sessionStorage.setItem("travela_token", "isolated-report-layout-token");
   sessionStorage.setItem("travela_user", JSON.stringify({ role: "Company", name: "Test Firma", companyName: "Rapor Firma" }));
  });
+ await page.route("**/api/company/attention", r => r.fulfill({ json: { generatedAt: "2026-11-03T08:00:00Z", groups: [] } }));
  await page.route("**/api/company/profile", r => r.fulfill({ json: { name: "Rapor Firma" } }));
  await page.route("**/api/company/reports/options", r => r.fulfill({ json: [{ id: 1, departureCity: "İstanbul", arrivalCity: "İzmir" }] }));
- await page.route(/\/api\/company\/reports\?/, handler ?? (r => r.fulfill({ json: new URL(r.request().url()).searchParams.get("environment") === "test" ? local : real })));
+ await page.route(/\/api\/company\/reports\?/, handler ?? (r => r.fulfill({ json: local })));
 }
 for (const width of [360, 390, 1440]) for (const overview of [true, false]) {
  test(`${overview ? "Genel Bakış" : "Raporlar"}: ${width}px, kapsam ve yatay taşma`, async ({ page }) => {
   await setup(page, width); await page.goto(`/company${overview ? "" : "/reports"}?${filter}`);
   await expect(page.getByRole("heading", { name: "Satılan bilet", exact: true })).toBeVisible();
-  await expect(page.locator(".test-environment-notice")).toHaveCount(1);
+  await expect(page.locator(".test-environment-notice")).toHaveCount(0);
   await expect(page.locator(".report-card-grid")).not.toContainText("YEREL TEST");
-  await expect(page.locator(".report-card-grid .company-stat-card").first()).toContainText("5");
+  await expect(page.locator(".report-card-grid .company-stat-card").first()).toContainText("6");
   await page.getByText("Rapor hakkında", { exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page.locator(".report-scope .ui-details-content")).toBeVisible();
@@ -54,26 +55,23 @@ test("Filtre URL'de ve yenilemede korunur; CSV seçili kapsamla indirilir", asyn
  await page.getByRole("button", { name: "Filtreleri uygula" }).click();
  await expect(page).toHaveURL(/basis=departure/); await expect(page).toHaveURL(/tripId=12/);
  await page.reload(); await expect(page.getByLabel("Sefer numarası", { exact: true })).toHaveValue("12");
- await expect(page.getByRole("combobox", { name: "İşlem ortamı", exact: true })).toHaveValue("test");
+ await expect(page.getByRole("combobox", { name: "İşlem ortamı", exact: true })).toHaveCount(0);
  let csvQuery;
  await page.route("**/api/company/reports/csv?*", async route => { csvQuery = new URL(route.request().url()).searchParams; await route.fulfill({ contentType: "text/csv; charset=utf-8", body: readFileSync(path.join(directory, "test.csv")) }); });
  const download = page.waitForEvent("download"); await page.getByRole("button", { name: "CSV indir" }).click();
- expect((await download).suggestedFilename()).toContain("YEREL-TEST"); expect(csvQuery.get("environment")).toBe("test"); expect(csvQuery.get("tripId")).toBe("12"); expect(csvQuery.get("basis")).toBe("departure");
+ expect((await download).suggestedFilename()).toMatch(/^Travela-sefer-raporu-/); expect(csvQuery.get("environment")).toBeNull(); expect(csvQuery.get("tripId")).toBe("12"); expect(csvQuery.get("basis")).toBe("departure");
 });
-test("Eski istek yeni ortam sonucunu ezmez ve gerçek boş rapor test verisine geçmez", async ({ page }) => {
- let delayed = false;
- const empty = { ...real, metrics: Object.fromEntries(Object.keys(real.metrics).map(k => [k, 0])), trips: [], routes: [], totalTrips: 0, recent: [], failedRefunds: [] };
+test("Eski ortam bağlantısı filtrelenmez; firma kayıtları etiketsiz gösterilir", async ({ page }) => {
  await setup(page, 390, async route => {
-  const isTest = new URL(route.request().url()).searchParams.get("environment") === "test";
-  if (isTest) { delayed = true; await new Promise(resolve => setTimeout(resolve, 800)); }
-  await route.fulfill({ json: isTest ? local : empty }).catch(() => {});
+  expect(new URL(route.request().url()).searchParams.has("environment")).toBe(false);
+  await route.fulfill({ json: local });
  });
- await page.goto(`/company/reports?${filter}`); await expect.poll(() => delayed).toBe(true);
- await page.getByRole("combobox", { name: "İşlem ortamı", exact: true }).selectOption("real"); await page.getByRole("button", { name: "Filtreleri uygula" }).click();
- await expect(page.locator(".report-scope")).toContainText("Bu dönemde işlem bulunmuyor");
- await page.waitForTimeout(1000); await expect(page.locator(".report-card-grid")).not.toContainText("YEREL TEST");
- await expect(page.locator(".report-card-grid .company-stat-card").first().locator(".report-card-value")).toHaveText("0");
+ await page.goto(`/company/reports?${filter}`);
+ await expect(page.locator(".report-card-grid .company-stat-card").first().locator(".report-card-value")).toHaveText("6");
+ await expect(page.getByRole("combobox", { name: "İşlem ortamı", exact: true })).toHaveCount(0);
+ await expect(page.locator(".company-reporting")).not.toContainText(/YEREL TEST|Gerçek işlemler|Diğer ortam blokajı/);
 });
+
 test("Sunucu hatası ve yeniden deneme Türkçe; geçersiz özel tarih engellenir", async ({ page }) => {
  let fail = true;
  await setup(page, 360, route => route.fulfill(fail ? { status: 500, json: { message: "Rapor verileri alınamadı." } } : { json: local }));

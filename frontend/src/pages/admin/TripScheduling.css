@@ -1,0 +1,13 @@
+.trip-repeat { padding: 18px; border: 1px solid #dce4ef; border-radius: 10px; background: #f8faff; margin: 16px 0; }
+.trip-repeat h3 { margin-top: 0; }
+.trip-repeat label { display: flex; flex-direction: column; gap: 7px; }
+.trip-repeat-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.trip-weekdays { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; border: 1px solid #dce4ef; border-radius: 8px; padding: 12px; }
+.trip-weekdays label { flex-direction: row; align-items: center; }
+.trip-weekdays input { width: auto; min-height: auto; }
+.trip-date-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; list-style: none; }
+.trip-date-chips li { display: flex; align-items: center; gap: 8px; background: #e8eef9; padding: 5px 10px; border-radius: 6px; }
+.trip-schedule-preview { max-height: 280px; overflow: auto; margin: 16px 0; }
+.trip-schedule-preview table { width: 100%; border-collapse: collapse; }
+.trip-schedule-preview th, .trip-schedule-preview td { padding: 10px; border-bottom: 1px solid #dce4ef; text-align: left; white-space: nowrap; }
+@media (max-width: 600px) { .trip-repeat { padding: 12px; } .trip-repeat-controls > label { width: 100%; } }

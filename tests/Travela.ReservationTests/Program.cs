@@ -147,7 +147,7 @@ try
     var cancelledDetail = await Read(await Send("GET", $"/api/tickets/{paid.Pnr}", token1));
     Check(cancelledDetail.TicketStatus == "Cancelled" && cancelledDetail.CancelledAt != null && cancelledDetail.RefundStatus == "Pending" && !cancelledDetail.CanCancel, "İptal edilmiş bilet detayı güncel iptal zamanı ve bekleyen iade durumunu sunuyor");
     await DownloadPdf(paid.Pnr!, "ticket-cancelled-test.pdf");
-    Check(cancelledDetail.RefundDescription.Contains("İade talebi kaydedildi, sonuç bekleniyor") && cancelledDetail.RefundDescription.StartsWith("Test iadesi:"), "Bekleyen test iadesi sayfa/PDF için tek backend açıklaması kullanıyor");
+    Check(cancelledDetail.RefundDescription.Contains("İade talebi kaydedildi, sonuç bekleniyor") && !cancelledDetail.RefundDescription.Contains("Test iadesi:"), "Bekleyen test iadesi sayfa/PDF için tek backend açıklaması kullanıyor");
     await SaveSnapshot(cancelledDetail, "pending");
     await DownloadPdf(paid.Pnr!, "ticket-refund-pending.pdf", true);
     Check((await Send("POST", $"/api/tickets/{paid.Pnr}/cancel", token2)).StatusCode == HttpStatusCode.NotFound, "Başka yolcunun bilet iptali engellendi");

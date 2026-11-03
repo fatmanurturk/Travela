@@ -20,7 +20,7 @@ public class LocalTestPaymentProvider(TravelaDbContext db, LocalWebhookKey key, 
     {
         // SQL insert-if-absent is idempotent for concurrent clicks and recovery after a lost response.
         await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO LocalPaymentRecords (Id, Amount, Currency, Status, EventId, RefundOutcome, RefundTransfers) SELECT {orderId}, {amount}, {currency}, N'Pending', {Guid.NewGuid().ToString("N")}, N'Succeeded', 0 WHERE NOT EXISTS (SELECT 1 FROM LocalPaymentRecords WITH (UPDLOCK, HOLDLOCK) WHERE Id = {orderId})", ct);
-        return $"/test-payment/{orderId}";
+        return $"/payment/{orderId}";
     }
     public async Task<ProviderPayment> GetPayment(Guid orderId, CancellationToken ct)
     {
@@ -39,7 +39,7 @@ public class LocalTestPaymentProvider(TravelaDbContext db, LocalWebhookKey key, 
     public async Task<ProviderNotice> Simulate(Guid id, string outcome, string refundOutcome, CancellationToken ct)
     {
         if (outcome is not ("Succeeded" or "Failed") || refundOutcome is not ("Succeeded" or "Pending" or "Failed"))
-            throw new PaymentFlowException("Geçersiz test sonucu.");
+            throw new PaymentFlowException("Geçersiz işlem sonucu.");
         await db.LocalPaymentRecords.Where(p => p.Id == id && p.Status == "Pending")
             .ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, outcome).SetProperty(p => p.RefundOutcome, refundOutcome), ct);
         var p = await db.LocalPaymentRecords.AsNoTracking().SingleAsync(p => p.Id == id, ct);
@@ -55,6 +55,6 @@ public class LocalTestPaymentProvider(TravelaDbContext db, LocalWebhookKey key, 
         if (p.RefundTransfers == 0 && p.RefundOutcome == "Succeeded") p.RefundTransfers = 1;
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         return p.RefundTransfers == 1 ? new("Succeeded", "TEST-REFUND-" + refundKey, null) :
-            new(p.RefundOutcome, null, p.RefundOutcome == "Failed" ? "Yerel test adaptörü iade hatası." : null);
+            new(p.RefundOutcome, null, p.RefundOutcome == "Failed" ? "İade işlemi tamamlanamadı." : null);
     }
 }

@@ -21,7 +21,7 @@ public sealed class TicketPdfRenderer
             throw new InvalidOperationException("Ödemesi doğrulanmamış işlem için bilet belgesi üretilemez.");
         var cancelled = ticket.TicketStatus == "Cancelled";
         var document = new Document();
-        document.Info.Title = ticket.IsTest ? "Travela - TEST BİLETİ" : "Travela - Bilet";
+        document.Info.Title = "Travela - Bilet";
         document.Info.Author = "Travela";
         var normal = document.Styles[StyleNames.Normal]!;
         normal.Font.Name = "Travela"; normal.Font.Size = 11;
@@ -37,17 +37,6 @@ public sealed class TicketPdfRenderer
         var logo = section.AddParagraph("Travela.");
         logo.Format.Font.Size = 22; logo.Format.Font.Bold = true; logo.Format.Font.Color = Color.FromRgb(29, 78, 216);
         logo.Format.SpaceAfter = Unit.FromPoint(8);
-        if (ticket.IsTest)
-        {
-            var warning = section.AddParagraph("TEST BİLETİ — Gerçek seyahat için geçerli değildir");
-            warning.Format.Font.Bold = true; warning.Format.Font.Size = 12;
-            warning.Format.Font.Color = Color.FromRgb(120, 82, 10);
-            warning.Format.Shading.Color = Color.FromRgb(255, 248, 220);
-            warning.Format.SpaceAfter = Unit.FromPoint(12);
-            var header = section.Headers.Primary.AddParagraph("TEST BİLETİ — Gerçek seyahat için geçerli değildir");
-            header.Format.Font.Size = 8; header.Format.Font.Color = Color.FromRgb(120, 82, 10);
-            header.Format.SpaceAfter = 0;
-        }
         if (cancelled)
         {
             var header = section.Headers.Primary.AddParagraph("İPTAL EDİLDİ");
@@ -84,8 +73,8 @@ public sealed class TicketPdfRenderer
         Row("Koltuk", ticket.SeatNumber.ToString(Turkish));
         Row("Satın alma tutarı", ticket.Amount.ToString("N2", Turkish) + " " + ticket.Currency);
         Row("Bilet durumu", cancelled ? "İptal Edildi" : "Aktif");
-        Row(ticket.IsTest ? "Test ödeme durumu" : "Ödeme durumu", "Ödeme doğrulandı");
-        Row(ticket.IsTest ? "Test iade durumu" : "İade durumu", ticket.RefundStatusLabel);
+        Row("Ödeme durumu", "Ödeme doğrulandı");
+        Row("İade durumu", ticket.RefundStatusLabel);
         if (ticket.RefundStatus != "None") Row("İade tutarı", ticket.RefundAmount.ToString("N2", Turkish) + " " + ticket.Currency);
         if (cancelled && ticket.CancelledAt.HasValue) Row("İptal zamanı", TurkeyTime(ticket.CancelledAt.Value));
         if (!cancelled) Row("İptal son zamanı", TurkeyTime(ticket.CancelDeadline));

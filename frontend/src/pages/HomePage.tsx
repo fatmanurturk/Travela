@@ -4,6 +4,7 @@ import { apiUrl } from "../api";
 import { getTodayInTurkey } from "../dateUtils";
 import SiteHeader from "../components/SiteHeader";
 import TripSearchForm from "../components/TripSearchForm";
+import TravelAnimation from "../components/TravelAnimation";
 
 type PublicTrip = {
   id: number;
@@ -104,10 +105,13 @@ function HomePage() {
       <SiteHeader />
       <main>
         <section className="home-hero">
+          <div className="hero-intro">
           <div className="hero-copy">
             <span className="eyebrow">Yolculuğunu kolayca planla</span>
             <h1>Yeni yollar, <span>güzel hikâyeler.</span></h1>
             <p>Türkiye'nin farklı şehirleri arasındaki seferleri karşılaştır, sana uygun yolculuğu bul.</p>
+          </div>
+          <TravelAnimation />
           </div>
           <div className="search-panel" id="sefer-ara">
             <div className="search-panel-heading">

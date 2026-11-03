@@ -3,6 +3,9 @@ import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiUrl } from "../../api";
 import "../Admin.css";
+import "./TripScheduling.css";
+import { buildSchedule, turkeyInput, weekDays } from "../../tripScheduling";
+import type { ScheduleMode } from "../../tripScheduling";
 
 const API_URL = apiUrl("/api/trips");
 const BUSES_API_URL = apiUrl("/api/buses");
@@ -143,14 +146,10 @@ function statusLabel(status: string) {
   return status;
 }
 
-function toLocalInput(value: string) {
-  const date = new Date(value);
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
-}
+function toLocalInput(value: string) { return turkeyInput(value); }
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleString("tr-TR");
+  return new Date(value).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" });
 }
 
 function TripManagement() {
@@ -188,6 +187,18 @@ function TripManagement() {
   const [showTripForm, setShowTripForm] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const [tripForm, setTripForm] = useState<TripForm>(createEmptyTripForm);
+  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("single");
+  const [repeatUntil, setRepeatUntil] = useState("");
+  const [repeatDays, setRepeatDays] = useState<number[]>([]);
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [dateToAdd, setDateToAdd] = useState("");
+  const [copiedFrom, setCopiedFrom] = useState<number | null>(null);
+  const schedulePreview = useMemo(() => {
+    if (!showTripForm || editingTrip) return { items: [], error: "" };
+    try { return { items: buildSchedule(tripForm.departureTime, tripForm.arrivalTime, scheduleMode, repeatUntil, repeatDays, selectedDates), error: "" }; }
+    catch (cause) { return { items: [], error: cause instanceof Error ? cause.message : "Sefer tarihleri geçersiz." }; }
+  }, [showTripForm, editingTrip, tripForm.departureTime, tripForm.arrivalTime, scheduleMode, repeatUntil, repeatDays, selectedDates]);
+  const resetSchedule = () => { setScheduleMode("single"); setRepeatUntil(""); setRepeatDays([]); setSelectedDates([]); setDateToAdd(""); setCopiedFrom(null); };
   const [detail, setDetail] = useState<TripDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [cancelTrip, setCancelTrip] = useState<Trip | null>(null);
@@ -271,9 +282,8 @@ function TripManagement() {
     }
   };
 
-  const loadTrips = async () => {
-    setLoading(true);
-    setError("");
+  const loadTrips = async (background = false) => {
+    if (!background) { setLoading(true); setError(""); }
     try {
       const params = new URLSearchParams({
         pageNumber: String(pageNumber),
@@ -302,9 +312,9 @@ function TripManagement() {
       setTotalCount(data.totalCount);
       setTotalPages(Math.max(data.totalPages, 1));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Seferler yüklenemedi.");
+      if (!background) setError(err instanceof Error ? err.message : "Seferler yüklenemedi.");
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   };
 
@@ -315,6 +325,12 @@ function TripManagement() {
 
   useEffect(() => {
     void loadTrips();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") { void loadTrips(true); void loadSummary(); }
+    }, 15000);
+    const refreshOnFocus = () => { void loadTrips(true); void loadSummary(); };
+    window.addEventListener("focus", refreshOnFocus);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", refreshOnFocus); };
   }, [
     pageNumber,
     search,
@@ -337,12 +353,14 @@ function TripManagement() {
   );
 
   const resetTripForm = () => {
+    resetSchedule();
     setShowTripForm(false);
     setEditingTrip(null);
     setTripForm(createEmptyTripForm());
   };
 
   const createTrip = () => {
+    resetSchedule();
     setEditingTrip(null);
     setTripForm(createEmptyTripForm());
     setError("");
@@ -351,6 +369,7 @@ function TripManagement() {
   };
 
   const editTrip = (trip: Trip) => {
+    resetSchedule();
     setEditingTrip(trip);
     setTripForm({
       companyId: String(trip.companyId),
@@ -363,6 +382,13 @@ function TripManagement() {
     setError("");
     setMessage("");
     setShowTripForm(true);
+  };
+
+  const copyTrip = (trip: Trip) => {
+    resetSchedule(); setEditingTrip(null); setCopiedFrom(trip.id);
+    setTripForm({ companyId: String(trip.companyId), busId: String(trip.busId), routeId: String(trip.routeId), departureTime: "", arrivalTime: "", price: String(trip.price) });
+    setError(""); setMessage(""); setShowTripForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const linkedDetail = useRef(new URLSearchParams(location.search).get("detail"));
@@ -388,6 +414,7 @@ function TripManagement() {
 
   const submitTrip = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (saving) return;
     setSaving(true);
     setError("");
     setMessage("");
@@ -395,21 +422,16 @@ function TripManagement() {
       if (!tripForm.routeId || !tripForm.busId || !tripForm.departureTime || !tripForm.arrivalTime) {
         throw new Error("Güzergâh, otobüs, kalkış ve varış bilgileri zorunludur.");
       }
-      const response = await request(
-        editingTrip ? `${API_URL}/${editingTrip.id}` : API_URL,
-        {
-          method: editingTrip ? "PUT" : "POST",
-          headers: requestHeaders(true),
-          body: JSON.stringify({
-            companyId: isAdmin && tripForm.companyId ? Number(tripForm.companyId) : null,
-            busId: Number(tripForm.busId),
-            routeId: Number(tripForm.routeId),
-            departureTime: new Date(tripForm.departureTime).toISOString(),
-            arrivalTime: new Date(tripForm.arrivalTime).toISOString(),
-            price: Number(tripForm.price),
-          }),
-        }
-      );
+      const times = buildSchedule(tripForm.departureTime, tripForm.arrivalTime, editingTrip ? "single" : scheduleMode, repeatUntil, repeatDays, selectedDates);
+      const payload = times.map(time => ({
+        companyId: isAdmin && tripForm.companyId ? Number(tripForm.companyId) : null,
+        busId: Number(tripForm.busId), routeId: Number(tripForm.routeId), price: Number(tripForm.price), ...time
+      }));
+      const batch = !editingTrip && scheduleMode !== "single";
+      const response = await request(editingTrip ? `${API_URL}/${editingTrip.id}` : batch ? `${API_URL}/batch` : API_URL, {
+        method: editingTrip ? "PUT" : "POST", headers: requestHeaders(true),
+        body: JSON.stringify(batch ? { trips: payload } : payload[0])
+      });
       if (!response.ok) throw new Error(await readError(response, "Sefer kaydedilemedi"));
       const data = (await response.json().catch(() => null)) as { message?: string } | null;
       resetTripForm();
@@ -419,25 +441,6 @@ function TripManagement() {
       setError(err instanceof Error ? err.message : "Sefer kaydedilemedi.");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const updateStatus = async (trip: Trip, nextStatus: string) => {
-    setError("");
-    setMessage("");
-    try {
-      const response = await request(`${API_URL}/${trip.id}/status`, {
-        method: "PATCH",
-        headers: requestHeaders(true),
-        body: JSON.stringify({ status: nextStatus }),
-      });
-      if (!response.ok) throw new Error(await readError(response, "Sefer durumu güncellenemedi"));
-      const data = (await response.json().catch(() => null)) as { message?: string } | null;
-      setMessage(data?.message || "Sefer durumu güncellendi.");
-      await Promise.all([loadTrips(), loadSummary()]);
-      if (detail?.id === trip.id) await openDetail(trip.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Sefer durumu güncellenemedi.");
     }
   };
 
@@ -455,7 +458,7 @@ function TripManagement() {
       if (!response.ok) throw new Error(await readError(response, "Sefer iptal edilemedi"));
       setCancelTrip(null);
       setCancelReason("");
-      setMessage("Sefer iptal edildi. Satılmış biletler için tam iade talepleri kaydedildi; tamamlanma durumu sağlayıcı sonucuyla güncellenir. Geliştirme işlemleri yalnızca testtir.");
+      setMessage("Sefer iptal edildi. Satılmış biletler için tam iade talepleri kaydedildi; tamamlanma durumu sağlayıcı sonucuyla güncellenir.");
       await Promise.all([loadTrips(), loadSummary()]);
       if (detail?.id === cancelTrip.id) await openDetail(cancelTrip.id);
     } catch (err) {
@@ -534,7 +537,7 @@ function TripManagement() {
       <div className="dashboard-heading trip-page-heading">
         <div>
           <h1>Sefer Yönetimi</h1>
-          <p>Seferleri, güzergâhları ve otobüs atamalarını yönetin.</p>
+          <p>Seferleri, güzergâhları ve otobüs atamalarını yönetin. Durumlar kalkış ve varış saatlerine göre otomatik güncellenir.</p>
         </div>
         <button className="primary-button" type="button" onClick={createTrip}>+ Yeni Sefer Ekle</button>
       </div>
@@ -564,6 +567,8 @@ function TripManagement() {
           </div>
           {routes.length === 0 && <p className="trip-helper">Sefer eklemek için önce aktif bir güzergâh oluşturun.</p>}
           <form className="user-form" onSubmit={submitTrip}>
+            {copiedFrom && <p className="trip-helper">Sefer #{copiedFrom} bilgileri kopyalandı. Yeni kalkış ve varış tarihlerini seçin. Biletler, yolcular ve önceki seferin durumu kopyalanmaz.</p>}
+            {!editingTrip && <label>Oluşturma biçimi<select value={scheduleMode} disabled={saving} onChange={e => setScheduleMode(e.target.value as ScheduleMode)}><option value="single">Tek sefer</option><option value="weekly">Haftalık tekrar</option><option value="dates">Tarih seçerek toplu oluştur</option></select></label>}
             <div className="form-grid trip-form-grid">
               {isAdmin && (
                 <label>
@@ -649,12 +654,25 @@ function TripManagement() {
                 />
               </label>
               <div className="trip-selection-info">
-                Yeni seferler güvenlik gereği <strong>Planlandı</strong> durumunda oluşturulur.
+                Tüm saatler Türkiye saatidir. Yeni seferler <strong>Planlandı</strong> durumunda oluşturulur.
               </div>
             </div>
+            {!editingTrip && scheduleMode !== "single" && <section className="trip-repeat" aria-labelledby="trip-repeat-title">
+              <h3 id="trip-repeat-title">Sefer takvimi</h3>
+              <p>Kalkış ve varış alanları ilk seferin saatini ve yolculuk süresini belirler. Aynı otobüs, güzergâh ve fiyat seçilen tarihlere uygulanır. Bir işlemde en fazla 100 sefer kaydedilir.</p>
+              {scheduleMode === "weekly" ? <>
+                <label>Tekrar bitiş tarihi<input type="date" required min={tripForm.departureTime.slice(0, 10)} value={repeatUntil} disabled={saving} onChange={e => setRepeatUntil(e.target.value)} /></label>
+                <fieldset className="trip-weekdays"><legend>Tekrar günleri</legend>{weekDays.map(([value, label]) => <label key={value}><input type="checkbox" checked={repeatDays.includes(value)} disabled={saving} onChange={e => setRepeatDays(days => e.target.checked ? [...days, value] : days.filter(d => d !== value))} />{label}</label>)}</fieldset>
+              </> : <>
+                <div className="trip-repeat-controls"><label>Sefer tarihi<input type="date" value={dateToAdd} disabled={saving} onChange={e => setDateToAdd(e.target.value)} /></label><button type="button" className="secondary-button" disabled={saving || !dateToAdd || selectedDates.length >= 100} onClick={() => { setSelectedDates(dates => [...new Set([...dates, dateToAdd])].sort()); setDateToAdd(""); }}>Tarihi ekle</button></div>
+                <ul className="trip-date-chips">{selectedDates.map(date => <li key={date}>{date.split("-").reverse().join(".")}<button className="link-button" type="button" disabled={saving} aria-label={`${date} tarihini kaldır`} onClick={() => setSelectedDates(dates => dates.filter(d => d !== date))}>Kaldır</button></li>)}</ul>
+              </>}
+              {schedulePreview.error && tripForm.departureTime && tripForm.arrivalTime && <p role="status">{schedulePreview.error}</p>}
+              {schedulePreview.items.length > 0 && <><p><strong>{schedulePreview.items.length} sefer oluşturulacak.</strong> Kaydetmeden önce tarihleri kontrol edin. Çakışma varsa hiçbir sefer eklenmez.</p><div className="trip-schedule-preview"><table><caption>Oluşturulacak seferler (Türkiye saati)</caption><thead><tr><th>Kalkış</th><th>Varış</th></tr></thead><tbody>{schedulePreview.items.map(item => <tr key={item.departureTime}><td>{formatDate(item.departureTime)}</td><td>{formatDate(item.arrivalTime)}</td></tr>)}</tbody></table></div></>}
+            </section>}
             <div className="detail-actions">
-              <button className="primary-button" type="submit" disabled={saving || routes.length === 0}>
-                {saving ? "Kaydediliyor..." : "Kaydet"}
+              <button className="primary-button" type="submit" disabled={saving || routes.length === 0 || (!editingTrip && scheduleMode !== "single" && schedulePreview.items.length === 0)}>
+                {saving ? "Kaydediliyor..." : !editingTrip && scheduleMode !== "single" ? `${schedulePreview.items.length} Seferi Oluştur` : "Kaydet"}
               </button>
               <button className="secondary-button" type="button" onClick={resetTripForm} disabled={saving}>İptal</button>
             </div>
@@ -739,6 +757,7 @@ function TripManagement() {
                       <td>
                         <div className="action-group">
                           <button className="link-button" type="button" onClick={() => void openDetail(trip.id)}>Detay</button>
+                          <button className="link-button" type="button" onClick={() => copyTrip(trip)}>Kopyala</button>
                           {normalizeStatus(trip.status) === "Scheduled" && new Date(trip.departureTime) > new Date() && (
                             <>
                               <button className="link-button" type="button" onClick={() => editTrip(trip)}>Düzenle</button>
@@ -747,10 +766,6 @@ function TripManagement() {
                               </button>
                             </>
                           )}
-                          {normalizeStatus(trip.status) === "Scheduled" && new Date(trip.departureTime) <= new Date() &&
-                            <button className="link-button" type="button" onClick={() => void updateStatus(trip, "InProgress")}>Başlat</button>}
-                          {normalizeStatus(trip.status) === "InProgress" && new Date(trip.arrivalTime) <= new Date() &&
-                            <button className="link-button" type="button" onClick={() => void updateStatus(trip, "Completed")}>Tamamla</button>}
                         </div>
                       </td>
                     </tr>
@@ -787,7 +802,7 @@ function TripManagement() {
                 <div><strong>Oluşturulma tarihi</strong><span>{formatDate(detail.createdAt)}</span></div>
                 {detail.cancelledAt && <div><strong>İptal tarihi / nedeni</strong><span>{formatDate(detail.cancelledAt)} · {detail.cancellationReason}</span></div>}
               </div>
-              <p className="trip-helper">Boş koltuk sayısı ödeme tutmaları ve satılmış biletlerle güncellenir. Eski ücretsiz kayıtlar korunur; ödenmiş bilet sayılmaz. Yerel ödeme adaptörü yalnızca test içindir.</p>
+              <p className="trip-helper">Boş koltuk sayısı ödeme tutmaları ve satılmış biletlerle güncellenir. Eski ücretsiz kayıtlar korunur; ödenmiş bilet sayılmaz.</p>
               <div className="detail-actions">
                 {isAdmin && <>
                   <button className="secondary-button" type="button" onClick={() => navigate(`/admin/companies/${detail.companyId}`)}>Firmayı Görüntüle</button>
@@ -805,7 +820,7 @@ function TripManagement() {
         <div className="modal-backdrop">
           <section className="modal-card trip-cancel-modal" role="dialog" aria-modal="true" aria-labelledby="trip-cancel-heading">
             <h3 id="trip-cancel-heading">Sefer #{cancelTrip.id} iptal edilsin mi?</h3>
-            <p>İptal edilen sefer silinmez ve yeni satışa kapatılır. İlgili aktif biletler iptal edilir ve iki saat kuralından bağımsız tam iade süreci başlatılır. İadenin tamamlanması sağlayıcı sonucuyla takip edilir; otomatik yolcu bildirimi yapılmaz. Test işlemlerinde gerçek para hareketi yoktur.</p>
+            <p>İptal edilen sefer silinmez ve yeni satışa kapatılır. İlgili aktif biletler iptal edilir ve iki saat kuralından bağımsız tam iade süreci başlatılır. İadenin tamamlanması sağlayıcı sonucuyla takip edilir; otomatik yolcu bildirimi yapılmaz.</p>
             <form className="user-form" onSubmit={submitCancellation}>
               <label>İptal nedeni *
                 <textarea required maxLength={500} rows={4} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} />

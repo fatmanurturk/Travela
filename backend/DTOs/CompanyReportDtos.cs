@@ -3,7 +3,7 @@ namespace Travela.DTOs;
 public class CompanyReportQuery
 {
     public string Period { get; set; } = "month";
-    public string Environment { get; set; } = "real";
+    public string Environment { get; set; } = "all";
     public string Basis { get; set; } = "transaction";
     public DateOnly? From { get; set; }
     public DateOnly? To { get; set; }

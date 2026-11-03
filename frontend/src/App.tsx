@@ -34,6 +34,7 @@ function App() {
       <Route path="/tickets" element={<ProtectedRoute allowedRole="Passenger"><MyReservationsPage /></ProtectedRoute>} />
       <Route path="/tickets/:pnr" element={<ProtectedRoute allowedRole="Passenger"><TicketDetailsPage /></ProtectedRoute>} />
       <Route path="/reservations" element={<Navigate to="/tickets" replace />} />
+      <Route path="/payment/:id" element={<ProtectedRoute allowedRole="Passenger"><CheckoutPage /></ProtectedRoute>} />
       <Route path="/test-payment/:id" element={<ProtectedRoute allowedRole="Passenger"><CheckoutPage /></ProtectedRoute>} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />

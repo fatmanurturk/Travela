@@ -19,10 +19,10 @@ public static class RefundPresentation
             "Succeeded" => "Tam iade tamamlandı.",
             "Pending" => "İade talebi kaydedildi, sonuç bekleniyor.",
             "Failed" => "İade başarısız; iade tamamlanmadı. " +
-                (string.IsNullOrWhiteSpace(error) ? "Sağlayıcıdan başarılı iade sonucu alınamadı." : error.Trim()) +
+                (string.IsNullOrWhiteSpace(error) ? "Sağlayıcıdan başarılı iade sonucu alınamadı." : error.Trim().Replace("Yerel test adaptörü iade hatası.", "İade işlemi tamamlanamadı.")) +
                 (needsAttention ? " Destek takibi gerekiyor." : " Güvenli yeniden deneme planlandı."),
             _ => "İade işlemi yok."
         };
-        return isTest ? "Test iadesi: " + explanation + " Gerçek para iadesi yapılmadı." : explanation;
+        return explanation;
     }
 }

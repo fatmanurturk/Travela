@@ -68,7 +68,7 @@ export default function MyReservationsPage() {
     {target && confirming && <Confirm busy={busy} close={() => setConfirming(null)}>
       <h2 id="cancel-title">{confirming.ticket ? "Bilet iptal edilsin mi?" : "Eski ücretsiz kayıt serbest bırakılsın mı?"}</h2>
       <p>{target.departureCity} → {target.arrivalCity} · Koltuk {target.seatNumber}</p><p>Kalkış: {dateTime.format(new Date(target.departureTime))}</p>
-      {confirming.ticket ? <><p>Tam iade tutarı: <strong>{money.format(confirming.ticket.amount)}</strong>{confirming.ticket.isTest && " (yerel test)"}</p><p>İptal son zamanı: {dateTime.format(new Date(confirming.ticket.cancelDeadline))}.</p></> : <p>Ücretsiz kayıt için ödeme veya iade işlemi bulunmuyor.</p>}
+      {confirming.ticket ? <><p>Tam iade tutarı: <strong>{money.format(confirming.ticket.amount)}</strong></p><p>İptal son zamanı: {dateTime.format(new Date(confirming.ticket.cancelDeadline))}.</p></> : <p>Ücretsiz kayıt için ödeme veya iade işlemi bulunmuyor.</p>}
       {error && <p role="alert">{error}</p>}<div className="reservation-confirm-actions"><button autoFocus className="site-button secondary" disabled={busy} onClick={() => setConfirming(null)}>Vazgeç</button><button className="site-button reservation-cancel" disabled={busy} onClick={() => void cancel()}>{busy ? "İşleniyor..." : "Evet, iptal et"}</button></div>
     </Confirm>}
   </main></div>;

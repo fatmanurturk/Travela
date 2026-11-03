@@ -113,7 +113,7 @@ public class TicketsController(TravelaDbContext db, PaymentService payments, Loc
             TicketStatus = r.Status, RefundStatus = p.RefundStatus, RefundAmount = p.RefundAmount,
             CanCancel = r.Kind == "Ticket" && r.Status == "Active" && p.PaymentStatus == "Paid" && PaymentService.CanCancel(t.DepartureTime, clock.GetUtcNow().UtcDateTime),
             CancellationReason = r.CancellationReason, CancelledAt = r.CancelledAt.HasValue ? Utc(r.CancelledAt.Value) : null,
-            LastError = p.LastError, NeedsAttention = p.NeedsAttention,
+            LastError = p.LastError?.Replace("Yerel test adaptörü iade hatası.", "İade işlemi tamamlanamadı."), NeedsAttention = p.NeedsAttention,
             CheckoutUrl = r.Kind == "Hold" && r.Status == "Active" && r.HoldExpiresAt > clock.GetUtcNow().UtcDateTime ? p.CheckoutUrl : null };
     }
 }

@@ -24,5 +24,5 @@ export function statusTone(status: string): string {
   return ["Active", "Paid", "Succeeded"].includes(status) ? "success" : ["Cancelled", "Failed"].includes(status) ? "danger" : status === "Pending" ? "pending" : "neutral";
 }
 export function safeCheckoutPath(path: string | null): string | null {
-  return path && /^\/test-payment\/[a-f0-9-]{36}$/i.test(path) ? path : null;
+  return path && /^\/(?:payment|test-payment)\/[a-f0-9-]{36}$/i.test(path) ? path : null;
 }

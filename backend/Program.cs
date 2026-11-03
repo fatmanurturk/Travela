@@ -9,6 +9,7 @@ using Travela.Data;
 using Travela.Api.Payments;
 using Travela.Api.Documents;
 using Travela.Api.Reporting;
+using Travela.Api.Trips;
 
 var builder = WebApplication.CreateBuilder(args);
 var jwtKey = builder.Configuration["Jwt:Key"]
@@ -78,7 +79,10 @@ builder.Services.AddAuthorization(options =>
     });
 });
 
-builder.Services.AddControllers();
+builder.Services.AddScoped<TripLifecycleService>();
+builder.Services.AddScoped<TripLifecycleFilter>();
+builder.Services.AddControllers(options => options.Filters.AddService<TripLifecycleFilter>());
+if (builder.Configuration["Trips:LifecycleEnabled"] != "false") builder.Services.AddHostedService<TripLifecycleWorker>();
 builder.Services.AddSingleton<TicketPdfRenderer>();
 builder.Services.AddScoped<CompanyReportingService>();
 // No live provider is installed. Fail closed outside development/test instead of charging money.

@@ -34,7 +34,7 @@ public class CompanyReportsController(TravelaDbContext db, CompanyReportingServi
         try
         {
             var scope = reporting.Scope(q);
-            return File(await reporting.Csv(companyId.Value, q, ct), "text/csv; charset=utf-8", $"Travela-{(q.Environment == "test" ? "YEREL-TEST" : "GERCEK")}-sefer-raporu-{scope.From:yyyyMMdd}-{scope.To:yyyyMMdd}.csv");
+            return File(await reporting.Csv(companyId.Value, q, ct), "text/csv; charset=utf-8", $"Travela-sefer-raporu-{scope.From:yyyyMMdd}-{scope.To:yyyyMMdd}.csv");
         }
         catch (ReportQueryException e) { return StatusCode(e.Status, new { message = e.Message }); }
     }

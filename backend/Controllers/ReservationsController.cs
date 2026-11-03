@@ -112,7 +112,7 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
             {
                 ReservationNumber = r.ReservationNumber, TripId = r.TripId, SeatNumber = r.SeatNumber, Price = r.Price,
                 PassengerName = r.Passenger.FullName, CompanyName = r.Trip.Company.Name,
-                LastError = r.Payment == null ? null : r.Payment.LastError,
+                LastError = r.Payment == null || r.Payment.LastError == null ? null : r.Payment.LastError.Replace("Yerel test adaptörü iade hatası.", "İade işlemi tamamlanamadı."),
                 NeedsAttention = r.Payment != null && r.Payment.NeedsAttention,
                 RefundAttempts = r.Payment == null ? 0 : r.Payment.RefundAttempts,
                 DepartureCity = r.Trip.Route.DepartureCity, ArrivalCity = r.Trip.Route.ArrivalCity,

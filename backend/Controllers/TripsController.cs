@@ -15,7 +15,7 @@ namespace Travela.Api.Controllers
     [ApiController]
     [Route("api/trips")]
     [Authorize]
-    public class TripsController : ControllerBase
+    public partial class TripsController : ControllerBase
     {
         private readonly TravelaDbContext _context;
 
@@ -446,7 +446,7 @@ namespace Travela.Api.Controllers
                 }
 
                 var statusValue = normalizedStatus;
-                query = query.Where(trip => trip.Status.ToLower() == statusValue.ToLower());
+                query = query.Where(trip => trip.Status == statusValue);
             }
 
             if (!string.IsNullOrWhiteSpace(busPlate))
@@ -544,9 +544,9 @@ namespace Travela.Api.Controllers
                     trip.Status.ToLower() == "scheduled" ||
                     trip.Status.ToLower() == "planlandı"),
                 InProgressTrips = await query.CountAsync(trip =>
-                    trip.Status.ToLower() == "inprogress" ||
-                    trip.Status.ToLower() == "in progress" ||
-                    trip.Status.ToLower() == "devam ediyor"),
+                    trip.Status == "InProgress" ||
+                    trip.Status == "In Progress" ||
+                    trip.Status == "Devam Ediyor"),
                 CompletedTrips = await query.CountAsync(trip =>
                     trip.Status.ToLower() == "completed" ||
                     trip.Status.ToLower() == "tamamlandı"),
@@ -843,39 +843,7 @@ namespace Travela.Api.Controllers
                 return NotFound(new { message = "Sefer bulunamadı." });
             }
 
-            var currentStatus = NormalizeStatus(trip.Status);
-            var nextStatus = NormalizeStatus(dto.Status);
-            if (nextStatus == null)
-            {
-                return BadRequest(new { message = "Geçersiz sefer durumu." });
-            }
-
-            if (currentStatus == nextStatus)
-            {
-                return Ok(new { message = "Sefer durumu zaten seçilen durumda." });
-            }
-
-            var validTransition =
-                (currentStatus == "Scheduled" && nextStatus == "InProgress") ||
-                (currentStatus == "InProgress" && nextStatus == "Completed");
-            if (!validTransition)
-            {
-                return Conflict(new { message = "İstenen sefer durum geçişine izin verilmiyor." });
-            }
-
-            if (nextStatus == "InProgress" && trip.DepartureTime > DateTime.UtcNow)
-            {
-                return Conflict(new { message = "Kalkış zamanı gelmeden sefer devam ediyor durumuna alınamaz." });
-            }
-            if (nextStatus == "Completed" && trip.ArrivalTime > DateTime.UtcNow)
-            {
-                return Conflict(new { message = "Varış zamanı gelmeden sefer tamamlandı durumuna alınamaz." });
-            }
-
-            trip.Status = nextStatus;
-            trip.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-            return Ok(new { message = "Sefer durumu güncellendi." });
+            return StatusCode(StatusCodes.Status410Gone, new { message = "Sefer durumu kalkış ve varış saatlerine göre otomatik belirlenir. Manuel durum değişikliği kapalıdır." });
         }
 
         [HttpPost("{id:int}/cancel")]

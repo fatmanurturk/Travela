@@ -7,7 +7,6 @@ import type { Purchase } from "../payments";
 export default function TicketCard({ item, onCancel, busy = false, showCheckout = true }: { item: Purchase; onCancel?: (p: Purchase) => void; busy?: boolean; showCheckout?: boolean }) {
   const checkout = safeCheckoutPath(item.checkoutUrl);
   return <article className="reservation-card">
-    {item.isTest && <span className="test-tag">TEST</span>}
     <h2>{item.departureCity} → {item.arrivalCity}</h2>
     <p>{item.companyName} · Sefer #{item.tripId} · Koltuk {item.seatNumber}</p>
     <dl className="reservation-facts">

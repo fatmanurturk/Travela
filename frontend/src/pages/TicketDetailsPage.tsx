@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Details, TestNotice } from "../components/UiDetails";
+import { Details } from "../components/UiDetails";
 import SiteHeader from "../components/SiteHeader";
 import { apiUrl } from "../api";
 import { dateTime, money } from "../reservations";
@@ -67,13 +67,11 @@ function TicketDetails({ pnr }: { pnr: string }) {
   };
   const cancelled = ticket?.ticketStatus === "Cancelled";
   return <div className="travela-site ticket-details-view"><SiteHeader /><main className="trip-detail-page">
-    {ticket?.isTest && <TestNotice />}
     <div className="ticket-document-actions"><Link to="/tickets" className="back-home">← Biletlerim</Link><button className="site-button secondary" disabled={busy} onClick={() => void act("refresh")}>Güncelle</button>{ticket && <><button className="site-button primary" disabled={busy} onClick={() => void act("pdf")}>{busy ? "İşleniyor..." : "PDF indir"}</button><button className="site-button secondary" disabled={busy} onClick={() => void act("print")}>Yazdır</button></>}</div>
     {error && <p className="results-message error ticket-document-error" role="alert">{error}</p>}
     {loading ? <p role="status">Bilet detayları yükleniyor...</p> : ticket && <article className="ticket-document" aria-labelledby="ticket-title">
       <div className="ticket-document-brand">Travela<span>.</span></div>
       <h1 id="ticket-title">Bilet detayı</h1>
-      {ticket.isTest && <p className="test-payment-badge">TEST BİLETİ — Gerçek seyahat için geçerli değildir</p>}
       {cancelled && <p className="ticket-cancelled-banner">İPTAL EDİLDİ</p>}
       <h2>{ticket.departureCity} → {ticket.arrivalCity}</h2>
       <p className="ticket-pnr">PNR <strong>{ticket.pnr}</strong></p>

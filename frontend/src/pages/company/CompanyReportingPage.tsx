@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { apiUrl } from "../../api";
-import { Details, TestNotice } from "../../components/UiDetails";
+import CompanyAttention from "./CompanyAttention";
+import { Details } from "../../components/UiDetails";
 import { count, dateLabel, dateTime, money, orderLink, reportHeaders, tripStatus } from "./reporting";
 import type { Report, ReportDay } from "./reporting";
 
-const defaults: Record<string, string> = { period: "month", environment: "real", basis: "transaction", from: "", to: "", tripId: "", routeId: "", sort: "departure", direction: "asc", routeSort: "sold", page: "1", pageSize: "20" };
+const defaults: Record<string, string> = { period: "month", basis: "transaction", from: "", to: "", tripId: "", routeId: "", sort: "departure", direction: "asc", routeSort: "sold", page: "1", pageSize: "20" };
 function Chart({ days, cash, label }: { days: ReportDay[]; cash?: boolean; label: string }) {
  const keys = cash ? ["collected", "refunded"] as const : ["sold", "cancelled"] as const;
  const names = cash ? ["Doğrulanmış tahsilat", "Tamamlanan iade"] : ["Düzenlenmiş bilet", "İptal"];
@@ -30,7 +31,7 @@ export default function CompanyReportingPage({ overview = false }: { overview?: 
  const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [formError, setFormError] = useState("");
  const [exporting, setExporting] = useState(false); const [revision, setRevision] = useState(0);
  const [routes, setRoutes] = useState<{ id: number; departureCity: string; arrivalCity: string }[]>([]);
- const navigate = useNavigate(); const query = params.toString();
+ const navigate = useNavigate(); const requestParams = new URLSearchParams(params); requestParams.delete("environment"); const query = requestParams.toString();
  useEffect(() => { setDraft(read()); }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
  useEffect(() => {
   const c = new AbortController();
@@ -66,10 +67,10 @@ export default function CompanyReportingPage({ overview = false }: { overview?: 
    const r = await fetch(apiUrl(`/api/company/reports/csv?${query}`), { headers: reportHeaders() });
    if (!r.ok) { const data = await r.json().catch(() => null); throw new Error(data?.message ?? `CSV indirilemedi (${r.status}).`); }
    const url = URL.createObjectURL(await r.blob()), a = document.createElement("a"); a.href = url;
-   a.download = `Travela-${report?.scope.environment === "test" ? "YEREL-TEST" : "GERCEK"}-sefer-raporu-${report?.scope.from}-${report?.scope.to}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+   a.download = `Travela-sefer-raporu-${report?.scope.from}-${report?.scope.to}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   } catch (cause) { setFormError(cause instanceof Error ? cause.message : "CSV indirilemedi."); } finally { setExporting(false); }
  }
- const label = report?.scope.environment === "test" ? "YEREL TEST" : "Gerçek işlemler";
+ const label = "Firma işlemleri";
  const cards = report ? [
   ["Satılan bilet", count.format(report.metrics.sold), "Doğrulanmış ödeme sonrası düzenlenen; iptaller satış geçmişinde kalır."],
   ["Aktif bilet", count.format(report.metrics.active), "Bu kapsamda düzenlenen ve halen iptal edilmemiş biletler."],
@@ -82,9 +83,8 @@ export default function CompanyReportingPage({ overview = false }: { overview?: 
  ] : [];
  return <div className="company-dashboard company-reporting">
   <header className="company-dashboard-header"><h1>{overview ? "Genel Bakış" : "Raporlar"}</h1></header>
-  {(report?.scope.environment ?? params.get("environment")) === "test" && <TestNotice />}
+  {overview && <CompanyAttention revision={revision} />}
   <section className="company-panel"><form className="report-filters" onSubmit={e => { e.preventDefault(); apply(); }}>
-   <label>İşlem ortamı<select value={draft.environment} onChange={e => change("environment", e.target.value)}><option value="real">Gerçek işlemler</option><option value="test">Yerel test</option></select></label>
    <label>Rapor kapsamı<select value={draft.basis} onChange={e => change("basis", e.target.value)}><option value="transaction">İşlem tarihi</option><option value="departure">Sefer kalkış tarihi</option></select></label>
    <label>Dönem<select value={draft.period} onChange={e => change("period", e.target.value)}><option value="today">Bugün</option><option value="week">Son 7 Gün</option><option value="month">Bu Ay</option><option value="custom">Özel Tarih Aralığı</option></select></label>
    {draft.period === "custom" && <><label>Başlangıç<input type="date" required value={draft.from} min="2000-01-01" max={draft.to || "2100-12-31"} onChange={e => change("from", e.target.value)} /></label><label>Bitiş (gün dahil)<input type="date" required value={draft.to} min={draft.from || "2000-01-01"} max="2100-12-31" onChange={e => change("to", e.target.value)} /></label></>}
@@ -117,7 +117,7 @@ export default function CompanyReportingPage({ overview = false }: { overview?: 
     <section className="company-panel"><h2>En çok bilet satılan güzergâhlar</h2><p>Seçili sıralamaya göre ilk 20 / {report.routeCount} güzergâh.</p>{report.routes.length === 0 ? <p>Bu dönemde işlem bulunmuyor</p> : <div className="table-wrap"><table className="data-table"><thead><tr><th>Güzergâh</th><th>Satılan</th><th>Aktif</th><th>İptal</th><th>Tahsilat</th><th>Tamamlanan iade</th></tr></thead><tbody>{report.routes.map(r => <tr key={r.routeId}><td>{r.departureCity} → {r.arrivalCity}</td><td>{r.sold}</td><td>{r.active}</td><td>{r.cancelled}</td><td>{money.format(r.collected)}</td><td>{money.format(r.refunded)}</td></tr>)}</tbody></table></div>}</section>
     <section className="company-panel"><h2>Sefer raporu</h2>
      <button className="secondary-button" disabled={exporting} onClick={() => void download()}>{exporting ? "CSV hazırlanıyor..." : "CSV indir"}</button>
-     {report.trips.length === 0 ? <p>Bu dönemde işlem bulunmuyor{page > 1 && <button className="link-button" onClick={() => setPage(1)}>İlk sayfaya dön</button>}</p> : <div className="table-wrap report-trip-wrap"><table className="data-table report-trip-table"><thead><tr>{["Sefer", "Güzergâh", "Kalkış (Türkiye)", "Plaka / Kapasite", "Aktif satılmış", "Geçici ödeme tutması", "Eski ücretsiz blokaj", "Diğer ortam blokajı", "Süresi dolmuş tutma", "Satışa açık", "Doluluk", "Dönem satışı", "İptal", "Tahsilat", "Tamamlanan iade", "Bekleyen iade", "Başarısız iade", "Sefer durumu"].map(t => <th key={t}>{t}</th>)}</tr></thead><tbody>{report.trips.map(t => <tr key={t.id}><td><Link to={`/company/trips?detail=${t.id}`}>#{t.id} Detay</Link>{t.dataWarning && <p role="status">{t.dataWarning}</p>}</td><td>{t.departureCity} → {t.arrivalCity}</td><td>{dateTime.format(new Date(t.departureTime))}</td><td>{t.plate} / {t.capacity}</td><td>{t.activeSoldSeats}</td><td>{t.heldSeats}</td><td>{t.legacyBlockedSeats}</td><td>{t.otherEnvironmentBlocks}</td><td>{t.expiredHolds}</td><td>{t.availableForSale ?? "Hesaplanamadı"}</td><td>{t.occupancyPercent == null ? "Hesaplanamadı" : `%${count.format(t.occupancyPercent)}`}</td><td>{t.sold}</td><td>{t.cancelled}</td><td>{money.format(t.collected)}</td><td>{money.format(t.refunded)}</td><td>{money.format(t.pendingRefund)}</td><td>{t.failedRefundCount} · {money.format(t.failedRefundAmount)}</td><td>{tripStatus(t.status)}</td></tr>)}</tbody></table></div>}
+     {report.trips.length === 0 ? <p>Bu dönemde işlem bulunmuyor{page > 1 && <button className="link-button" onClick={() => setPage(1)}>İlk sayfaya dön</button>}</p> : <div className="table-wrap report-trip-wrap"><table className="data-table report-trip-table"><thead><tr>{["Sefer", "Güzergâh", "Kalkış (Türkiye)", "Plaka / Kapasite", "Aktif satılmış", "Geçici ödeme tutması", "Eski ücretsiz blokaj", "Süresi dolmuş tutma", "Satışa açık", "Doluluk", "Dönem satışı", "İptal", "Tahsilat", "Tamamlanan iade", "Bekleyen iade", "Başarısız iade", "Sefer durumu"].map(t => <th key={t}>{t}</th>)}</tr></thead><tbody>{report.trips.map(t => <tr key={t.id}><td><Link to={`/company/trips?detail=${t.id}`}>#{t.id} Detay</Link>{t.dataWarning && <p role="status">{t.dataWarning}</p>}</td><td>{t.departureCity} → {t.arrivalCity}</td><td>{dateTime.format(new Date(t.departureTime))}</td><td>{t.plate} / {t.capacity}</td><td>{t.activeSoldSeats}</td><td>{t.heldSeats}</td><td>{t.legacyBlockedSeats}</td><td>{t.expiredHolds}</td><td>{t.availableForSale ?? "Hesaplanamadı"}</td><td>{t.occupancyPercent == null ? "Hesaplanamadı" : `%${count.format(t.occupancyPercent)}`}</td><td>{t.sold}</td><td>{t.cancelled}</td><td>{money.format(t.collected)}</td><td>{money.format(t.refunded)}</td><td>{money.format(t.pendingRefund)}</td><td>{t.failedRefundCount} · {money.format(t.failedRefundAmount)}</td><td>{tripStatus(t.status)}</td></tr>)}</tbody></table></div>}
      <div className="company-form-actions"><span>{report.totalTrips} sefer · Sayfa {page} / {Math.max(1, Math.ceil(report.totalTrips / pageSize))}</span><button className="secondary-button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Önceki</button><button className="secondary-button" disabled={page * pageSize >= report.totalTrips} onClick={() => setPage(page + 1)}>Sonraki</button></div>
     </section>
    </>}
