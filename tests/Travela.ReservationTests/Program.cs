@@ -39,7 +39,7 @@ var log = new System.Text.StringBuilder();
 var passed = 0;
 try
 {
-    await db.GetService<IMigrator>().MigrateAsync("20261102101401_AddReservationCancellation");
+    await db.Database.MigrateAsync();
     var company = new Company { Name = "Test Firma" };
     var otherCompany = new Company { Name = "Diğer Firma" };
     var bus = new Bus { Company = company, SeatCapacity = 20, PlateNumber = "34 TEST 001", NormalizedPlateNumber = "34TEST001" };
@@ -54,6 +54,7 @@ try
     await db.SaveChangesAsync(); c1.CompanyId = company.Id; c2.CompanyId = otherCompany.Id; await db.SaveChangesAsync();
     var legacyNumber = Guid.NewGuid().ToString("N"); var created = DateTime.UtcNow;
     await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Reservations (ReservationNumber, TripId, PassengerId, SeatNumber, Price, CreatedAt, Status) VALUES ({legacyNumber}, {trip.Id}, {u1.Id}, 20, 500, {created}, N'Active')");
+    await db.GetService<IMigrator>().MigrateAsync("20261102101401_AddReservationCancellation");
     await db.Database.MigrateAsync();
     Check(await db.Reservations.AnyAsync(r => r.ReservationNumber == legacyNumber && r.Kind == "Legacy" && r.Pnr == null) && !await db.PaymentOrders.AnyAsync(), "Migration eski ücretsiz kaydı korudu; ödenmiş bilete çevirmedi");
     var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start(); var port = ((IPEndPoint)listener.LocalEndpoint).Port; listener.Stop();

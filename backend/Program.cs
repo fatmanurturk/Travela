@@ -89,6 +89,7 @@ builder.Services.AddScoped<CompanyReportingService>();
 if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
     throw new InvalidOperationException("Gerçek ödeme sağlayıcısı yapılandırılmadı. LocalTest yalnızca geliştirme/test ortamında çalışır.");
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<Travela.Api.Security.SessionTokenService>();
 builder.Services.AddSingleton<LocalWebhookKey>();
 builder.Services.AddScoped<LocalTestPaymentProvider>();
 builder.Services.AddScoped<IPaymentProvider>(sp => sp.GetRequiredService<LocalTestPaymentProvider>());

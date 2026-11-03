@@ -18,14 +18,14 @@ namespace Travela.API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly TravelaDbContext _context;
-        private readonly IConfiguration _configuration;
+        private readonly Travela.Api.Security.SessionTokenService _tokens;
 
         public AuthController(
             TravelaDbContext context,
-            IConfiguration configuration)
+            Travela.Api.Security.SessionTokenService tokens)
         {
             _context = context;
-            _configuration = configuration;
+            _tokens = tokens;
         }
 
         [HttpPost("register")]
@@ -280,40 +280,7 @@ namespace Travela.API.Controllers
             return Ok(new { message = "Şifre başarıyla güncellendi." });
         }
 
-        private string GenerateJwtToken(User user)
-        {
-            var jwtKey = _configuration["Jwt:Key"]
-                ?? throw new InvalidOperationException("JWT Key bulunamadı.");
-
-            var jwtIssuer = _configuration["Jwt:Issuer"]
-                ?? throw new InvalidOperationException("JWT Issuer bulunamadı.");
-
-            var jwtAudience = _configuration["Jwt:Audience"]
-                ?? throw new InvalidOperationException("JWT Audience bulunamadı.");
-
-            var claims = new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Name, user.FullName),
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Role, user.Role),
-                new Claim("security_version", user.SecurityVersion.ToString()),
-                new Claim("must_change_password", user.MustChangePassword.ToString())
-            };
-
-            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
-            var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-
-            var token = new JwtSecurityToken(
-                issuer: jwtIssuer,
-                audience: jwtAudience,
-                claims: claims,
-                expires: DateTime.UtcNow.AddHours(2),
-                signingCredentials: credentials
-            );
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
-        }
+        private string GenerateJwtToken(User user) => _tokens.Issue(user);
 
         private static bool IsValidEmail(string email)
         {

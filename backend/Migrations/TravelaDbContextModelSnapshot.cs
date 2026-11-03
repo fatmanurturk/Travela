@@ -567,6 +567,9 @@ namespace Travela.API.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("CancellationNotificationsEnabled")
+                        .HasColumnType("bit");
+
                     b.Property<int?>("CompanyId")
                         .HasColumnType("int");
 
@@ -603,12 +606,22 @@ namespace Travela.API.Migrations
                     b.Property<DateTime?>("PasswordResetTokenUsedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool>("RefundNotificationsEnabled")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("SecurityVersion")
                         .HasColumnType("int");
+
+                    b.Property<bool>("TripRemindersEnabled")
+                        .HasColumnType("bit");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");

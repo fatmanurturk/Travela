@@ -8,6 +8,12 @@ namespace Travela.Models
 
         public string Email { get; set; } = string.Empty;
 
+        [System.ComponentModel.DataAnnotations.MaxLength(20)]
+        public string? PhoneNumber { get; set; }
+        public bool TripRemindersEnabled { get; set; }
+        public bool CancellationNotificationsEnabled { get; set; }
+        public bool RefundNotificationsEnabled { get; set; }
+
         public string PasswordHash { get; set; } = string.Empty;
 
         public string Role { get; set; } = "Passenger";

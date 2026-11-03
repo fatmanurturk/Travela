@@ -11,7 +11,7 @@ public sealed class TripLifecycleFilter(TripLifecycleService lifecycle) : IAsync
     {
         if (HttpMethods.IsGet(context.HttpContext.Request.Method) && context.Controller is
             TripsController or CompanyReportsController or CompanyAttentionController or BusController or
-            Travela.API.Controllers.CompanyController or ReservationsController or TicketsController)
+            Travela.API.Controllers.CompanyController or Travela.API.Controllers.ProfileController or ReservationsController or TicketsController)
             await lifecycle.Synchronize(context.HttpContext.RequestAborted);
         await next();
     }
