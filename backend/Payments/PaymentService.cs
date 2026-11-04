@@ -2,22 +2,27 @@ using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Travela.Api.Models;
 using Travela.Data;
+using Travela.Api.Security;
+using Travela.Api.Trips;
+using Travela.Api.Notifications;
 
 namespace Travela.Api.Payments;
 
 public class PaymentFlowException(string message, int status = 409) : Exception(message) { public int Status { get; } = status; }
 
-public class PaymentService(TravelaDbContext db, IPaymentProvider provider, TimeProvider clock)
+public partial class PaymentService(TravelaDbContext db, IPaymentProvider provider, TimeProvider clock, PaymentProviderRegistry? registry = null)
 {
+    private IPaymentProvider ProviderFor(string name) => registry?.Get(name) ?? (provider.Name == name ? provider : throw new PaymentFlowException("Siparişin ödeme sağlayıcısı kullanılamıyor.", 503));
     public static bool CanCancel(DateTime departureUtc, DateTime nowUtc) => departureUtc - nowUtc >= TimeSpan.FromHours(2);
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
     private Task<Trip> LockTrip(int id, CancellationToken ct) => db.Trips
         .FromSqlInterpolated($"SELECT * FROM Trips WITH (UPDLOCK, HOLDLOCK) WHERE Id = {id}")
-        .Include(t => t.Company).Include(t => t.Bus).Include(t => t.Route).SingleAsync(ct);
+        .Include(t => t.Company).Include(t => t.Bus).Include(t => t.Route).Include(t => t.DepartureTerminal).Include(t => t.ArrivalTerminal).SingleAsync(ct);
     private static bool Scheduled(Trip trip) => trip.Status.ToLowerInvariant() is "scheduled" or "planlandı" or "planlandi";
 
     public async Task<PaymentOrder> Start(int userId, int tripId, int seat, Guid requestKey, CancellationToken ct)
     {
+        if (provider.Name != "LocalTest") throw new PaymentFlowException("Yolcu bilgileri ve ortak sipariş akışını kullanın.", 400);
         if (requestKey == Guid.Empty || seat < 1) throw new PaymentFlowException("Geçerli koltuk ve işlem anahtarı gereklidir.", 400);
         if (!await db.Trips.AnyAsync(t => t.Id == tripId, ct)) throw new PaymentFlowException("Sefer bulunamadı.", 404);
         await using (var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct))
@@ -33,17 +38,28 @@ public class PaymentService(TravelaDbContext db, IPaymentProvider provider, Time
                 return await EnsureCheckout(existing, ct);
             }
             await ExpireLocked(trip, ct);
-            if (!Scheduled(trip) || trip.DepartureTime <= Now || !trip.Company.IsActive || !trip.Bus.IsActive || !trip.Route.IsActive || trip.Bus.CompanyId != trip.CompanyId)
+            if (!Scheduled(trip) || trip.DepartureTime <= Now || !trip.Company.IsActive || !trip.Bus.IsActive || !trip.Route.IsActive || trip.Bus.CompanyId != trip.CompanyId ||
+                (trip.DepartureTerminal != null && !trip.DepartureTerminal.IsActive) || (trip.ArrivalTerminal != null && !trip.ArrivalTerminal.IsActive))
                 throw new PaymentFlowException("Bu sefer bilet satışına açık değil.");
-            if (seat > trip.Bus.SeatCapacity) throw new PaymentFlowException("Koltuk numarası kapasite dışında.", 400);
+            var capacity = trip.SeatCapacitySnapshot ?? trip.Bus.SeatCapacity;
+            List<SeatPosition> seats;
+            try { seats = SeatPlans.Read(trip.SeatPlanJson, trip.SeatLayout, capacity); }
+            catch (ArgumentException) { throw new PaymentFlowException("Seferin koltuk planı doğrulanamadı. Lütfen firma ile iletişime geçin."); }
+            if (seat > capacity) throw new PaymentFlowException("Koltuk numarası kapasite dışında.", 400);
+            if (seats.Any(s => s.Number == seat && s.IsBlocked)) throw new PaymentFlowException("Bu koltuk satışa kapalı.", 409);
             var used = await db.Reservations.CountAsync(r => r.TripId == tripId && r.Status == "Active", ct);
-            if (trip.AvailableSeats != trip.Bus.SeatCapacity - used) throw new PaymentFlowException("Eski kontenjan bilgileri doğrulanmadan satış yapılamaz.");
+            if (trip.AvailableSeats != (trip.SellableSeatCount ?? trip.Bus.SeatCapacity) - used) throw new PaymentFlowException("Eski kontenjan bilgileri doğrulanmadan satış yapılamaz.");
             if (trip.AvailableSeats <= 0 || await db.Reservations.AnyAsync(r => r.TripId == tripId && r.SeatNumber == seat && r.Status == "Active", ct))
                 throw new PaymentFlowException("Koltuk başka bir yolcu tarafından alındı veya ödeme için tutuluyor.");
+            var passenger = await db.Users.AsNoTracking().SessionAccounts(db).SingleOrDefaultAsync(u => u.Id == userId && u.Role == "Passenger", ct)
+                ?? throw new PaymentFlowException("Aktif bir yolcu hesabı gereklidir.", 401);
             var hold = new Reservation { TripId = tripId, PassengerId = userId, SeatNumber = seat, Price = trip.Price,
+                PassengerNameSnapshot = passenger.FullName, PassengerEmailSnapshot = passenger.Email, PassengerPhoneSnapshot = passenger.PhoneNumber,
+                PassengerCapturedAt = Now, PassengerSnapshotSource = "Checkout",
                 Kind = "Hold", HoldExpiresAt = new[] { Now.AddMinutes(10), trip.DepartureTime }.Min() };
             var order = new PaymentOrder { PassengerId = userId, Reservation = hold, RequestKey = requestKey, Amount = trip.Price, Provider = provider.Name, IsTest = provider.IsTest };
             db.PaymentOrders.Add(order); trip.AvailableSeats--;
+            PaymentHistory.Record(db, order, "CheckoutCreated", Now);
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
             await tx.DisposeAsync();
             return await EnsureCheckout(order, ct);
@@ -52,9 +68,10 @@ public class PaymentService(TravelaDbContext db, IPaymentProvider provider, Time
 
     public async Task<PaymentOrder> EnsureCheckout(PaymentOrder order, CancellationToken ct)
     {
+        if (order.PurchaseGroupId.HasValue) return order;
         if (order.CheckoutUrl == null && order.PaymentStatus == "Pending")
         {
-            var url = await provider.OpenCheckout(order.Id, order.Amount, order.Currency, ct);
+            var url = await ProviderFor(order.Provider).OpenCheckout(order.Id, order.Amount, order.Currency, ct);
             order.CheckoutUrl = url;
             await db.SaveChangesAsync(ct);
         }
@@ -63,46 +80,75 @@ public class PaymentService(TravelaDbContext db, IPaymentProvider provider, Time
 
     public async Task HandleNotice(ProviderNotice notice, string signature, CancellationToken ct)
     {
-        if (notice.EventId.Length > 100 || !provider.Verify(notice, signature)) throw new PaymentFlowException("Ödeme bildirimi doğrulanamadı.", 400);
-        var result = await provider.GetPayment(notice.OrderId, ct);
-        await ApplyVerified(result, notice.EventId, ct);
+        var source = ProviderFor("LocalTest");
+        if (notice.EventId.Length > 100 || !source.Verify(notice, signature)) throw new PaymentFlowException("Ödeme bildirimi doğrulanamadı.", 400);
+        var result = await source.GetPayment(notice.OrderId, ct);
+        if (await db.PurchaseGroups.AnyAsync(g => g.Id == notice.OrderId, ct)) await ApplyGroupVerified(result, source.Name, notice.EventId, ct);
+        else await ApplyVerified(result, notice.EventId, ct, source.Name);
     }
 
     // Only server-to-provider inquiry results reach this method; browser return URLs cannot issue tickets.
     public async Task Reconcile(Guid id, CancellationToken ct)
     {
         var order = await db.PaymentOrders.AsNoTracking().SingleAsync(p => p.Id == id, ct);
-        if (order.CheckoutUrl == null)
+        if (order.PurchaseGroupId.HasValue) { await ReconcileGroup(order.PurchaseGroupId.Value, ct); return; }
+        if (order.PaymentStatus != "Pending") return;
+        var source = ProviderFor(order.Provider);
+        try
         {
-            var url = await provider.OpenCheckout(order.Id, order.Amount, order.Currency, ct);
-            await db.PaymentOrders.Where(p => p.Id == id).ExecuteUpdateAsync(s => s.SetProperty(p => p.CheckoutUrl, url), ct);
+            if (order.CheckoutUrl == null && await db.Reservations.AnyAsync(r => r.Id == order.ReservationId && r.Kind == "Hold" && r.Status == "Active" && r.HoldExpiresAt > Now, ct))
+            {
+                var url = await source.OpenCheckout(order.Id, order.Amount, order.Currency, ct);
+                await db.PaymentOrders.Where(p => p.Id == id).ExecuteUpdateAsync(s => s.SetProperty(p => p.CheckoutUrl, url), ct);
+            }
+            await ApplyVerified(await source.GetPayment(id, ct), null, ct, source.Name);
         }
-        await ApplyVerified(await provider.GetPayment(id, ct), null, ct);
+        finally
+        {
+            db.ChangeTracker.Clear();
+            // Persist the next check even when the provider is unavailable. Old pending orders cannot starve newer ones.
+            await db.PaymentOrders.Where(p => p.Id == id).ExecuteUpdateAsync(update => update
+                .SetProperty(p => p.LastReconciledAt, Now).SetProperty(p => p.ReconciliationAttempts, p => p.ReconciliationAttempts + 1)
+                .SetProperty(p => p.NeedsAttention, p => p.NeedsAttention || (p.PaymentStatus == "Pending" && p.ReconciliationAttempts >= 7))
+                .SetProperty(p => p.NextReconciliationAt, p => p.PaymentStatus == "Pending" ? Now.AddMinutes(p.ReconciliationAttempts >= 8 ? 30 : 1) : (DateTime?)null), CancellationToken.None);
+        }
     }
 
-    private async Task ApplyVerified(ProviderPayment result, string? eventId, CancellationToken ct)
+    private async Task ApplyVerified(ProviderPayment result, string? eventId, CancellationToken ct, string? sourceName = null)
     {
         db.ChangeTracker.Clear();
         var tripId = await db.PaymentOrders.Where(p => p.Id == result.OrderId).Select(p => p.Reservation.TripId).SingleAsync(ct);
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var trip = await LockTrip(tripId, ct);
         var order = await db.PaymentOrders.Include(p => p.Reservation).SingleAsync(p => p.Id == result.OrderId, ct);
-        if (order.Provider != provider.Name || order.Amount != result.Amount || order.Currency != result.Currency || order.IsTest != result.IsTest || string.IsNullOrEmpty(result.Reference))
+        var name = sourceName ?? provider.Name;
+        if (order.Provider != name || order.Amount != result.Amount || order.Currency != result.Currency || order.IsTest != result.IsTest || string.IsNullOrEmpty(result.Reference))
             throw new PaymentFlowException("Sağlayıcı ödeme tutarı, para birimi veya ortamı eşleşmiyor.", 400);
-        if (eventId != null && await db.PaymentNotifications.AnyAsync(n => n.Provider == provider.Name && n.EventId == eventId, ct)) return;
-        if (result.Status == "Pending") return;
+        if (eventId != null && await db.PaymentNotifications.AnyAsync(n => n.Provider == name && n.EventId == eventId, ct)) return;
+        if (result.Status == "Pending")
+        {
+            PaymentHistory.Record(db, order, "PaymentPending", Now);
+            await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+            return;
+        }
         var r = order.Reservation;
         if (result.Status == "Succeeded" && order.PaymentStatus != "Paid")
         {
             order.PaymentStatus = "Paid"; order.PaidAt = Now; order.ProviderReference = result.Reference;
-            if (r.Kind == "Hold" && r.Status == "Active" && r.HoldExpiresAt > Now && trip.DepartureTime > Now && Scheduled(trip) && trip.Company.IsActive && trip.Bus.IsActive && trip.Route.IsActive)
+            PaymentHistory.Record(db, order, "PaymentConfirmed", Now);
+            if (r.Kind == "Hold" && r.Status == "Active" && r.HoldExpiresAt > Now && trip.DepartureTime > Now && Scheduled(trip) && trip.Company.IsActive && trip.Bus.IsActive && trip.Route.IsActive &&
+                (trip.DepartureTerminal == null || trip.DepartureTerminal.IsActive) && (trip.ArrivalTerminal == null || trip.ArrivalTerminal.IsActive))
             {
                 r.Kind = "Ticket"; r.Pnr = Guid.NewGuid().ToString("N").ToUpperInvariant(); r.IssuedAt = Now;
+                PaymentHistory.Record(db, order, "TicketIssued", Now);
+                await db.Entry(trip).Reference(t => t.Route).LoadAsync(ct);
+                r.TicketJourneyJson = TicketJourney.Capture(trip).Write();
+                await TravelNotifications.Queue(db, r, "Purchase", "purchase:" + order.Id, Now, ct: ct);
             }
             else
             {
                 Release(r, trip, "Ödeme doğrulandı ancak bilet düzenlenemedi; tam iade başlatıldı.");
-                RequestRefund(order, Now);
+                RequestRefund(order, Now, db);
                 order.NeedsAttention = true; order.LastError = "Ödeme sonrası bilet düzenlenemedi; telafi iadesi takip ediliyor.";
             }
         }
@@ -110,8 +156,9 @@ public class PaymentService(TravelaDbContext db, IPaymentProvider provider, Time
         {
             order.PaymentStatus = "Failed";
             Release(r, trip, "Ödeme başarısız. Bilet düzenlenmedi.");
+            PaymentHistory.Record(db, order, "PaymentFailed", Now);
         }
-        if (eventId != null) db.PaymentNotifications.Add(new() { Provider = provider.Name, EventId = eventId, OrderId = order.Id, ProcessedAt = Now });
+        if (eventId != null) db.PaymentNotifications.Add(new() { Provider = name, EventId = eventId, OrderId = order.Id, ProcessedAt = Now });
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
     }
 
@@ -121,11 +168,12 @@ public class PaymentService(TravelaDbContext db, IPaymentProvider provider, Time
         r.Status = "Cancelled"; r.CancelledAt = Now; r.CancellationReason = reason; trip.AvailableSeats++;
     }
 
-    public static void RequestRefund(PaymentOrder order, DateTime now)
+    public static void RequestRefund(PaymentOrder order, DateTime now, TravelaDbContext? db = null)
     {
         if (order.PaymentStatus != "Paid" || order.RefundStatus != "None") return;
         order.RefundStatus = "Pending"; order.RefundAmount = order.Amount; order.NextRefundAttemptAt = now;
         order.RefundRequestedAt = now; order.RefundStatusChangedAt = now;
+        if (db != null) PaymentHistory.Record(db, order, "RefundRequested", now);
     }
 
     public async Task CancelTicket(int userId, string pnr, CancellationToken ct)
@@ -138,9 +186,12 @@ public class PaymentService(TravelaDbContext db, IPaymentProvider provider, Time
         var order = await db.PaymentOrders.Include(p => p.Reservation).SingleAsync(p => p.Reservation.Pnr == pnr && p.PassengerId == userId, ct);
         if (order.Reservation.Status == "Active")
         {
-            if (!CanCancel(trip.DepartureTime, Now)) throw new PaymentFlowException("Kalkışa 2 saatten az kaldığı için iptal ve iade yapılamaz.");
-            Release(order.Reservation, trip, "Yolcu tarafından iptal edildi. Tam iade süreci başlatıldı.");
-            RequestRefund(order, Now);
+            var changeRight = order.Reservation.ChangeCancellationUntil > Now && trip.DepartureTime > Now;
+            if (!CanCancel(trip.DepartureTime, Now) && !changeRight) throw new PaymentFlowException("Kalkışa 2 saatten az kaldığı için iptal ve iade yapılamaz.");
+            await db.Entry(trip).Reference(t => t.Route).LoadAsync(ct);
+            order.Reservation.TicketJourneyJson ??= TicketJourney.Capture(trip).Write();
+            Release(order.Reservation, trip, changeRight ? "Sefer değişikliği nedeniyle yolcu tam iade hakkını kullandı." : "Yolcu tarafından iptal edildi. Tam iade süreci başlatıldı.");
+            RequestRefund(order, Now, db);
             await db.SaveChangesAsync(ct);
         }
         await tx.CommitAsync(ct);
@@ -154,7 +205,7 @@ public class PaymentService(TravelaDbContext db, IPaymentProvider provider, Time
     }
     public async Task ExpireHolds(CancellationToken ct)
     {
-        var ids = await db.Reservations.AsNoTracking().Where(r => r.Kind == "Hold" && r.Status == "Active" && r.HoldExpiresAt <= Now).Select(r => r.TripId).Distinct().Take(100).ToListAsync(ct);
+        var ids = await db.Reservations.AsNoTracking().Where(r => r.Kind == "Hold" && r.Status == "Active" && r.HoldExpiresAt <= Now).Select(r => r.TripId).Distinct().OrderBy(id => id).Take(100).ToListAsync(ct);
         foreach (var id in ids)
         {
             db.ChangeTracker.Clear();
@@ -175,10 +226,11 @@ public class PaymentService(TravelaDbContext db, IPaymentProvider provider, Time
             order = await db.PaymentOrders.SingleAsync(p => p.Id == id, ct);
             if (order.RefundStatus is "None" or "Succeeded" || order.RefundLeaseUntil > Now || order.NextRefundAttemptAt > Now || order.RefundAttempts >= 8) return;
             order.RefundLeaseUntil = Now.AddMinutes(2); order.RefundLeaseToken = lease; order.RefundAttempts++;
+            PaymentHistory.Record(db, order, "RefundAttemptStarted", Now);
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         }
         ProviderRefund result;
-        try { result = await provider.Refund(order.Id, order.RefundAmount, order.RefundKey, ct); }
+        try { result = await ProviderFor(order.Provider).Refund(order.Id, order.RefundAmount, order.RefundKey, ct); }
         catch (Exception e) when (e is not OperationCanceledException) { result = new("Failed", null, "Sağlayıcı yanıtı alınamadı; aynı işlem anahtarıyla yeniden denenecek."); }
         if (result.Status == "Succeeded" && string.IsNullOrWhiteSpace(result.Reference))
             result = new("Failed", null, "Sağlayıcı iade referansı doğrulanamadı; takip gerekiyor.");
@@ -195,6 +247,14 @@ public class PaymentService(TravelaDbContext db, IPaymentProvider provider, Time
         order.NextRefundAttemptAt = order.RefundStatus == "Succeeded" ? null : Now.AddSeconds(Math.Min(3600, 15 * Math.Pow(2, order.RefundAttempts)));
         if (order.RefundStatus == "Succeeded") { order.RefundedAt = Now; order.NeedsAttention = false; }
         else if (order.RefundAttempts >= 8) order.NeedsAttention = true;
+        PaymentHistory.Record(db, order, "Refund" + nextStatus, Now);
+        if (order.RefundStatus == "Succeeded" || order.RefundAttempts >= 8)
+        {
+            var reservation = await db.Reservations.SingleAsync(r => r.Id == order.ReservationId, ct);
+            await TravelNotifications.Queue(db, reservation, order.RefundStatus == "Succeeded" ? "RefundSucceeded" : "RefundFailed",
+                order.RefundStatus == "Succeeded" ? "refund:" + order.Id : "refund-failed:" + order.Id + ":" + order.RefundStatusChangedAt?.Ticks,
+                Now, order.RefundStatus == "Succeeded" ? $"Tam iade: {order.RefundAmount} {order.Currency}." : "İade tamamlanmadı; işleminiz takip ediliyor.", ct);
+        }
         await db.SaveChangesAsync(ct); await finish.CommitAsync(ct);
     }
 }

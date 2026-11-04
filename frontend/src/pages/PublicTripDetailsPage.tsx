@@ -1,13 +1,16 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import { apiUrl } from "../api";
-import { Details } from "../components/UiDetails";
 import SiteHeader from "../components/SiteHeader";
+import SeatMap from "../components/SeatMap";
+import JourneyStops from "../components/JourneyStops";
+import { buildSeats } from "../seatPlans";
+import type { Journey, SeatPosition } from "../seatPlans";
 
-import { currentRole, tripStatusLabel } from "../reservations";
-import { safeCheckoutPath } from "../payments";
+import { tripStatusLabel } from "../reservations";
+import PassengerCheckoutForm from "../components/PassengerCheckoutForm";
 
-type PublicTrip = {
+type PublicTrip = Journey & {
   id: number;
   companyName: string;
   departureCity: string;
@@ -18,6 +21,8 @@ type PublicTrip = {
   price: number;
   availableSeats: number;
   seatCapacity: number;
+  seatLayout?: string;
+  seats?: SeatPosition[];
   occupiedSeats: number[];
   canReserve: boolean;
   seatPlanAvailable: boolean;
@@ -46,17 +51,12 @@ function TripDetails({ id }: { id: string | undefined }) {
   const [trip, setTrip] = useState<PublicTrip | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
+  const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
   const [bookingError, setBookingError] = useState("");
-  const requestKey = useRef(crypto.randomUUID());
   const [revision, setRevision] = useState(0);
-  const navigate = useNavigate();
-  const token = sessionStorage.getItem("travela_token");
-  const role = currentRole();
-  const loginPath = `/login?returnTo=${encodeURIComponent(`/trips/${id}`)}`;
   const refresh = () => {
-    setLoading(true); setError(""); setSelectedSeat(null); setRevision(v => v + 1);
+    setLoading(true); setError(""); setSelectedSeats([]); setRevision(v => v + 1);
   };
 
   useEffect(() => {
@@ -83,32 +83,6 @@ function TripDetails({ id }: { id: string | undefined }) {
     return () => controller.abort();
   }, [id, revision]);
 
-  const reserve = async () => {
-    if (!token) { navigate(loginPath); return; }
-    if (!trip || selectedSeat === null || saving) return;
-    setSaving(true); setBookingError("");
-    try {
-      const response = await fetch(apiUrl("/api/tickets/checkout"), {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ tripId: trip.id, seatNumber: selectedSeat, requestKey: requestKey.current }),
-      });
-      if (response.status === 401) {
-        sessionStorage.removeItem("travela_token"); sessionStorage.removeItem("travela_user");
-        navigate(loginPath); return;
-      }
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        if (response.status === 409) refresh();
-        throw new Error(response.status === 403 ? "Bilet satın almak için yolcu hesabıyla giriş yapınız." : data?.message ?? "Ödeme adımı açılamadı. Lütfen tekrar deneyiniz.");
-      }
-      const path = safeCheckoutPath(data.checkoutUrl);
-      if (!path) throw new Error("Ödeme adresi alınamadı. Biletlerim sayfasını kontrol ediniz.");
-      navigate(path);
-    } catch (cause) {
-      setBookingError(cause instanceof TypeError ? "Sunucu yanıtı alınamadı. Yeniden denemeden önce Biletlerim sayfasını kontrol ediniz." : cause instanceof Error ? cause.message : "Ödeme sonucu alınamadı. Yeniden denemeden önce Biletlerim sayfasını kontrol ediniz.");
-    } finally { setSaving(false); }
-  };
-
   return (
     <div className="travela-site">
       <SiteHeader />
@@ -132,41 +106,28 @@ function TripDetails({ id }: { id: string | undefined }) {
 
               <Link to="/#sefer-ara" className="site-button secondary">Başka sefer ara</Link>
             </section>
+            <JourneyStops journey={trip} />
             <section className="seat-booking" aria-labelledby="seat-heading">
               <div>
                 <h2 id="seat-heading">Koltuğunuzu seçin</h2>
                 <p>{trip.seatCapacity} koltuk · Sefer durumu: {tripStatusLabel(trip.status)}</p>
                 <p className="seat-legend"><span>□ Boş</span><span>▧ Dolu</span><span>✓ Seçili</span></p>
-                <Details title="Koltuk planı hakkında"><p>Koltukların otobüsteki yerleşimi farklı olabilir.</p></Details>
                 {!trip.canReserve && <p role="status">{trip.departureHasPassed ? "Bu seferin kalkış zamanı geçtiği için bilet alınamaz." : tripStatusLabel(trip.status) === "İptal edildi" ? "Bu sefer iptal edildiği için bilet alınamaz." : !trip.seatPlanAvailable ? "Koltuk bilgileri kontrol ediliyor. Lütfen daha sonra deneyin." : trip.availableSeats === 0 ? "Bu seferde boş koltuk kalmadı." : "Bu sefer bilet satışına kapalı."}</p>}
-                {trip.seatPlanAvailable && <div className="seat-plan" role="group" aria-label="Numaralı koltuk planı">
-                  <div className="bus-front" aria-hidden="true">Otobüsün önü ↑</div>
-                  {Array.from({ length: trip.seatCapacity }, (_, index) => index + 1).map(seat => {
-                    const occupied = trip.occupiedSeats.includes(seat);
-                    const selected = selectedSeat === seat;
-                    return <button key={seat} type="button" className={`seat ${occupied ? "occupied" : selected ? "selected" : "available"}`}
-                      aria-label={`Koltuk ${seat}, ${occupied ? "dolu" : selected ? "seçili" : "boş"}`} aria-pressed={selected}
-                      disabled={occupied || !trip.canReserve || saving}
-                      onClick={() => { setSelectedSeat(selected ? null : seat); requestKey.current = crypto.randomUUID(); setBookingError(""); }}>
-                      {seat}<small>{occupied ? "Dolu" : selected ? "✓" : "Boş"}</small>
-                    </button>;
-                  })}
-                </div>}
+                {trip.seatPlanAvailable && <SeatMap seats={trip.seats ?? buildSeats("Unspecified", trip.seatCapacity)} layout={trip.seatLayout ?? "Unspecified"} occupied={trip.occupiedSeats} selected={selectedSeats} disabled={!trip.canReserve || saving}
+                  onChoose={seat => { setSelectedSeats(current => current.includes(seat) ? current.filter(number => number !== seat) : current.length < 10 ? [...current, seat] : current); setBookingError(""); }} />}
                 <button type="button" className="site-button secondary" disabled={saving} onClick={refresh}>Koltuk planını yenile</button>
               </div>
               <aside className="booking-summary" aria-live="polite">
                 <h2>Sipariş özeti</h2>
-                {selectedSeat !== null ? <>
+                {selectedSeats.length > 0 ? <>
                   <p>{trip.companyName} · Sefer #{trip.id}</p>
                   <p>{trip.departureCity} → {trip.arrivalCity}</p>
                   <p>{dateTimeFormatter.format(new Date(trip.departureTime))}</p>
-                  <p><strong>Koltuk {selectedSeat}</strong></p>
-                  <p>Bilet fiyatı: <strong>{currencyFormatter.format(trip.price)}</strong></p>
+                  <p><strong>Koltuklar: {selectedSeats.join(", ")}</strong></p>
+                  <p>Bilet fiyatı: <strong>{currencyFormatter.format(trip.price * selectedSeats.length)}</strong></p>
                 </> : <p>Devam etmek için boş bir koltuk seçiniz.</p>}
                 <p className="booking-notice">Biletiniz ödeme tamamlandığında oluşur. Koltuğunuz ödeme adımında 10 dakika ayrılır.</p>
-                {token && role !== "Passenger" ? <p role="status">Bilet almak için yolcu hesabınızla giriş yapın.</p> :
-                  <button type="button" className="site-button primary" disabled={selectedSeat === null || !trip.canReserve || saving}
-                    onClick={() => void reserve()}>{saving ? "Ödeme adımı hazırlanıyor..." : token ? "Ödemeye geç" : "Giriş yap ve devam et"}</button>}
+                <PassengerCheckoutForm tripId={trip.id} seats={selectedSeats} disabled={!trip.canReserve || saving} onBusy={setSaving} onError={setBookingError} onConflict={() => setRevision(value => value + 1)} onRemove={seat => setSelectedSeats(current => current.filter(number => number !== seat))} />
               </aside>
             </section>
           </>

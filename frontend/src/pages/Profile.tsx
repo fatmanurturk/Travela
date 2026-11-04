@@ -5,17 +5,19 @@ import { apiUrl } from "../api";
 import SiteHeader from "../components/SiteHeader";
 import "./Profile.css";
 
-type Preferences = { tripReminders: boolean; cancellations: boolean; refundUpdates: boolean };
+type Preferences = { tripReminders: boolean; cancellations: boolean; refundUpdates: boolean; email: boolean; sms: boolean };
 type UserProfile = { id: number; fullName: string; email: string; phoneNumber: string | null; role: string; createdAt: string; lastLoginAt: string | null; notificationPreferences: Preferences };
 type TravelSummary = {
   upcomingCount: number;
   upcomingTrip: { tripId: number; pnr: string; companyName: string; departureCity: string; arrivalCity: string; departureTime: string; arrivalTime: string; seatNumber: number; amount: number; currency: string } | null;
   notifications: { id: string; title: string; description: string; href: string; date: string }[];
 };
-const emptyPreferences: Preferences = { tripReminders: false, cancellations: false, refundUpdates: false };
+const emptyPreferences: Preferences = { tripReminders: false, cancellations: false, refundUpdates: false, email: true, sms: false };
 const dates = new Intl.DateTimeFormat("tr-TR", { dateStyle: "long", timeZone: "Europe/Istanbul" });
 const times = new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Istanbul" });
 const preferenceFields: { key: keyof Preferences; title: string; description: string }[] = [
+  { key: "email", title: "E-posta bildirimleri", description: "Bilet onayı, PNR ve sefer değişikliklerini e-postayla al. Seçtiğin hatırlatma, iptal ve iade bildirimleri de bu kanalı kullanır." },
+  { key: "sms", title: "SMS bildirimleri", description: "Bilette kayıtlı telefon numarana bildirim gönderilmesine izin ver. Numaran uluslararası biçimde kayıtlı olmalıdır." },
   { key: "tripReminders", title: "Yolculuk hatırlatmaları", description: "Önümüzdeki 24 saatte kalkacak biletli yolculuklarını profilinde hatırla." },
   { key: "cancellations", title: "Bilet ve sefer iptalleri", description: "Son 30 gündeki bilet iptallerini ve ilgili işlem bağlantılarını gör." },
   { key: "refundUpdates", title: "İade güncellemeleri", description: "Son 30 gündeki bekleyen, tamamlanan ve tamamlanamayan iadelerini takip et." },
@@ -53,7 +55,7 @@ export default function Profile() {
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setLoadError("");
     request<UserProfile>("/api/profile", { signal: controller.signal }).then(data => {
-      if (!controller.signal.aborted) { setProfile(data); setFullName(data.fullName); setPhone(data.phoneNumber ?? ""); setPreferences(data.notificationPreferences); }
+      if (!controller.signal.aborted) { data.notificationPreferences = { ...emptyPreferences, ...data.notificationPreferences }; setProfile(data); setFullName(data.fullName); setPhone(data.phoneNumber ?? ""); setPreferences(data.notificationPreferences); }
     }).catch(error => { if (!controller.signal.aborted) setLoadError(error instanceof TypeError ? "Sunucuya bağlanılamadı." : error.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [request, revision]);
@@ -135,7 +137,7 @@ export default function Profile() {
           </> : <div className="account-empty"><strong>Yeni yolculuklar seni bekliyor.</strong><p>Henüz yaklaşan bir biletli yolculuğun bulunmuyor.</p><Link className="site-button secondary" to="/#sefer-ara">Sefer ara</Link></div>}
         </section>
 
-        <section className="account-card" id="bildirim-tercihleri" aria-labelledby="preferences-title"><span className="account-kicker">Gelişmelerden haberdar ol</span><h2 id="preferences-title">Bildirim tercihleri</h2><p>Profilinde görmek istediğin uygulama içi hatırlatma ve güncellemeleri seç.</p><form onSubmit={savePreferences}><div className="account-preferences">{preferenceFields.map(field => <label className="account-preference" key={field.key}><span><strong>{field.title}</strong><small>{field.description}</small></span><input type="checkbox" role="switch" aria-label={field.title} checked={preferences[field.key]} onChange={e => setPreferences(previous => ({ ...previous, [field.key]: e.target.checked }))} disabled={busy} /></label>)}</div>
+        <section className="account-card" id="bildirim-tercihleri" aria-labelledby="preferences-title"><span className="account-kicker">Gelişmelerden haberdar ol</span><h2 id="preferences-title">Bildirim tercihleri</h2><p>Bildirim kanallarını ve almak istediğin yolculuk güncellemelerini seç.</p><form onSubmit={savePreferences}><div className="account-preferences">{preferenceFields.map(field => <label className="account-preference" key={field.key}><span><strong>{field.title}</strong><small>{field.description}</small></span><input type="checkbox" role="switch" aria-label={field.title} checked={preferences[field.key]} onChange={e => setPreferences(previous => ({ ...previous, [field.key]: e.target.checked }))} disabled={busy} /></label>)}</div>
             {preferenceError && <p role="alert" className="account-error">{preferenceError}</p>}{preferenceMessage && <p role="status" className="account-success">{preferenceMessage}</p>}<div className="account-actions"><button type="submit" className="site-button primary" disabled={busy || !preferencesChanged}>{pending === "preferences" ? "Kaydediliyor..." : "Tercihleri kaydet"}</button></div>
           </form>
           {!summaryLoading && !summaryError && <div className="account-notifications"><h3>Güncel bildirimlerin</h3>{summary?.notifications.length ? <ul>{summary.notifications.map(notice => <li key={notice.id}><div><strong>{notice.title}</strong><time dateTime={notice.date}>{times.format(new Date(notice.date))}</time></div><p>{notice.description}</p><Link to={notice.href}>Bileti incele →</Link></li>)}</ul> : <p>Kaydettiğin tercihlere uygun güncel bir bildirim bulunmuyor.</p>}</div>}

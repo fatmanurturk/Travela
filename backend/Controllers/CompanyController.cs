@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Travela.Data;
 using Travela.Models;
+using Travela.Api.Security;
 
 namespace Travela.API.Controllers
 {
@@ -190,18 +191,8 @@ namespace Travela.API.Controllers
                 return null;
             }
 
-            var user = await _context.Users
+            return await _context.Users.ForSession(User, _context)
                 .FirstOrDefaultAsync(user => user.Id == userId && user.Role == "Company");
-
-            if (user == null || !user.CompanyId.HasValue || user.MustChangePassword)
-            {
-                return null;
-            }
-
-            var companyExists = await _context.Companies
-                .AnyAsync(company => company.Id == user.CompanyId.Value && company.IsActive);
-
-            return companyExists ? user : null;
         }
 
         private static bool IsValidEmail(string email)

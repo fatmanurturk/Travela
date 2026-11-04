@@ -3,6 +3,8 @@ namespace Travela.Api.Models;
 public class PaymentOrder
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid? PurchaseGroupId { get; set; }
+    public PurchaseGroup? PurchaseGroup { get; set; }
     public int ReservationId { get; set; }
     public Reservation Reservation { get; set; } = null!;
     public int PassengerId { get; set; }
@@ -29,6 +31,25 @@ public class PaymentOrder
     public DateTime? RefundStatusChangedAt { get; set; }
     public string? LastError { get; set; }
     public bool NeedsAttention { get; set; }
+    public DateTime? NextReconciliationAt { get; set; }
+    public DateTime? LastReconciledAt { get; set; }
+    public int ReconciliationAttempts { get; set; }
+}
+
+public class PaymentEvent
+{
+    public long Id { get; set; }
+    public Guid OrderId { get; set; }
+    public PaymentOrder Order { get; set; } = null!;
+    public string Type { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public string PaymentStatus { get; set; } = "";
+    public string RefundStatus { get; set; } = "";
+    public decimal RefundAmount { get; set; }
+    public int? ActorUserId { get; set; }
+    public string? ActorName { get; set; }
+    public Guid? RequestKey { get; set; }
+    public string? Reason { get; set; }
 }
 
 // Local provider's durable test ledger. It contains no card data or credentials.

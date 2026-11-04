@@ -16,6 +16,8 @@ async function prepare(page, width, company = false) {
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async value => { window.__copiedIdentifier = value; } } });
  }, { company });
  await page.route("**/api/company/profile", route => route.fulfill({ json: { name: "Test Firma" } }));
+ await page.route("**/api/purchases/options", route => route.fulfill({ json: { provider: "LocalTest", requiresBuyer: false } }));
+ await page.route("**/api/profile", route => route.fulfill({ json: { fullName: "Test Yolcu", email: "test@example.com", phoneNumber: "+905321234567" } }));
 }
 async function verifyLayout(page, name, width) {
  const result = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth,
@@ -30,8 +32,8 @@ for (const width of [360, 390, 1440]) {
   await page.route("**/api/reservations/mine", r => r.fulfill({ json: [legacy] }));
   await page.goto("/tickets");
   await expect(page.locator(".reservation-list").first()).toContainText(active.pnr);
-  await expect(page.locator(".test-tag")).toHaveCount(1);
-  await expect(page.getByText("İPTAL EDİLDİ", { exact: true })).toBeVisible();
+  await expect(page.getByText("Aktif bilet", { exact: true })).toBeVisible();
+  await expect(page.getByText("İptal edildi", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Sunucunun hesapladığı tutar")).toHaveCount(0);
   await expect(page.getByText("Bilet tutarı", { exact: true }).first()).toBeVisible();
   const details = page.getByText("Eski ücretsiz kayıtlar (1)", { exact: true });
@@ -46,23 +48,22 @@ for (const width of [360, 390, 1440]) {
   await expect(page.getByRole("dialog")).toContainText("İptal son zamanı");
   await page.getByRole("button", { name: "Vazgeç", exact: true }).click();
  });
- test(`Test ödemesi ${width}px: tek uyarı ve ödeme kontrolleri`, async ({ page }) => {
+ test(`Yerel test ödemesi ${width}px: ödeme ve iade kontrolleri`, async ({ page }) => {
   await prepare(page, width);
   await page.route("**/api/tickets/orders/*", r => r.fulfill({ json: pending }));
   await page.goto(`/test-payment/${active.id}`);
-  await expect(page.locator(".test-environment-notice")).toHaveText("Test ortamı — Gerçek ödeme veya iade yapılmaz");
-  await expect(page.locator(".test-environment-notice")).toHaveCount(1);
-  await expect(page.getByRole("heading", { name: "Test kontrolleri" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ödeme işlemleri" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "İade sonucu" })).toBeVisible();
   await expect(page.locator("main")).not.toContainText("adaptör"); await expect(page.locator("main")).not.toContainText("sunucu sorgusu");
   await expect(page.getByRole("button", { name: "Ödemeyi başarılı yap" })).toBeVisible();
   await verifyLayout(page, "checkout", width);
  });
- test(`Firma bilet tablosu ${width}px: TEST etiketi ve kapalı eski kayıtlar`, async ({ page }) => {
+ test(`Firma bilet tablosu ${width}px: PNR ve kapalı eski kayıtlar`, async ({ page }) => {
   await prepare(page, width, true);
   await page.route("**/api/reservations/company?*", r => r.fulfill({ json: { items: [{ ...active, reservationNumber: "ticket-record", price: active.amount, status: "Active" }, legacy], totalCount: 2 } }));
   await page.goto("/company/reservations");
   await expect(page.locator(".company-reservation-table").first()).toContainText(active.pnr);
-  await expect(page.locator(".test-tag")).toHaveText("TEST");
+  await expect(page.locator(".company-reservation-table").first()).toContainText("Ödeme doğrulandı");
   await expect(page.getByRole("button", { name: "İşlem numarasını kopyala" })).toBeHidden();
   const summary = page.getByText("Eski ücretsiz kayıtlar", { exact: true }).first(); await summary.click();
   await expect(page.getByRole("button", { name: "İşlem numarasını kopyala" })).toBeVisible(); await summary.click();

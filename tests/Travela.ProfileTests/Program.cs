@@ -17,6 +17,12 @@ using Travela.Models;
 
 var root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));Directory.SetCurrentDirectory(root);
 using var source=new TravelaDbContextFactory().CreateDbContext([]);
+if(args.Contains("--migrate-account-state")){
+ await AccountStateMigration.Apply(source);return;
+}
+if(args.Contains("--migrate-account-email")){
+ await AccountStateMigration.Apply(source, true);return;
+}
 if(args.Contains("--snapshot-existing")||args.Contains("--verify-existing")){
  var counts=new {Users=await source.Users.CountAsync(),Trips=await source.Trips.CountAsync(),Reservations=await source.Reservations.CountAsync(),Payments=await source.PaymentOrders.CountAsync()};
  var directory=Path.Combine(root,"tmp","profile-qa");Directory.CreateDirectory(directory);var snapshot=Path.Combine(directory,"live-before.json");
@@ -33,6 +39,8 @@ try{
  await db.GetService<IMigrator>().MigrateAsync("20261102131249_AddReportingDatesAndIndexes");
  var legacyCreated=DateTime.UtcNow.AddDays(-60);
  await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Users (FullName, Email, PasswordHash, Role, IsActive, MustChangePassword, SecurityVersion, CreatedAt) VALUES (N'Eski Yolcu', N'legacy@profile.example', N'old-hash', N'Passenger', 1, 0, 1, {legacyCreated})");
+ var legacyResetHash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes("legacy-disabled-token")));
+ await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Users (FullName, Email, PasswordHash, Role, IsActive, MustChangePassword, SecurityVersion, CreatedAt, PasswordResetTokenHash, PasswordResetTokenExpiresAt) VALUES (N'Eski Pasif Hesap', N'legacy-disabled@profile.example', N'old-hash', N'Passenger', 0, 1, 4, {legacyCreated}, {legacyResetHash}, {DateTime.UtcNow.AddDays(1)})");
  await db.Database.MigrateAsync();
  var legacy=await db.Users.AsNoTracking().SingleAsync(u=>u.Email=="legacy@profile.example");
  Check(legacy.PhoneNumber==null&&!legacy.TripRemindersEnabled&&!legacy.CancellationNotificationsEnabled&&!legacy.RefundNotificationsEnabled&&legacy.PasswordHash=="old-hash"&&legacy.CreatedAt==legacyCreated,"Ek alanlar mevcut kullanıcıyı ve geçmişini korur; bildirimler kapalı başlar");
@@ -56,7 +64,10 @@ try{
  var start=new ProcessStartInfo("dotnet"){WorkingDirectory=Path.Combine(root,"backend"),UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};
  start.ArgumentList.Add(Path.Combine(root,"backend","bin",config,"net10.0","Travela.API.dll"));
  start.Environment["ASPNETCORE_URLS"]=$"http://127.0.0.1:{port}";start.Environment["ASPNETCORE_ENVIRONMENT"]="Testing";start.Environment["ConnectionStrings__DefaultConnection"]=cs.ConnectionString;
- start.Environment["Jwt__Key"]=Guid.NewGuid().ToString("N")+Guid.NewGuid().ToString("N");start.Environment["Jwt__Issuer"]="ProfileTests";start.Environment["Jwt__Audience"]="ProfileTests";start.Environment["Payments__RecoveryEnabled"]="false";start.Environment["Logging__LogLevel__Default"]="Warning";
+ start.Environment["Jwt__Key"]=Guid.NewGuid().ToString("N")+Guid.NewGuid().ToString("N");start.Environment["Jwt__Issuer"]="ProfileTests";start.Environment["Jwt__Audience"]="ProfileTests";start.Environment["Payments__RecoveryEnabled"]="false";start.Environment["Notifications__WorkerEnabled"]="false";start.Environment["Logging__LogLevel__Default"]="Warning";
+ TestMailbox.DirectoryPath=Path.Combine(root,"tmp","account-email-qa",database);
+ start.Environment["AccountEmail__DeliveryMode"]="Pickup";start.Environment["AccountEmail__PickupDirectory"]=TestMailbox.DirectoryPath;
+ start.Environment["AccountEmail__RequestLimitPerMinute"]="1000";
  server=Process.Start(start)!;server.OutputDataReceived+=(_,e)=>{lock(log)log.AppendLine(e.Data);};server.ErrorDataReceived+=(_,e)=>{lock(log)log.AppendLine(e.Data);};server.BeginOutputReadLine();server.BeginErrorReadLine();
  using var http=new HttpClient{BaseAddress=new Uri($"http://127.0.0.1:{port}"),Timeout=TimeSpan.FromSeconds(30)};
  for(var i=0;i<100;i++){try{if((await http.GetAsync("/api/test")).IsSuccessStatusCode)break;}catch(HttpRequestException){}if(server.HasExited)throw new Exception(log.ToString());await Task.Delay(100);}
@@ -110,6 +121,9 @@ try{
  var limitedToken=await Login(limited);
  for(var i=0;i<5;i++)Check((await Send("POST","/api/profile/revoke-other-sessions",limitedToken,new{currentPassword="WrongPassword!"})).StatusCode==HttpStatusCode.BadRequest,"Yanlış güvenlik şifresi reddedilir");
  Check((await Send("POST","/api/profile/revoke-other-sessions",limitedToken,new{currentPassword="WrongPassword!"})).StatusCode==HttpStatusCode.TooManyRequests,"Tekrarlanan güvenlik denemeleri sınırlandırılır");
+ await CompanyProfileChecks.Run(db, http, Check);
+ await AccountStateChecks.Run(db, http, Check, start.Environment["Jwt__Key"]!);
+ await AccountRecoveryChecks.Run(db, http, Check);
  Console.WriteLine($"SONUÇ: {passed} profil/migration/yetki/oturum kontrolü başarılı.");
 }finally{
  if(server is {HasExited:false}){server.Kill(true);await server.WaitForExitAsync();}server?.Dispose();SqlConnection.ClearAllPools();

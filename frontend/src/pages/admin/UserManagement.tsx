@@ -14,6 +14,9 @@ type UserRow = {
   companyId: number | null;
   companyName: string | null;
   isActive: boolean;
+  activationPending: boolean;
+  passwordResetRequired: boolean;
+  mustChangePassword: boolean;
   createdAt: string;
   lastLoginAt?: string | null;
   updatedAt?: string | null;
@@ -37,6 +40,14 @@ type ListResponse = {
   totalCount: number;
   pageNumber: number;
   pageSize: number;
+};
+
+const accountStatus = (user: UserRow) => {
+  if (!user.isActive) return "Yönetici tarafından kapalı";
+  if (user.activationPending) return "Aktivasyon bekliyor";
+  if (user.passwordResetRequired) return "Şifre sıfırlama bekliyor";
+  if (user.mustChangePassword) return "İlk şifre değişimi bekliyor";
+  return "Aktif";
 };
 
 function UserManagement() {
@@ -228,7 +239,7 @@ function UserManagement() {
           password: password.trim() || undefined,
           role,
           companyId: role === "Company" ? Number(companyId) : null,
-          isActive: false,
+          isActive: true,
         }),
       });
 
@@ -243,11 +254,7 @@ function UserManagement() {
       setRole("Passenger");
       setCompanyId("");
       setShowForm(false);
-      setMessage(
-        data?.activationToken
-          ? `Kullanıcı oluşturuldu. Aktivasyon tokenı: ${data.activationToken}`
-          : "Kullanıcı başarıyla oluşturuldu."
-      );
+      setMessage(data?.message || "Kullanıcı başarıyla oluşturuldu.");
       await loadUsers();
       await loadStats();
     } catch (err) {
@@ -295,7 +302,9 @@ function UserManagement() {
         throw new Error(data?.message || `Şifre sıfırlama başlatılamadı: ${response.status}`);
       }
 
-      setMessage(`Şifre sıfırlama tokenı: ${data.resetToken}`);
+      setMessage(data?.message || "Şifre yenileme e-postası gönderim kuyruğuna alındı.");
+      setSelectedUser(null);
+      await loadUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Şifre sıfırlama başlatılamadı.");
     }
@@ -447,6 +456,9 @@ function UserManagement() {
                 <option value="Tümü">Tümü</option>
                 <option value="Aktif">Aktif</option>
                 <option value="Pasif">Pasif</option>
+                <option value="ActivationPending">Aktivasyon bekliyor</option>
+                <option value="PasswordResetRequired">Şifre sıfırlama bekliyor</option>
+                <option value="MustChangePassword">İlk şifre değişimi bekliyor</option>
               </select>
             </label>
             <label>
@@ -491,8 +503,8 @@ function UserManagement() {
                       <td>{user.role}</td>
                       <td>{user.companyName || "—"}</td>
                       <td>
-                        <span className={`status-badge ${user.isActive ? "active" : "inactive"}`}>
-                          {user.isActive ? "Aktif" : "Pasif"}
+                        <span className={`status-badge ${accountStatus(user) === "Aktif" ? "active" : "inactive"}`}>
+                          {accountStatus(user)}
                         </span>
                       </td>
                       <td>{new Date(user.createdAt).toLocaleDateString("tr-TR")}</td>
@@ -530,7 +542,8 @@ function UserManagement() {
               <div><strong>E-posta</strong><span>{selectedUser.email}</span></div>
               <div><strong>Rol</strong><span>{selectedUser.role}</span></div>
               <div><strong>Bağlı Firma</strong><span>{selectedUser.companyName || "—"}</span></div>
-              <div><strong>Hesap Durumu</strong><span>{selectedUser.isActive ? "Aktif" : "Pasif"}</span></div>
+              <div><strong>Hesap Durumu</strong><span>{accountStatus(selectedUser)}</span></div>
+              <div><strong>Yönetici İzni</strong><span>{selectedUser.isActive ? "Açık" : "Kapalı"}</span></div>
               <div><strong>Kayıt Tarihi</strong><span>{new Date(selectedUser.createdAt).toLocaleString("tr-TR")}</span></div>
               <div><strong>Son Giriş</strong><span>{selectedUser.lastLoginAt ? new Date(selectedUser.lastLoginAt).toLocaleString("tr-TR") : "Veri yok"}</span></div>
             </div>
@@ -577,7 +590,7 @@ function UserManagement() {
                   </label>
                 )}
                 <label>
-                  <span>Hesap Durumu</span>
+                  <span>Yönetici İzni</span>
                   <select value={editingUser.isActive ? "Aktif" : "Pasif"} onChange={(e) => setEditingUser({ ...editingUser, isActive: e.target.value === "Aktif" })}>
                     <option value="Aktif">Aktif</option>
                     <option value="Pasif">Pasif</option>

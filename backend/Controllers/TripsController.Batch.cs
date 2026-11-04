@@ -48,12 +48,15 @@ public partial class TripsController
                 if (planned.Any(t => t.BusId == item.BusId && t.DepartureTime < arrival && t.ArrivalTime > departure) ||
                     await HasBusOverlapAsync(item.BusId, departure, arrival, null))
                     return Conflict(new { message = $"{index + 1}. sefer ({departure.AddHours(3):dd.MM.yyyy HH:mm}, {bus.PlateNumber}) başka bir seferle çakışıyor. Hiçbir sefer oluşturulmadı." });
-                planned.Add(new Trip
+                var trip = new Trip
                 {
                     CompanyId = companyId.Value, BusId = bus.Id, RouteId = route!.Id,
                     DepartureTime = departure, ArrivalTime = arrival, Price = decimal.Round(item.Price, 2, MidpointRounding.ToEven),
                     AvailableSeats = bus.SeatCapacity, Status = "Scheduled", CreatedAt = now
-                });
+                };
+                var journeyError = await PrepareJourney(trip, bus, route!, item);
+                if (journeyError != null) return journeyError;
+                planned.Add(trip);
             }
             _context.Trips.AddRange(planned);
             await _context.SaveChangesAsync(ct);

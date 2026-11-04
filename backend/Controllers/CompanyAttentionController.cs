@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Travela.Api.Models;
 using Travela.Data;
+using Travela.Api.Security;
 
 namespace Travela.Api.Controllers;
 
@@ -19,8 +20,8 @@ public sealed class CompanyAttentionController(TravelaDbContext db, TimeProvider
     {
         Response.Headers.CacheControl = "private, no-store";
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)) return Unauthorized();
-        var companyId = await db.Users.AsNoTracking().Where(u => u.Id == userId && u.IsActive && u.Role == "Company" && !u.MustChangePassword && u.CompanyId != null &&
-            db.Companies.Any(c => c.Id == u.CompanyId && c.IsActive)).Select(u => u.CompanyId).SingleOrDefaultAsync(ct);
+        var companyId = await db.Users.AsNoTracking().ForSession(User, db).Where(u => u.Id == userId && u.Role == "Company")
+            .Select(u => u.CompanyId).SingleOrDefaultAsync(ct);
         if (companyId == null) return Forbid();
         var now = clock.GetUtcNow().UtcDateTime; var tomorrow = now.AddHours(24);
         var trips = db.Trips.AsNoTracking().Where(t => t.CompanyId == companyId);

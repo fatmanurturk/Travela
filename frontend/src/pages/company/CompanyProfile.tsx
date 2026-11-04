@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiUrl } from "../../api";
 
 const COMPANY_ME_API_URL = apiUrl("/api/company/me");
 const COMPANY_SUMMARY_API_URL = apiUrl("/api/company/me/summary");
-const PROFILE_API_URL = apiUrl("/api/profile");
+const COMPANY_USER_API_URL = apiUrl("/api/company/user");
 
 type CompanyInfo = {
   id: number;
@@ -46,6 +46,20 @@ const isValidEmail = (value: string) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 };
 
+const readError = async (response: Response, fallback: string) => {
+  const body = (await response.json().catch(() => null)) as { message?: string } | null;
+  return body?.message || `${fallback} (${response.status})`;
+};
+
+const updateStoredName = (fullName: string) => {
+  try {
+    const stored = JSON.parse(sessionStorage.getItem("travela_user") ?? "{}");
+    sessionStorage.setItem("travela_user", JSON.stringify({ ...stored, fullName }));
+  } catch {
+    // The authenticated API response remains the source of profile data.
+  }
+};
+
 const formatDate = (value: string | null | undefined) => {
   if (!value) return "—";
   return new Date(value).toLocaleDateString("tr-TR", {
@@ -84,27 +98,25 @@ function CompanyProfile() {
   const [passwordMessage, setPasswordMessage] = useState("");
   const [passwordError, setPasswordError] = useState("");
 
-  const handleUnauthorized = () => {
+  const busy = companySaveLoading || fullNameLoading || passwordLoading;
+
+  const handleUnauthorized = useCallback(() => {
     sessionStorage.removeItem("travela_token");
     sessionStorage.removeItem("travela_user");
     navigate("/login", { replace: true });
-  };
+  }, [navigate]);
 
-  const readError = async (response: Response, fallback: string) => {
-    const body = (await response.json().catch(() => null)) as { message?: string } | null;
-    return body?.message || `${fallback} (${response.status})`;
-  };
-
-  const loadData = async () => {
+  const loadData = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError("");
 
     try {
       const [companyResponse, profileResponse, summaryResponse] = await Promise.all([
-        fetch(COMPANY_ME_API_URL, { headers: getHeaders() }),
-        fetch(PROFILE_API_URL, { headers: getHeaders() }),
-        fetch(COMPANY_SUMMARY_API_URL, { headers: getHeaders() }),
+        fetch(COMPANY_ME_API_URL, { headers: getHeaders(), signal, cache: "no-store" }),
+        fetch(COMPANY_USER_API_URL, { headers: getHeaders(), signal, cache: "no-store" }),
+        fetch(COMPANY_SUMMARY_API_URL, { headers: getHeaders(), signal, cache: "no-store" }),
       ]);
+      if (signal?.aborted) return;
 
       if (companyResponse.status === 401 || profileResponse.status === 401 || summaryResponse.status === 401) {
         handleUnauthorized();
@@ -128,36 +140,36 @@ function CompanyProfile() {
         profileResponse.json() as Promise<UserInfo>,
         summaryResponse.json() as Promise<CompanySummary>,
       ]);
+      if (signal?.aborted) return;
 
       setCompany(companyData);
       setUser(userData);
       setSummary(summaryData);
       setFullName(userData.fullName);
+      updateStoredName(userData.fullName);
       setCompanyForm({
         email: companyData.email ?? "",
         phone: companyData.phone ?? "",
         address: companyData.address ?? "",
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Firma bilgileri yüklenemedi.");
+      if (!signal?.aborted) setError(err instanceof Error ? err.message : "Firma bilgileri yüklenemedi.");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  };
+  }, [handleUnauthorized]);
 
   useEffect(() => {
-    void loadData();
-  }, [navigate]);
+    const controller = new AbortController();
+    void loadData(controller.signal);
+    return () => controller.abort();
+  }, [loadData]);
 
   const handleCompanySave = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (busy) return;
     setCompanyFormError("");
     setCompanyFormMessage("");
-
-    if (!companyForm.email && companyForm.email !== "") {
-      setCompanyFormError("E-posta alanı boş olamaz.");
-      return;
-    }
 
     if (companyForm.email && !isValidEmail(companyForm.email)) {
       setCompanyFormError("Geçerli bir e-posta adresi girin.");
@@ -170,7 +182,7 @@ function CompanyProfile() {
         method: "PUT",
         headers: getHeaders(true),
         body: JSON.stringify({
-          email: companyForm.email.trim() || null,
+          email: companyForm.email.trim(),
           phone: companyForm.phone.trim() || null,
           address: companyForm.address.trim() || null,
         }),
@@ -199,18 +211,19 @@ function CompanyProfile() {
 
   const handleFullNameSave = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (busy) return;
     setFullNameError("");
     setFullNameMessage("");
 
     const trimmed = fullName.trim();
-    if (!trimmed) {
-      setFullNameError("Ad soyad alanı boş olamaz.");
+    if (!trimmed || trimmed.length > 120) {
+      setFullNameError("Ad soyad 1–120 karakter olmalıdır.");
       return;
     }
 
     setFullNameLoading(true);
     try {
-      const response = await fetch(PROFILE_API_URL, {
+      const response = await fetch(COMPANY_USER_API_URL, {
         method: "PUT",
         headers: getHeaders(true),
         body: JSON.stringify({ fullName: trimmed }),
@@ -228,6 +241,7 @@ function CompanyProfile() {
       const payload = (await response.json()) as { fullName?: string; message?: string };
       setUser((current) => (current ? { ...current, fullName: payload.fullName ?? trimmed } : current));
       setFullName(payload.fullName ?? trimmed);
+      updateStoredName(payload.fullName ?? trimmed);
       setFullNameMessage(payload.message || "Ad soyad güncellendi.");
       setFullNameEditMode(false);
     } catch (err) {
@@ -239,6 +253,7 @@ function CompanyProfile() {
 
   const handlePasswordSave = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (busy) return;
     setPasswordError("");
     setPasswordMessage("");
 
@@ -247,8 +262,13 @@ function CompanyProfile() {
       return;
     }
 
-    if (passwordForm.newPassword.length < 8) {
-      setPasswordError("Yeni şifre en az 8 karakter olmalıdır.");
+    if (passwordForm.newPassword.length < 8 || passwordForm.newPassword.length > 128) {
+      setPasswordError("Yeni şifre 8–128 karakter olmalıdır.");
+      return;
+    }
+
+    if (passwordForm.newPassword === passwordForm.currentPassword) {
+      setPasswordError("Yeni şifre mevcut şifreden farklı olmalıdır.");
       return;
     }
 
@@ -259,7 +279,7 @@ function CompanyProfile() {
 
     setPasswordLoading(true);
     try {
-      const response = await fetch(`${PROFILE_API_URL}/change-password`, {
+      const response = await fetch(`${COMPANY_USER_API_URL}/change-password`, {
         method: "POST",
         headers: getHeaders(true),
         body: JSON.stringify({
@@ -282,7 +302,12 @@ function CompanyProfile() {
         throw new Error(await readError(response, "Şifre değiştirilemedi"));
       }
 
-      const payload = (await response.json()) as { message?: string };
+      const payload = (await response.json()) as { message?: string; token?: string };
+      if (!payload.token) {
+        handleUnauthorized();
+        return;
+      }
+      sessionStorage.setItem("travela_token", payload.token);
       setPasswordMessage(payload.message || "Şifre başarıyla değiştirildi.");
       setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
     } catch (err) {
@@ -296,14 +321,16 @@ function CompanyProfile() {
     return <div className="company-profile-page"><div className="company-empty-state">Firma bilgileri yükleniyor...</div></div>;
   }
 
+  if (error) {
+    return <div className="company-profile-page"><p role="alert" className="company-profile-error">{error}</p><button type="button" className="company-secondary-button" onClick={() => void loadData()}>Tekrar dene</button></div>;
+  }
+
   return (
     <div className="company-profile-page">
       <div className="company-dashboard-header">
         <h1>Firma Bilgileri</h1>
         <p>Firma bilgilerinizi, kullanıcı detaylarınızı ve güvenlik ayarlarınızı yönetin.</p>
       </div>
-
-      {error && <p role="alert" className="company-profile-error">{error}</p>}
 
       <div className="company-stat-grid">
         <div className="company-stat-card">
@@ -329,7 +356,7 @@ function CompanyProfile() {
           <div className="company-card-header">
             <h3>Firma Genel Bilgileri</h3>
             {!companyEditMode && (
-              <button type="button" className="company-primary-button" onClick={() => setCompanyEditMode(true)}>
+              <button type="button" className="company-primary-button" disabled={busy} onClick={() => setCompanyEditMode(true)}>
                 Düzenle
               </button>
             )}
@@ -378,15 +405,13 @@ function CompanyProfile() {
                 </label>
               </div>
 
-              {companyFormError && <p className="company-alert error">{companyFormError}</p>}
-              {companyFormMessage && <p className="company-alert success">{companyFormMessage}</p>}
-
               <div className="company-form-actions">
-                <button type="submit" className="company-primary-button" disabled={companySaveLoading}>
+                <button type="submit" className="company-primary-button" disabled={busy}>
                   {companySaveLoading ? "Kaydediliyor..." : "Kaydet"}
                 </button>
                 <button
                   type="button"
+                  disabled={busy}
                   className="company-secondary-button"
                   onClick={() => {
                     setCompanyEditMode(false);
@@ -416,6 +441,8 @@ function CompanyProfile() {
               <div className="company-info-row"><span>Firma Durumu</span><strong className={company?.isActive ? "company-status active" : "company-status inactive"}>{company?.isActive ? "Aktif" : "Pasif"}</strong></div>
             </div>
           )}
+          {companyFormError && <p role="alert" className="company-alert error">{companyFormError}</p>}
+          {companyFormMessage && <p role="status" className="company-alert success">{companyFormMessage}</p>}
         </section>
 
         <section className="company-panel company-profile-panel">
@@ -434,16 +461,15 @@ function CompanyProfile() {
             <form onSubmit={handleFullNameSave} className="company-form company-inline-form">
               <label>
                 Ad Soyad
-                <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
+                <input value={fullName} onChange={(event) => setFullName(event.target.value)} required maxLength={120} disabled={busy} autoComplete="name" />
               </label>
-              {fullNameError && <p className="company-alert error">{fullNameError}</p>}
-              {fullNameMessage && <p className="company-alert success">{fullNameMessage}</p>}
               <div className="company-form-actions">
-                <button type="submit" className="company-primary-button" disabled={fullNameLoading}>
+                <button type="submit" className="company-primary-button" disabled={busy}>
                   {fullNameLoading ? "Kaydediliyor..." : "Kaydet"}
                 </button>
                 <button
                   type="button"
+                  disabled={busy}
                   className="company-secondary-button"
                   onClick={() => {
                     setFullName(user?.fullName ?? "");
@@ -458,11 +484,13 @@ function CompanyProfile() {
             </form>
           ) : (
             <div className="company-edit-trigger">
-              <button type="button" className="company-secondary-button" onClick={() => setFullNameEditMode(true)}>
+              <button type="button" className="company-secondary-button" disabled={busy} onClick={() => setFullNameEditMode(true)}>
                 Ad Soyad Güncelle
               </button>
             </div>
           )}
+          {fullNameError && <p role="alert" className="company-alert error">{fullNameError}</p>}
+          {fullNameMessage && <p role="status" className="company-alert success">{fullNameMessage}</p>}
         </section>
       </div>
 
@@ -477,6 +505,10 @@ function CompanyProfile() {
               Mevcut Şifre
               <input
                 type="password"
+                autoComplete="current-password"
+                maxLength={256}
+                required
+                disabled={busy}
                 value={passwordForm.currentPassword}
                 onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
               />
@@ -485,6 +517,11 @@ function CompanyProfile() {
               Yeni Şifre
               <input
                 type="password"
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={128}
+                required
+                disabled={busy}
                 value={passwordForm.newPassword}
                 onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
               />
@@ -493,17 +530,22 @@ function CompanyProfile() {
               Yeni Şifre Tekrar
               <input
                 type="password"
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={128}
+                required
+                disabled={busy}
                 value={passwordForm.confirmPassword}
                 onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
               />
             </label>
           </div>
 
-          {passwordError && <p className="company-alert error">{passwordError}</p>}
-          {passwordMessage && <p className="company-alert success">{passwordMessage}</p>}
+          {passwordError && <p role="alert" className="company-alert error">{passwordError}</p>}
+          {passwordMessage && <p role="status" className="company-alert success">{passwordMessage}</p>}
 
           <div className="company-form-actions">
-            <button type="submit" className="company-primary-button" disabled={passwordLoading}>
+            <button type="submit" className="company-primary-button" disabled={busy}>
               {passwordLoading ? "Şifre değiştiriliyor..." : "Şifre Değiştir"}
             </button>
           </div>

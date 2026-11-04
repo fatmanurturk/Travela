@@ -8,6 +8,8 @@ using Travela.Api.Models;
 using Travela.Data;
 using Travela.DTOs;
 using Travela.Models;
+using Travela.Api.Trips;
+using Travela.Api.Security;
 
 namespace Travela.Api.Controllers
 {
@@ -117,6 +119,7 @@ namespace Travela.Api.Controllers
                 Brand = bus.Brand,
                 Model = bus.Model,
                 SeatCapacity = bus.SeatCapacity,
+                SeatLayout = bus.SeatLayout, SeatPlanJson = bus.SeatPlanJson,
                 IsActive = bus.IsActive,
                 CreatedAt = bus.CreatedAt,
                 UpdatedAt = bus.UpdatedAt
@@ -239,6 +242,7 @@ namespace Travela.Api.Controllers
                 Brand = bus.Brand,
                 Model = bus.Model,
                 SeatCapacity = bus.SeatCapacity,
+                SeatLayout = bus.SeatLayout, SeatPlanJson = bus.SeatPlanJson,
                 IsActive = bus.IsActive,
                 CreatedAt = bus.CreatedAt,
                 UpdatedAt = bus.UpdatedAt,
@@ -338,6 +342,8 @@ namespace Travela.Api.Controllers
                 IsActive = dto.IsActive,
                 CreatedAt = DateTime.UtcNow
             };
+            try { bus.SeatLayout = dto.SeatLayout; bus.SeatPlanJson = SeatPlans.Write(SeatPlans.Create(dto.SeatLayout, dto.SeatCapacity, dto.BlockedSeats)); }
+            catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
 
             _context.Buses.Add(bus);
             try
@@ -462,6 +468,13 @@ namespace Travela.Api.Controllers
             }
 
             bus.CompanyId = companyId;
+            try
+            {
+                var layout = dto.SeatLayout ?? bus.SeatLayout;
+                var closed = dto.BlockedSeats ?? SeatPlans.Read(bus.SeatPlanJson, bus.SeatLayout, bus.SeatCapacity).Where(s => s.IsBlocked).Select(s => s.Number).ToList();
+                bus.SeatPlanJson = SeatPlans.Write(SeatPlans.Create(layout, dto.SeatCapacity, closed)); bus.SeatLayout = layout;
+            }
+            catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
             bus.PlateNumber = plateNumber;
             bus.NormalizedPlateNumber = normalizedPlate;
             bus.Brand = CleanOptional(dto.Brand);
@@ -543,6 +556,7 @@ namespace Travela.Api.Controllers
 
             return await _context.Users
                 .AsNoTracking()
+                .ForSession(User, _context)
                 .FirstOrDefaultAsync(user => user.Id == userId);
         }
 

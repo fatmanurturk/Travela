@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Travela.DTOs
 {
-    public class TripListDto
+    public class TripListDto : JourneyDto
     {
         public int Id { get; set; }
         public int CompanyId { get; set; }
@@ -12,6 +12,9 @@ namespace Travela.DTOs
         public string? BusBrand { get; set; }
         public string? BusModel { get; set; }
         public int BusCapacity { get; set; }
+        public string SeatLayout { get; set; } = "Unspecified";
+        public string? SeatPlanJson { get; set; }
+        public int SellableSeatCount { get; set; }
         public int RouteId { get; set; }
         public string DepartureCity { get; set; } = string.Empty;
         public string ArrivalCity { get; set; } = string.Empty;
@@ -19,6 +22,7 @@ namespace Travela.DTOs
         public DateTime ArrivalTime { get; set; }
         public decimal Price { get; set; }
         public int AvailableSeats { get; set; }
+        public int ChangeVersion { get; set; }
         public string Status { get; set; } = "Scheduled";
     }
 
@@ -63,6 +67,9 @@ namespace Travela.DTOs
 
         [Range(1, int.MaxValue)]
         public int RouteId { get; set; }
+        public int? DepartureTerminalId { get; set; }
+        public int? ArrivalTerminalId { get; set; }
+        [MaxLength(1000)] public string? BoardingInstructions { get; set; }
 
         public DateTime DepartureTime { get; set; }
 

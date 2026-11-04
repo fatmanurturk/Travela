@@ -93,6 +93,8 @@ const menuItems: {
   { path: "/admin/users", label: "Kullanıcı Yönetimi", icon: "users" },
   { path: "/admin/buses", label: "Otobüs Yönetimi", icon: "buses" },
   { path: "/admin/trips", label: "Sefer Yönetimi", icon: "trips" },
+  { path: "/admin/terminals", label: "Terminal Yönetimi", icon: "trips" },
+  { path: "/admin/notifications", label: "Bildirim Teslimatları", icon: "reports" },
   { path: "/admin/tickets", label: "Bilet ve Rezervasyonlar", icon: "tickets" },
   { path: "/admin/reports", label: "Raporlar", icon: "reports" },
 ];

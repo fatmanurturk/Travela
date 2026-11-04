@@ -6,6 +6,10 @@ import "../Admin.css";
 import "./TripScheduling.css";
 import { buildSchedule, turkeyInput, weekDays } from "../../tripScheduling";
 import type { ScheduleMode } from "../../tripScheduling";
+import JourneyStops from "../../components/JourneyStops";
+import TripSeatEditor from "../../components/TripSeatEditor";
+import TripChangeEditor from "../../components/TripChangeEditor";
+import type { Journey } from "../../seatPlans";
 
 const API_URL = apiUrl("/api/trips");
 const BUSES_API_URL = apiUrl("/api/buses");
@@ -13,7 +17,7 @@ const COMPANIES_API_URL = apiUrl("/api/admin/companies");
 const ROUTES_API_URL = apiUrl("/api/routes");
 const PAGE_SIZE = 10;
 
-type Trip = {
+type Trip = Journey & {
   id: number;
   companyId: number;
   companyName: string;
@@ -23,6 +27,8 @@ type Trip = {
   busModel: string | null;
   busCapacity: number;
   routeId: number;
+  departureTerminalId?: number | null;
+  arrivalTerminalId?: number | null;
   departureCity: string;
   arrivalCity: string;
   departureTime: string;
@@ -86,6 +92,9 @@ type TripForm = {
   companyId: string;
   busId: string;
   routeId: string;
+  departureTerminalId: string;
+  arrivalTerminalId: string;
+  boardingInstructions: string;
   departureTime: string;
   arrivalTime: string;
   price: string;
@@ -102,6 +111,7 @@ const emptyTripForm: TripForm = {
   companyId: "",
   busId: "",
   routeId: "",
+  departureTerminalId: "", arrivalTerminalId: "", boardingInstructions: "",
   departureTime: "",
   arrivalTime: "",
   price: "",
@@ -164,6 +174,7 @@ function TripManagement() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [buses, setBuses] = useState<Bus[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
+  const [terminals, setTerminals] = useState<{ id: number; city: string; name: string; address: string }[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [pageNumber, setPageNumber] = useState(1);
@@ -235,7 +246,7 @@ function TripManagement() {
 
   const loadOptions = async () => {
     try {
-      const [companyResponse, busResponse, routeResponse] = await Promise.all([
+      const [companyResponse, busResponse, routeResponse, terminalResponse] = await Promise.all([
         isAdmin
           ? request(COMPANIES_API_URL, { headers: requestHeaders() })
           : Promise.resolve(null),
@@ -244,6 +255,7 @@ function TripManagement() {
           { headers: requestHeaders() }
         ),
         request(ROUTES_API_URL, { headers: requestHeaders() }),
+        request(apiUrl("/api/terminals"), { headers: requestHeaders() }),
       ]);
 
       if (companyResponse && !companyResponse.ok) {
@@ -251,6 +263,8 @@ function TripManagement() {
       }
       if (!busResponse.ok) throw new Error(await readError(busResponse, "Otobüsler alınamadı"));
       if (!routeResponse.ok) throw new Error(await readError(routeResponse, "Güzergâhlar alınamadı"));
+      if (!terminalResponse.ok) throw new Error(await readError(terminalResponse, "Terminaller alınamadı"));
+      setTerminals(await terminalResponse.json());
 
       const [adminCompanyData, busData, routeData] = await Promise.all([
         companyResponse ? companyResponse.json() as Promise<Company[]> : Promise.resolve([]),
@@ -375,6 +389,7 @@ function TripManagement() {
       companyId: String(trip.companyId),
       busId: String(trip.busId),
       routeId: String(trip.routeId),
+      departureTerminalId: String(trip.departureTerminalId ?? ""), arrivalTerminalId: String(trip.arrivalTerminalId ?? ""), boardingInstructions: trip.boardingInstructions ?? "",
       departureTime: toLocalInput(trip.departureTime),
       arrivalTime: toLocalInput(trip.arrivalTime),
       price: String(trip.price),
@@ -386,15 +401,15 @@ function TripManagement() {
 
   const copyTrip = (trip: Trip) => {
     resetSchedule(); setEditingTrip(null); setCopiedFrom(trip.id);
-    setTripForm({ companyId: String(trip.companyId), busId: String(trip.busId), routeId: String(trip.routeId), departureTime: "", arrivalTime: "", price: String(trip.price) });
+    setTripForm({ companyId: String(trip.companyId), busId: String(trip.busId), routeId: String(trip.routeId), departureTime: "", arrivalTime: "", price: String(trip.price), departureTerminalId: String(trip.departureTerminalId ?? ""), arrivalTerminalId: String(trip.arrivalTerminalId ?? ""), boardingInstructions: trip.boardingInstructions ?? "" });
     setError(""); setMessage(""); setShowTripForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const linkedDetail = useRef(new URLSearchParams(location.search).get("detail"));
-  const openDetail = async (tripId: number) => {
-    setDetailLoading(true);
-    setDetail(null);
+  const openDetail = async (tripId: number, background = false) => {
+    if (!background) setDetailLoading(true);
+    if (!background) setDetail(null);
     try {
       const response = await request(`${API_URL}/${tripId}`, { headers: requestHeaders() });
       if (!response.ok) throw new Error(await readError(response, "Sefer detayı alınamadı"));
@@ -426,6 +441,8 @@ function TripManagement() {
       const payload = times.map(time => ({
         companyId: isAdmin && tripForm.companyId ? Number(tripForm.companyId) : null,
         busId: Number(tripForm.busId), routeId: Number(tripForm.routeId), price: Number(tripForm.price), ...time
+        , departureTerminalId: tripForm.departureTerminalId ? Number(tripForm.departureTerminalId) : null,
+        arrivalTerminalId: tripForm.arrivalTerminalId ? Number(tripForm.arrivalTerminalId) : null, boardingInstructions: tripForm.boardingInstructions.trim() || null
       }));
       const batch = !editingTrip && scheduleMode !== "single";
       const response = await request(editingTrip ? `${API_URL}/${editingTrip.id}` : batch ? `${API_URL}/batch` : API_URL, {
@@ -590,7 +607,7 @@ function TripManagement() {
                 <select
                   required
                   value={tripForm.routeId}
-                  onChange={(event) => setTripForm((current) => ({ ...current, routeId: event.target.value }))}
+                  onChange={(event) => setTripForm((current) => ({ ...current, routeId: event.target.value, departureTerminalId: "", arrivalTerminalId: "" }))}
                 >
                   <option value="">Güzergâh seçin</option>
                   {routes.map((route) => (
@@ -616,6 +633,14 @@ function TripManagement() {
                   ))}
                 </select>
               </label>
+              <label>Kalkış terminali<select required value={tripForm.departureTerminalId} onChange={event => setTripForm(current => ({ ...current, departureTerminalId: event.target.value }))}>
+                <option value="">Kalkış terminali seçin</option>{terminals.filter(terminal => terminal.city.toLocaleLowerCase("tr-TR") === routes.find(route => route.id === Number(tripForm.routeId))?.departureCity.toLocaleLowerCase("tr-TR")).map(terminal => <option key={terminal.id} value={terminal.id}>{terminal.name} · {terminal.address}</option>)}
+              </select></label>
+              <label>Varış terminali<select required value={tripForm.arrivalTerminalId} onChange={event => setTripForm(current => ({ ...current, arrivalTerminalId: event.target.value }))}>
+                <option value="">Varış terminali seçin</option>{terminals.filter(terminal => terminal.city.toLocaleLowerCase("tr-TR") === routes.find(route => route.id === Number(tripForm.routeId))?.arrivalCity.toLocaleLowerCase("tr-TR")).map(terminal => <option key={terminal.id} value={terminal.id}>{terminal.name} · {terminal.address}</option>)}
+              </select></label>
+              <label>Biniş açıklaması<textarea maxLength={1000} value={tripForm.boardingInstructions} onChange={event => setTripForm(current => ({ ...current, boardingInstructions: event.target.value }))} /></label>
+              {tripForm.routeId && !terminals.length && <p>Terminal bulunmuyor. Önce yönetici terminal eklemelidir.</p>}
               {tripForm.busId && (
                 <div className="trip-selection-info">
                   {(() => {
@@ -659,7 +684,7 @@ function TripManagement() {
             </div>
             {!editingTrip && scheduleMode !== "single" && <section className="trip-repeat" aria-labelledby="trip-repeat-title">
               <h3 id="trip-repeat-title">Sefer takvimi</h3>
-              <p>Kalkış ve varış alanları ilk seferin saatini ve yolculuk süresini belirler. Aynı otobüs, güzergâh ve fiyat seçilen tarihlere uygulanır. Bir işlemde en fazla 100 sefer kaydedilir.</p>
+              <p>Kalkış ve varış alanları ilk seferin saatini ve yolculuk süresini belirler. Aynı otobüs, güzergâh, terminal ve fiyat seçilen tarihlere uygulanır. Bir işlemde en fazla 100 sefer kaydedilir.</p>
               {scheduleMode === "weekly" ? <>
                 <label>Tekrar bitiş tarihi<input type="date" required min={tripForm.departureTime.slice(0, 10)} value={repeatUntil} disabled={saving} onChange={e => setRepeatUntil(e.target.value)} /></label>
                 <fieldset className="trip-weekdays"><legend>Tekrar günleri</legend>{weekDays.map(([value, label]) => <label key={value}><input type="checkbox" checked={repeatDays.includes(value)} disabled={saving} onChange={e => setRepeatDays(days => e.target.checked ? [...days, value] : days.filter(d => d !== value))} />{label}</label>)}</fieldset>
@@ -803,6 +828,9 @@ function TripManagement() {
                 {detail.cancelledAt && <div><strong>İptal tarihi / nedeni</strong><span>{formatDate(detail.cancelledAt)} · {detail.cancellationReason}</span></div>}
               </div>
               <p className="trip-helper">Boş koltuk sayısı ödeme tutmaları ve satılmış biletlerle güncellenir. Eski ücretsiz kayıtlar korunur; ödenmiş bilet sayılmaz.</p>
+              <JourneyStops journey={detail} />
+              {normalizeStatus(detail.status) === "Scheduled" && <TripChangeEditor key={detail.id} trip={detail} buses={buses.filter(bus => bus.companyId === detail.companyId && bus.isActive)} saved={() => { void openDetail(detail.id, true); void loadTrips(); void loadSummary(); }} />}
+              {normalizeStatus(detail.status) === "Scheduled" && <TripSeatEditor key={`${detail.id}:${detail.updatedAt}`} id={detail.id} saved={() => { void openDetail(detail.id, true); void loadTrips(); void loadSummary(); }} />}
               <div className="detail-actions">
                 {isAdmin && <>
                   <button className="secondary-button" type="button" onClick={() => navigate(`/admin/companies/${detail.companyId}`)}>Firmayı Görüntüle</button>
@@ -820,7 +848,7 @@ function TripManagement() {
         <div className="modal-backdrop">
           <section className="modal-card trip-cancel-modal" role="dialog" aria-modal="true" aria-labelledby="trip-cancel-heading">
             <h3 id="trip-cancel-heading">Sefer #{cancelTrip.id} iptal edilsin mi?</h3>
-            <p>İptal edilen sefer silinmez ve yeni satışa kapatılır. İlgili aktif biletler iptal edilir ve iki saat kuralından bağımsız tam iade süreci başlatılır. İadenin tamamlanması sağlayıcı sonucuyla takip edilir; otomatik yolcu bildirimi yapılmaz.</p>
+            <p>İptal edilen sefer silinmez ve yeni satışa kapatılır. İlgili aktif biletler iptal edilir ve iki saat kuralından bağımsız tam iade süreci başlatılır. İadenin tamamlanması sağlayıcı sonucuyla takip edilir; yolcu tercihlerine göre bildirimler kuyruğa alınır.</p>
             <form className="user-form" onSubmit={submitCancellation}>
               <label>İptal nedeni *
                 <textarea required maxLength={500} rows={4} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} />

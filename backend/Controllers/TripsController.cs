@@ -1,5 +1,6 @@
 using Travela.Api.Payments;
 using System.Data;
+using Travela.Api.Security;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -98,7 +99,7 @@ namespace Travela.Api.Controllers
                     trip.Company.IsActive &&
                     trip.Bus.IsActive &&
                     trip.Bus.CompanyId == trip.CompanyId &&
-                    trip.Route.IsActive &&
+                    trip.Route.IsActive && (trip.DepartureTerminalId == null || trip.DepartureTerminal!.IsActive) && (trip.ArrivalTerminalId == null || trip.ArrivalTerminal!.IsActive) &&
                     trip.DepartureTime > now &&
                     trip.AvailableSeats >= passengers &&
                     (trip.Status.ToLower() == "scheduled" ||
@@ -179,6 +180,7 @@ namespace Travela.Api.Controllers
                     CompanyName = trip.Company.Name,
                     DepartureCity = trip.Route.DepartureCity,
                     ArrivalCity = trip.Route.ArrivalCity,
+                    DepartureTerminalId = trip.DepartureTerminalId, ArrivalTerminalId = trip.ArrivalTerminalId, DepartureTerminalName = trip.DepartureTerminalName, DepartureTerminalAddress = trip.DepartureTerminalAddress, ArrivalTerminalName = trip.ArrivalTerminalName, ArrivalTerminalAddress = trip.ArrivalTerminalAddress, BoardingInstructions = trip.BoardingInstructions,
                     DepartureTime = trip.DepartureTime,
                     ArrivalTime = trip.ArrivalTime,
                     DurationMinutes = EF.Functions.DateDiffMinute(trip.DepartureTime, trip.ArrivalTime),
@@ -219,7 +221,7 @@ namespace Travela.Api.Controllers
                     trip.Company.IsActive &&
                     trip.Bus.IsActive &&
                     trip.Bus.CompanyId == trip.CompanyId &&
-                    trip.Route.IsActive &&
+                    trip.Route.IsActive && (trip.DepartureTerminalId == null || trip.DepartureTerminal!.IsActive) && (trip.ArrivalTerminalId == null || trip.ArrivalTerminal!.IsActive) &&
                     trip.DepartureTime > now &&
                     trip.AvailableSeats > 0 &&
                     (trip.Status.ToLower() == "scheduled" ||
@@ -234,6 +236,7 @@ namespace Travela.Api.Controllers
                     CompanyName = trip.Company.Name,
                     DepartureCity = trip.Route.DepartureCity,
                     ArrivalCity = trip.Route.ArrivalCity,
+                    DepartureTerminalId = trip.DepartureTerminalId, ArrivalTerminalId = trip.ArrivalTerminalId, DepartureTerminalName = trip.DepartureTerminalName, DepartureTerminalAddress = trip.DepartureTerminalAddress, ArrivalTerminalName = trip.ArrivalTerminalName, ArrivalTerminalAddress = trip.ArrivalTerminalAddress, BoardingInstructions = trip.BoardingInstructions,
                     DepartureTime = trip.DepartureTime,
                     ArrivalTime = trip.ArrivalTime,
                     DurationMinutes = EF.Functions.DateDiffMinute(trip.DepartureTime, trip.ArrivalTime),
@@ -267,7 +270,7 @@ namespace Travela.Api.Controllers
                     trip.Company.IsActive &&
                     trip.Bus.IsActive &&
                     trip.Bus.CompanyId == trip.CompanyId &&
-                    trip.Route.IsActive &&
+                    trip.Route.IsActive && (trip.DepartureTerminalId == null || trip.DepartureTerminal!.IsActive) && (trip.ArrivalTerminalId == null || trip.ArrivalTerminal!.IsActive) &&
                     trip.DepartureTime > now &&
                     trip.AvailableSeats > 0 &&
                     (trip.Status.ToLower() == "scheduled" ||
@@ -307,10 +310,11 @@ namespace Travela.Api.Controllers
                 .Where(item => item.Id == id)
                 .Select(item => new PublicTripDetailDto
                 {
-                    SeatCapacity = item.Bus.SeatCapacity,
+                    SeatCapacity = item.SeatCapacitySnapshot ?? item.Bus.SeatCapacity,
+                    SellableSeatCount = item.SellableSeatCount ?? item.Bus.SeatCapacity, SeatLayout = item.SeatLayout, SeatPlanJson = item.SeatPlanJson,
                     Status = item.Status,
                     OccupiedSeats = _context.Reservations.Where(r => r.TripId == item.Id && r.Status == "Active").Select(r => r.SeatNumber).ToList(),
-                    CanReserve = item.Company.IsActive && item.Bus.IsActive && item.Route.IsActive &&
+                    CanReserve = item.Company.IsActive && item.Bus.IsActive && item.Route.IsActive && (item.DepartureTerminalId == null || item.DepartureTerminal!.IsActive) && (item.ArrivalTerminalId == null || item.ArrivalTerminal!.IsActive) &&
                         item.Bus.CompanyId == item.CompanyId && item.DepartureTime > now && item.AvailableSeats > 0 &&
                         (item.Status.ToLower() == "scheduled" || item.Status.ToLower() == "planlandı" || item.Status.ToLower() == "planlandi"),
                     Id = item.Id,
@@ -318,6 +322,7 @@ namespace Travela.Api.Controllers
                     CompanyName = item.Company.Name,
                     DepartureCity = item.Route.DepartureCity,
                     ArrivalCity = item.Route.ArrivalCity,
+                    DepartureTerminalId = item.DepartureTerminalId, ArrivalTerminalId = item.ArrivalTerminalId, DepartureTerminalName = item.DepartureTerminalName, DepartureTerminalAddress = item.DepartureTerminalAddress, ArrivalTerminalName = item.ArrivalTerminalName, ArrivalTerminalAddress = item.ArrivalTerminalAddress, BoardingInstructions = item.BoardingInstructions,
                     DepartureTime = item.DepartureTime,
                     ArrivalTime = item.ArrivalTime,
                     DurationMinutes = EF.Functions.DateDiffMinute(item.DepartureTime, item.ArrivalTime),
@@ -333,7 +338,10 @@ namespace Travela.Api.Controllers
 
             trip.DepartureTime = AsUtc(trip.DepartureTime);
             trip.ArrivalTime = AsUtc(trip.ArrivalTime);
-            trip.SeatPlanAvailable = trip.AvailableSeats == trip.SeatCapacity - trip.OccupiedSeats.Count;
+            try { trip.Seats = Travela.Api.Trips.SeatPlans.Read(trip.SeatPlanJson, trip.SeatLayout, trip.SeatCapacity); }
+            catch (ArgumentException) { trip.Seats = []; }
+            trip.SeatPlanAvailable = trip.Seats.Count == trip.SeatCapacity && trip.AvailableSeats == trip.SellableSeatCount - trip.OccupiedSeats.Count &&
+                !trip.Seats.Any(s => s.IsBlocked && trip.OccupiedSeats.Contains(s.Number));
             trip.DepartureHasPassed = trip.DepartureTime <= now;
             trip.CanReserve = trip.CanReserve && trip.SeatPlanAvailable;
             return Ok(trip);
@@ -482,6 +490,7 @@ namespace Travela.Api.Controllers
                 .Take(pageSize)
                 .Select(trip => new TripListDto
                 {
+                    ChangeVersion = trip.ChangeVersion,
                     Id = trip.Id,
                     CompanyId = trip.CompanyId,
                     CompanyName = trip.Company.Name,
@@ -489,10 +498,12 @@ namespace Travela.Api.Controllers
                     BusPlateNumber = trip.Bus.PlateNumber,
                     BusBrand = trip.Bus.Brand,
                     BusModel = trip.Bus.Model,
-                    BusCapacity = trip.Bus.SeatCapacity,
+                    BusCapacity = trip.SeatCapacitySnapshot ?? trip.Bus.SeatCapacity, SeatLayout = trip.SeatLayout,
+                    SeatPlanJson = trip.SeatPlanJson, SellableSeatCount = trip.SellableSeatCount ?? trip.Bus.SeatCapacity,
                     RouteId = trip.RouteId,
                     DepartureCity = trip.Route.DepartureCity,
                     ArrivalCity = trip.Route.ArrivalCity,
+                    DepartureTerminalId = trip.DepartureTerminalId, ArrivalTerminalId = trip.ArrivalTerminalId, DepartureTerminalName = trip.DepartureTerminalName, DepartureTerminalAddress = trip.DepartureTerminalAddress, ArrivalTerminalName = trip.ArrivalTerminalName, ArrivalTerminalAddress = trip.ArrivalTerminalAddress, BoardingInstructions = trip.BoardingInstructions,
                     DepartureTime = trip.DepartureTime,
                     ArrivalTime = trip.ArrivalTime,
                     Price = trip.Price,
@@ -585,6 +596,7 @@ namespace Travela.Api.Controllers
 
             var trip = await query.Select(item => new TripDetailDto
             {
+                ChangeVersion = item.ChangeVersion,
                 Id = item.Id,
                 CompanyId = item.CompanyId,
                 CompanyName = item.Company.Name,
@@ -593,11 +605,13 @@ namespace Travela.Api.Controllers
                 BusPlateNumber = item.Bus.PlateNumber,
                 BusBrand = item.Bus.Brand,
                 BusModel = item.Bus.Model,
-                BusCapacity = item.Bus.SeatCapacity,
+                BusCapacity = item.SeatCapacitySnapshot ?? item.Bus.SeatCapacity, SeatLayout = item.SeatLayout,
+                SeatPlanJson = item.SeatPlanJson, SellableSeatCount = item.SellableSeatCount ?? item.Bus.SeatCapacity,
                 BusIsActive = item.Bus.IsActive,
                 RouteId = item.RouteId,
                 DepartureCity = item.Route.DepartureCity,
                 ArrivalCity = item.Route.ArrivalCity,
+                    DepartureTerminalId = item.DepartureTerminalId, ArrivalTerminalId = item.ArrivalTerminalId, DepartureTerminalName = item.DepartureTerminalName, DepartureTerminalAddress = item.DepartureTerminalAddress, ArrivalTerminalName = item.ArrivalTerminalName, ArrivalTerminalAddress = item.ArrivalTerminalAddress, BoardingInstructions = item.BoardingInstructions,
                 DistanceKm = item.Route.DistanceKm,
                 EstimatedDurationMinutes = item.Route.EstimatedDurationMinutes,
                 DepartureTime = item.DepartureTime,
@@ -695,6 +709,8 @@ namespace Travela.Api.Controllers
                 CreatedAt = DateTime.UtcNow
             };
 
+            var journeyError = await PrepareJourney(trip, bus!, route!, dto);
+            if (journeyError != null) return journeyError;
             _context.Trips.Add(trip);
             try
             {
@@ -763,10 +779,19 @@ namespace Travela.Api.Controllers
                 return Forbid();
             }
 
-            if (await _context.Reservations.AnyAsync(r => r.TripId == id))
+            var expiredHolds = await _context.Reservations.Where(r => r.TripId == id && r.Status == "Active" && r.Kind == "Hold" && r.HoldExpiresAt <= now).ToListAsync();
+            if (companyId != trip.CompanyId && await _context.Reservations.AnyAsync(r => r.TripId == id))
+                return Conflict(new { message = "İşlem geçmişi bulunan sefer başka firmaya aktarılamaz." });
+            foreach (var hold in expiredHolds) { hold.Status = "Cancelled"; hold.CancelledAt = now; hold.CancellationReason = "Ödeme süresi doldu."; trip.AvailableSeats++; }
+            if (await _context.Reservations.AnyAsync(r => r.TripId == id && r.Status == "Active" && (r.Kind != "Hold" || r.HoldExpiresAt > now)))
             {
-                return Conflict(new { message = "Rezervasyonu bulunan seferin bilgileri değiştirilemez. Gerekirse seferi iptal ediniz." });
+                return Conflict(new { message = "Aktif bilet veya ödeme tutması var. Saat/araç için kontrollü sefer değişikliği işlemini kullanın." });
             }
+            await _context.Entry(trip).Reference(t => t.Route).LoadAsync();
+            await _context.Entry(trip).Reference(t => t.Company).LoadAsync();
+            var oldJourney = Travela.Api.Trips.TicketJourney.Capture(trip).Write();
+            var historicalTickets = await _context.Reservations.Where(r => r.TripId == id && r.Kind == "Ticket" && r.Status != "Active" && r.TicketJourneyJson == null).ToListAsync();
+            foreach (var ticket in historicalTickets) ticket.TicketJourneyJson = oldJourney;
             var company = await _context.Companies.FirstOrDefaultAsync(item => item.Id == companyId.Value);
             var bus = await _context.Buses.FirstOrDefaultAsync(item => item.Id == dto.BusId);
             var route = await _context.Routes.FirstOrDefaultAsync(item => item.Id == dto.RouteId);
@@ -776,7 +801,7 @@ namespace Travela.Api.Controllers
                 return validationError;
             }
 
-            if (dto.Price != trip.Price && trip.AvailableSeats < trip.Bus.SeatCapacity)
+            if (dto.Price != trip.Price && trip.AvailableSeats < (trip.SellableSeatCount ?? trip.Bus.SeatCapacity))
             {
                 return Conflict(new
                 {
@@ -784,7 +809,7 @@ namespace Travela.Api.Controllers
                 });
             }
 
-            var existingPassengerCount = Math.Max(0, trip.Bus.SeatCapacity - trip.AvailableSeats);
+            var existingPassengerCount = Math.Max(0, (trip.SellableSeatCount ?? trip.Bus.SeatCapacity) - trip.AvailableSeats);
             if (bus!.SeatCapacity < existingPassengerCount)
             {
                 return Conflict(new { message = "Yeni otobüs kapasitesi mevcut kontenjan kullanımını karşılamıyor." });
@@ -812,7 +837,12 @@ namespace Travela.Api.Controllers
             trip.ArrivalTime = arrival;
             trip.Price = decimal.Round(dto.Price, 2, MidpointRounding.ToEven);
             trip.AvailableSeats = bus.SeatCapacity - existingPassengerCount;
+            var journeyError = await PrepareJourney(trip, bus, route!, dto);
+            if (journeyError != null) return journeyError;
+            if (trip.AvailableSeats < existingPassengerCount) return Conflict(new { message = "Satışa açık kapasite mevcut kontenjanın altına düşemez." });
+            trip.AvailableSeats -= existingPassengerCount;
             trip.UpdatedAt = now;
+            trip.ChangeVersion++;
 
             try
             {
@@ -882,13 +912,15 @@ namespace Travela.Api.Controllers
             trip.CancelledAt = DateTime.UtcNow;
             trip.CancelledByUserId = GetCurrentUserId();
             trip.UpdatedAt = DateTime.UtcNow;
+            trip.ChangeVersion++;
             var activeReservations = await _context.Reservations.Include(r => r.Payment).Where(r => r.TripId == id && r.Status == "Active").ToListAsync();
             foreach (var reservation in activeReservations)
             {
-                if (reservation.Payment != null) PaymentService.RequestRefund(reservation.Payment, DateTime.UtcNow);
+                if (reservation.Payment != null) PaymentService.RequestRefund(reservation.Payment, DateTime.UtcNow, _context);
                 reservation.Status = "Cancelled";
                 reservation.CancelledAt = trip.CancelledAt;
                 reservation.CancellationReason = "Sefer iptal edildi: " + trip.CancellationReason;
+                if (reservation.Kind == "Ticket") await Travela.Api.Notifications.TravelNotifications.Queue(_context, reservation, "Cancellation", "cancel-trip:" + trip.Id, DateTime.UtcNow, trip.CancellationReason);
             }
             trip.AvailableSeats += activeReservations.Count;
             await _context.SaveChangesAsync();
@@ -906,6 +938,7 @@ namespace Travela.Api.Controllers
 
             return await _context.Users
                 .AsNoTracking()
+                .ForSession(User, _context)
                 .FirstOrDefaultAsync(user => user.Id == id.Value);
         }
 

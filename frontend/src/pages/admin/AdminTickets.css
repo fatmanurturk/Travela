@@ -1,0 +1,17 @@
+.admin-tickets { min-width: 0; }
+.admin-tickets label { display: grid; gap: 8px; min-width: 0; }
+.admin-tickets input, .admin-tickets select, .admin-tickets textarea { box-sizing: border-box; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; }
+.admin-tickets .table-wrap { max-width: 100%; overflow-x: auto; }
+.admin-tickets td { max-width: 290px; overflow-wrap: anywhere; }
+.admin-tickets td small { display: block; margin-top: 6px; color: #475569; }
+.admin-ticket-detail { scroll-margin-top: 24px; }
+.admin-ticket-detail .dashboard-heading { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.admin-ticket-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.admin-ticket-facts dt { color: #475569; font-size: 14px; }
+.admin-ticket-facts dd { margin: 6px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.admin-ticket-operation { display: grid; gap: 14px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 18px; margin: 20px 0; }
+.admin-payment-history { padding-left: 22px; }
+.admin-payment-history li { border-bottom: 1px solid #e2e8f0; padding: 14px 0; overflow-wrap: anywhere; }
+.admin-payment-history time { display: block; margin-top: 6px; color: #475569; }
+.admin-payment-history p { margin: 6px 0; }
+@media (max-width: 600px) { .admin-ticket-facts { grid-template-columns: 1fr; } .admin-tickets .form-grid { grid-template-columns: 1fr; } .admin-tickets .detail-actions { flex-wrap: wrap; } }

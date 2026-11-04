@@ -7,6 +7,8 @@ using Travela.Api.Payments;
 using Travela.Data;
 using Travela.DTOs;
 using Travela.Api.Documents;
+using Travela.Api.Security;
+using Travela.Api.Trips;
 
 namespace Travela.Api.Controllers;
 
@@ -14,7 +16,7 @@ namespace Travela.Api.Controllers;
 public class TicketsController(TravelaDbContext db, PaymentService payments, LocalTestPaymentProvider local, IWebHostEnvironment env, TimeProvider clock, TicketPdfRenderer pdf) : ControllerBase
 {
     private int UserId => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : -1;
-    private Task<bool> ActiveUser(CancellationToken ct) => db.Users.AnyAsync(u => u.Id == UserId && u.Role == "Passenger" && u.IsActive && !u.MustChangePassword, ct);
+    private Task<bool> ActiveUser(CancellationToken ct) => db.Users.ForSession(User, db).AnyAsync(u => u.Id == UserId && u.Role == "Passenger", ct);
     private async Task<IActionResult> Run(Func<Task<IActionResult>> action, CancellationToken ct)
     {
         Response.Headers.CacheControl = "private, no-store, max-age=0";
@@ -78,7 +80,7 @@ public class TicketsController(TravelaDbContext db, PaymentService payments, Loc
     public Task<IActionResult> Simulate(Guid id, TestPaymentDto dto, CancellationToken ct) => Run(async () =>
     {
         if (!TestEnvironment()) return NotFound();
-        if (!await Owns(id, ct)) return NotFound();
+        if (!await Owns(id, ct) || !await db.PaymentOrders.AnyAsync(p => p.Id == id && p.Provider == "LocalTest", ct)) return NotFound();
         var notice = await local.Simulate(id, dto.Outcome, dto.RefundOutcome, ct);
         await payments.HandleNotice(notice, local.Sign(notice), ct);
         return Ok(await Detail(id, ct));
@@ -87,7 +89,7 @@ public class TicketsController(TravelaDbContext db, PaymentService payments, Loc
     public Task<IActionResult> SimulateRefund(Guid id, TestPaymentDto dto, CancellationToken ct) => Run(async () =>
     {
         if (!TestEnvironment()) return NotFound();
-        if (!await Owns(id, ct)) return NotFound();
+        if (!await Owns(id, ct) || !await db.PaymentOrders.AnyAsync(p => p.Id == id && p.Provider == "LocalTest", ct)) return NotFound();
         if (dto.Outcome is not ("Succeeded" or "Failed" or "Pending")) return BadRequest();
         await db.LocalPaymentRecords.Where(p => p.Id == id).ExecuteUpdateAsync(s => s.SetProperty(p => p.RefundOutcome, dto.Outcome), ct);
         // Test-only control advances the provider result; it never marks the application refund complete.
@@ -97,25 +99,7 @@ public class TicketsController(TravelaDbContext db, PaymentService payments, Loc
     }, ct);
     private bool TestEnvironment() => env.IsDevelopment() || env.IsEnvironment("Testing");
     private Task<bool> Owns(Guid id, CancellationToken ct) => db.PaymentOrders.AnyAsync(p => p.Id == id && p.PassengerId == UserId, ct);
-    private async Task<PurchaseDto> Detail(Guid id, CancellationToken ct)
-    {
-        var p = await db.PaymentOrders.AsNoTracking().Include(p => p.Reservation).ThenInclude(r => r.Trip).ThenInclude(t => t.Route)
-            .Include(p => p.Reservation).ThenInclude(r => r.Trip).ThenInclude(t => t.Company)
-            .Include(p => p.Reservation).ThenInclude(r => r.Passenger).SingleAsync(p => p.Id == id && p.PassengerId == UserId, ct);
-        var r = p.Reservation; var t = r.Trip;
-        DateTime Utc(DateTime d) => DateTime.SpecifyKind(d, DateTimeKind.Utc);
-        return new() { Id = id, Pnr = r.Pnr, Kind = r.Kind, TripId = t.Id, SeatNumber = r.SeatNumber,
-            CompanyName = t.Company.Name, PassengerName = r.Passenger.FullName, DepartureCity = t.Route.DepartureCity, ArrivalCity = t.Route.ArrivalCity,
-            ArrivalTime = Utc(t.ArrivalTime), PaidAt = p.PaidAt.HasValue ? Utc(p.PaidAt.Value) : null, RetrievedAt = clock.GetUtcNow().UtcDateTime,
-            DepartureTime = Utc(t.DepartureTime), CancelDeadline = Utc(t.DepartureTime.AddHours(-2)),
-            HoldExpiresAt = r.HoldExpiresAt.HasValue ? Utc(r.HoldExpiresAt.Value) : null,
-            Amount = p.Amount, Currency = p.Currency, IsTest = p.IsTest, PaymentStatus = p.PaymentStatus,
-            TicketStatus = r.Status, RefundStatus = p.RefundStatus, RefundAmount = p.RefundAmount,
-            CanCancel = r.Kind == "Ticket" && r.Status == "Active" && p.PaymentStatus == "Paid" && PaymentService.CanCancel(t.DepartureTime, clock.GetUtcNow().UtcDateTime),
-            CancellationReason = r.CancellationReason, CancelledAt = r.CancelledAt.HasValue ? Utc(r.CancelledAt.Value) : null,
-            LastError = p.LastError?.Replace("Yerel test adaptörü iade hatası.", "İade işlemi tamamlanamadı."), NeedsAttention = p.NeedsAttention,
-            CheckoutUrl = r.Kind == "Hold" && r.Status == "Active" && r.HoldExpiresAt > clock.GetUtcNow().UtcDateTime ? p.CheckoutUrl : null };
-    }
+    private Task<PurchaseDto> Detail(Guid id, CancellationToken ct) => PurchasePresentation.Detail(db, UserId, id, clock, ct);
 }
 
 [ApiController, Route("api/payments/notifications")]

@@ -24,10 +24,10 @@ export default function CompanyAttention({ revision }: { revision: number }) {
   return () => controller.abort();
  }, [revision, retry, navigate]);
  return <section className="company-panel company-attention" aria-labelledby="company-attention-title">
-  <h2 id="company-attention-title">İşlem gerektiren durumlar</h2>
-  <p>Firmanın güncel kayıtlarıdır; aşağıdaki raporun tarih ve sefer filtrelerinden bağımsızdır.</p>
+  <div className="attention-heading"><div><span className="attention-eyebrow">GÜNCEL OPERASYON</span><h2 id="company-attention-title">İşlem gerektiren durumlar</h2></div><span className="attention-live"><i aria-hidden="true" />Güncel</span></div>
+  <p className="attention-intro">Rapor filtrelerinden bağımsız, firmanın güncel kayıtları.</p>
   {loading ? <p role="status">Güncel durumlar yükleniyor...</p> : error ? <div role="alert"><p>{error}</p><button type="button" className="secondary-button" onClick={() => setRetry(v => v + 1)}>Durumları tekrar yükle</button></div> : data && <>
-   {data.groups.every(group => group.count === 0) ? <p>Şu anda işlem gerektiren bir durum bulunmuyor.</p> : <div className="attention-grid">{data.groups.filter(group => group.count > 0).map(group => <section key={group.id} className={`attention-group attention-${group.id}`}>
+   {data.groups.every(group => group.count === 0) ? <div className="attention-empty"><span aria-hidden="true">✓</span><p>Şu anda işlem gerektiren bir durum bulunmuyor.</p></div> : <div className="attention-grid">{data.groups.filter(group => group.count > 0).map(group => <section key={group.id} className={`attention-group attention-${group.id}`}>
     <h3>{group.title} <span className="attention-count">{group.count}</span></h3>
     <ul>{group.items.map(item => <li key={item.id}><Link to={item.href}>{item.title}</Link><p>{item.description}</p>{item.date && <time dateTime={item.date}>{dateTime.format(new Date(item.date))} (Türkiye)</time>}</li>)}</ul>
     {group.count > group.items.length && <p>Öncelikli {group.items.length} / {group.count} kayıt gösteriliyor. <Link to={group.id === "refunds" ? "/company/reservations" : "/company/trips"}>İlgili listeyi aç</Link></p>}

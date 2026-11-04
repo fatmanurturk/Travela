@@ -1,0 +1,121 @@
+.company-overview { color: #172f50; }
+.company-overview .overview-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+.overview-eyebrow, .overview-section-label { display: block; font-size: 11px; letter-spacing: .12em; font-weight: 750; color: #65758b; margin-bottom: 8px; }
+.company-overview .overview-header h1 { margin: 0; font-size: 32px; letter-spacing: -.04em; line-height: 1.2; }
+.company-overview .overview-header p { margin: 10px 0 0; color: #65758b; font-size: 13px; line-height: 1.6; }
+.overview-header-actions { display: flex; flex-wrap: wrap; gap: 10px; flex-shrink: 0; }
+.overview-header-actions button, .overview-header-actions a { display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-size: 13px; padding: 10px 14px; border-radius: 9px; min-height: 40px; }
+.overview-header-actions button svg { width: 15px; height: 15px; }
+.company-dashboard.company-overview .company-panel { border: 1px solid #e4e9f1; border-radius: 14px; padding: 24px; box-shadow: 0 2px 5px #172f5003; margin-bottom: 0; }
+.company-overview .overview-filters { margin-bottom: 20px; }
+.company-overview .overview-filters .company-panel { padding: 18px 20px; }
+.company-overview .overview-filters .report-filters { grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 14px; align-items: end; }
+.company-overview .overview-filters .report-filters label { font-size: 12px; color: #65748a; font-weight: 600; gap: 7px; }
+.company-overview .overview-filters input, .company-overview .overview-filters select { font-size: 13px; color: #2f4565; height: 39px; border-color: #dce3ee; border-radius: 8px; padding: 8px 10px; }
+.company-overview .overview-filters .company-form-actions { grid-column: auto; justify-content: flex-end; margin: 0; gap: 8px; }
+.company-overview .overview-filters .company-form-actions button { font-size: 12px; padding: 8px 12px; border-radius: 8px; min-height: 34px; }
+.company-overview .overview-scope { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 10px 16px; margin: 0 0 18px; }
+.overview-period { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: #65758b; font-size: 12px; padding-top: 8px; }
+.overview-period strong { font-size: 13px; color: #415573; font-weight: 650; }
+.overview-period > span:last-child { padding: 3px 8px; border-radius: 5px; background: #eaf0f8; color: #6a7e9b; }
+.overview-period-dot { width: 6px; height: 6px; border-radius: 50%; background: #5879c7; }
+.overview-scope-tools { display: flex; flex-wrap: wrap; align-items: start; justify-content: flex-end; gap: 8px 14px; font-size: 11px; color: #65758b; }
+.overview-scope-tools > span { padding-top: 10px; }
+.company-overview .overview-scope .ui-details { margin: 0; }
+.company-overview .overview-scope .ui-details summary { min-height: 32px; padding: 8px 0; font-size: 12px; color: #5d7292; }
+.company-overview .overview-scope .ui-details[open] { flex-basis: 100%; }
+.company-overview .overview-scope .ui-details-content { max-width: 660px; padding: 16px; margin-top: 6px; background: #fff; border: 1px solid #e4e9f1; border-radius: 10px; color: #65748a; font-size: 13px; }
+.company-overview .overview-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 0 0 20px; }
+.company-overview .overview-kpis .company-stat-card { padding: 20px; border: 1px solid #e4e9f1; border-radius: 14px; box-shadow: 0 2px 5px #172f5003; min-width: 0; }
+.overview-metric-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.company-overview .overview-kpis h2 { margin: 0; color: #65748a; font-size: 13px; font-weight: 600; }
+.overview-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px; color: #366bdb; background: #edf3ff; flex-shrink: 0; }
+.overview-green .overview-icon { color: #27826a; background: #eaf8f2; }
+.overview-rose .overview-icon { color: #bf6978; background: #fff1f3; }
+.overview-indigo .overview-icon { color: #7363b6; background: #f2efff; }
+.company-overview .overview-kpis .overview-metric-value { font-size: clamp(22px, 2.2vw, 32px); color: #183457; font-weight: 750; letter-spacing: -.045em; margin-top: 13px; line-height: 1.2; overflow-wrap: anywhere; }
+.company-overview .overview-kpis p { font-size: 11px; color: #65758b; margin: 10px 0 0; line-height: 1.5; }
+.overview-finance-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; margin-bottom: 20px; }
+.overview-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.company-overview .overview-panel-heading h2 { margin: 0; color: #203b5d; font-size: 17px; letter-spacing: -.025em; line-height: 1.4; }
+.overview-panel-heading > a { color: #617da5; font-size: 12px; text-decoration: none; white-space: nowrap; }
+.overview-panel-heading > a:hover { color: #2563eb; }
+.overview-panel-icon { display: inline-flex; align-items: center; color: #9bacbf; }
+.overview-finance-list { margin: 18px 0 0; }
+.overview-finance-list > div { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 12px 0; border-bottom: 1px solid #edf0f5; }
+.overview-finance-list dt { color: #77869b; font-size: 13px; }
+.overview-finance-list dd { margin: 0; text-align: right; color: #334e70; font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.overview-finance-list .overview-finance-total { border-bottom: 0; padding-bottom: 0; }
+.overview-finance-total dd { color: #2c5ba2; }
+.company-overview .overview-finance-note { font-size: 11px; color: #65758b; line-height: 1.6; margin: 16px 0 0; }
+.overview-occupancy-value { display: block; font-size: clamp(24px, 3vw, 40px); font-weight: 750; color: #26476f; letter-spacing: -.045em; margin: 24px 0 18px; line-height: 1.2; overflow-wrap: anywhere; }
+.overview-progress { height: 7px; border-radius: 10px; background: #edf2f9; overflow: hidden; margin-bottom: 22px; }
+.overview-progress > span { display: block; height: 100%; border-radius: inherit; background: #5a82ce; }
+.overview-occupancy-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.overview-occupancy-counts > div + div { border-left: 1px solid #e9edf4; padding-left: 20px; }
+.overview-occupancy-counts strong { display: block; font-size: 18px; color: #425e80; font-weight: 650; }
+.overview-occupancy-counts span { display: block; margin-top: 6px; color: #65758b; font-size: 11px; line-height: 1.5; }
+.company-dashboard.company-overview .company-attention { margin-bottom: 20px; }
+.attention-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.attention-eyebrow { display: block; color: #65758b; font-size: 11px; font-weight: 750; letter-spacing: .12em; margin-bottom: 8px; }
+.company-overview .attention-heading h2 { margin: 0; font-size: 17px; color: #203b5d; }
+.attention-live { display: inline-flex; align-items: center; gap: 6px; color: #7f92a8; font-size: 11px; }
+.attention-live i { width: 6px; height: 6px; background: #6aa38b; border-radius: 50%; }
+.company-overview .company-attention .attention-intro { color: #65758b; font-size: 12px; margin: 10px 0 0; line-height: 1.6; }
+.company-overview .attention-empty { display: flex; align-items: center; gap: 10px; margin-top: 18px; padding: 12px 14px; border-radius: 9px; background: #f4f9f6; }
+.attention-empty > span { display: inline-flex; align-items: center; justify-content: center; width: 21px; height: 21px; background: #e2f0e8; color: #52866e; border-radius: 50%; font-size: 12px; }
+.company-overview .attention-empty p { margin: 0; color: #6e897c; font-size: 12px; }
+.company-overview .attention-grid { gap: 14px; margin: 18px 0 12px; }
+.company-overview .attention-group { border: 1px solid #e5ebf4; border-left: 3px solid #7e9dcc; border-radius: 10px; background: #fafcff; padding: 16px; }
+.company-overview .attention-resources, .company-overview .attention-refunds { border-left-color: #d2ac70; background: #fffdf9; }
+.company-overview .attention-group h3 { font-size: 13px; line-height: 1.6; color: #4e6687; margin: 0 0 8px; }
+.company-overview .attention-count { font-size: 11px; padding: 0 6px; background: #eef2f9; color: #6d85a5; }
+.company-overview .attention-group li { padding: 10px 0; border-color: #e9edf3; }
+.company-overview .attention-group li > a { text-decoration: none; font-size: 13px; font-weight: 600; color: #3e618f; }
+.company-overview .attention-group li p, .company-overview .attention-group > p { font-size: 12px; color: #8897a9; margin: 5px 0; }
+.company-overview .attention-group time, .company-overview .company-attention > small { font-size: 11px; color: #65758b; }
+.company-overview .company-attention > small { display: block; margin-top: 12px; }
+.overview-feed-grid { display: grid; align-items: start; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-bottom: 20px; }
+.company-overview .overview-panel-subtitle { margin: 10px 0 0; color: #65758b; font-size: 12px; }
+.overview-feed { list-style: none; padding: 0; margin: 16px 0 0; }
+.overview-feed > li { display: flex; align-items: center; gap: 12px; min-width: 0; border-top: 1px solid #edf0f5; padding: 16px 0; }
+.overview-feed > li:last-child { padding-bottom: 0; }
+.overview-feed-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 36px; width: 36px; height: 36px; border-radius: 10px; color: #7e95b8; background: #f0f4fa; }
+.overview-feed-icon svg { width: 18px; height: 18px; }
+.overview-sale { color: #629783; background: #edf7f2; }
+.overview-cancel { color: #c18d95; background: #fcf1f3; }
+.overview-feed-content { min-width: 0; flex: 1; }
+.overview-feed-content > a { color: #3d5b80; text-decoration: none; font-size: 13px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.overview-feed-content > a:hover { color: #2563eb; }
+.overview-feed-content > span, .overview-feed-content > small { display: block; margin-top: 5px; color: #65758b; font-size: 11px; line-height: 1.5; }
+.overview-feed-content .overview-reference { display: block; color: #8596ac; font-size: 11px; font-weight: 400; margin-top: 3px; }
+.overview-feed-amount { font-size: 13px; font-weight: 650; color: #5a708d; text-align: right; overflow-wrap: anywhere; max-width: 34%; }
+.company-overview .overview-warning { font-size: 12px; color: #9b7b45; line-height: 1.5; margin: 6px 0 0; }
+.company-overview .overview-list-note { font-size: 11px; color: #65758b; margin: 14px 0 0; }
+.overview-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 190px; padding: 24px 16px 8px; text-align: center; }
+.overview-empty-icon { display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; border: 1px solid #e9edf5; background: #f8fafd; color: #a4b3c7; border-radius: 14px; margin-bottom: 14px; }
+.overview-empty strong { color: #8191a7; font-size: 13px; font-weight: 600; }
+.company-overview .overview-empty p { max-width: 300px; font-size: 12px; line-height: 1.7; color: #65758b; margin: 8px 0 0; }
+.overview-refund-heading { display: flex; align-items: center; gap: 12px; }
+.overview-refund-symbol { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px; background: #fff4e9; color: #b68a51; font-size: 15px; }
+.overview-refunds-clear .overview-refund-symbol { background: #eff7f2; color: #74a28b; }
+.company-overview .overview-refunds-clear { padding-top: 18px; padding-bottom: 18px; }
+.company-overview .overview-refunds-clear h2 { font-size: 13px; color: #71869c; }
+.company-overview .overview-refunds-clear p { margin: 4px 0 0; color: #65758b; font-size: 11px; }
+.overview-attention-badge { border-radius: 20px; background: #fff4e9; color: #b18a55; padding: 5px 9px; font-size: 11px; }
+.overview-refund-list { list-style: none; padding: 0; margin: 18px 0 0; }
+.overview-refund-list > li { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 14px 0; border-top: 1px solid #edf0f5; }
+.overview-refund-list a { color: #56749a; font-size: 13px; text-decoration: none; }
+.overview-refund-list li > div > span { display: block; color: #65758b; font-size: 11px; margin-top: 6px; }
+.overview-refund-list li > strong { font-size: 13px; color: #6b7f98; }
+.overview-refund-list .ui-details { flex-basis: 100%; margin: 0; }
+.overview-refund-list .ui-details summary { padding: 6px 0; min-height: 28px; font-size: 12px; }
+.overview-error { margin: 12px 0 20px; }
+.overview-loading { padding: 14px 0; color: #65758b; font-size: 13px; }
+.overview-skeleton-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 16px 0; }
+.overview-skeleton { height: 130px; border-radius: 14px; background: #edf1f7; }
+@media (max-width: 1240px) { .company-overview .overview-header { align-items: start; flex-direction: column; gap: 16px; } .company-overview .overview-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1000px) { .overview-finance-grid, .overview-feed-grid { grid-template-columns: minmax(0, 1fr); } .company-overview .overview-filters .report-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } .overview-scope-tools { justify-content: flex-start; } }
+@media (max-width: 600px) { .company-dashboard.company-overview .company-panel { padding: 18px; } .company-overview .overview-header h1 { font-size: 28px; } .overview-header-actions { width: 100%; } .overview-header-actions a { flex: 1; } .company-overview .overview-filters .report-filters { grid-template-columns: minmax(0, 1fr); } .company-overview .overview-filters .company-form-actions { justify-content: flex-start; } .company-overview .overview-kpis { gap: 12px; } .company-overview .overview-kpis .company-stat-card { padding: 15px; } .overview-metric-top { align-items: start; gap: 8px; } .overview-icon { width: 26px; height: 26px; border-radius: 8px; } .overview-icon svg { width: 17px; height: 17px; } .company-overview .overview-kpis h2 { font-size: 12px; line-height: 1.5; } .overview-panel-heading > a { font-size: 11px; } .company-overview .overview-panel-heading h2, .company-overview .attention-heading h2 { font-size: 15px; } .overview-feed-amount { font-size: 12px; } .overview-feed-icon { flex-basis: 30px; width: 30px; height: 30px; } .overview-refund-heading { gap: 9px; } .overview-scope-tools { gap: 0 12px; } .overview-skeleton-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+@media (max-width: 1000px) { .company-overview .overview-filters .company-form-actions { grid-column: 1 / -1; } }

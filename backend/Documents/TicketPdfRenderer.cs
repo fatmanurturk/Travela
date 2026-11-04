@@ -70,6 +70,9 @@ public sealed class TicketPdfRenderer
         Row("Firma", ticket.CompanyName);
         Row("Kalkış", TurkeyTime(ticket.DepartureTime));
         Row("Varış", TurkeyTime(ticket.ArrivalTime));
+        if (!string.IsNullOrWhiteSpace(ticket.DepartureTerminalName)) Row("Kalkış terminali", ticket.DepartureTerminalName + "\n" + ticket.DepartureTerminalAddress);
+        if (!string.IsNullOrWhiteSpace(ticket.ArrivalTerminalName)) Row("Varış terminali", ticket.ArrivalTerminalName + "\n" + ticket.ArrivalTerminalAddress);
+        if (!string.IsNullOrWhiteSpace(ticket.BoardingInstructions)) Row("Biniş açıklaması", ticket.BoardingInstructions);
         Row("Koltuk", ticket.SeatNumber.ToString(Turkish));
         Row("Satın alma tutarı", ticket.Amount.ToString("N2", Turkish) + " " + ticket.Currency);
         Row("Bilet durumu", cancelled ? "İptal Edildi" : "Aktif");
@@ -81,7 +84,7 @@ public sealed class TicketPdfRenderer
         var notes = section.AddParagraph(); notes.Format.SpaceBefore = Unit.FromPoint(12); notes.Format.Font.Size = 9;
         notes.AddText("Tüm saatler Türkiye saatidir (Europe/Istanbul). ");
         if (cancelled) notes.AddText("Bu bilet iptal edilmiştir; seyahat için kullanılamaz.");
-        else notes.AddText(ticket.CanCancel ? "Kalkışa en az 2 saat kala tam iade talep edilebilir; tam 2 saatte iptal kabul edilir." : "İptal son zamanı geçtiğinden yolcu iptali ve iade yapılamaz.");
+        else notes.AddText(ticket.ChangeCancellationUntil.HasValue ? $"Sefer değişikliği nedeniyle {TurkeyTime(ticket.ChangeCancellationUntil.Value)} tarihine kadar tam iade hakkı tanımlanmıştır." : ticket.CanCancel ? "Kalkışa en az 2 saat kala tam iade talep edilebilir; tam 2 saatte iptal kabul edilir." : "İptal son zamanı geçtiğinden yolcu iptali ve iade yapılamaz.");
         if (!string.IsNullOrWhiteSpace(ticket.CancellationReason))
         {
             var history = section.AddParagraph(); history.Format.Font.Size = 9;

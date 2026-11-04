@@ -3,6 +3,10 @@ namespace Travela.DTOs
     public class PublicTripDetailDto : PublicTripDto
     {
         public int SeatCapacity { get; set; }
+        public int SellableSeatCount { get; set; }
+        public string SeatLayout { get; set; } = "Unspecified";
+        public string? SeatPlanJson { get; set; }
+        public List<Travela.Api.Trips.SeatPosition> Seats { get; set; } = [];
         public List<int> OccupiedSeats { get; set; } = new();
         public bool CanReserve { get; set; }
         public bool SeatPlanAvailable { get; set; }
@@ -10,7 +14,7 @@ namespace Travela.DTOs
         public string Status { get; set; } = string.Empty;
     }
 
-    public class PublicTripDto
+    public class PublicTripDto : JourneyDto
     {
         public int Id { get; set; }
         public int CompanyId { get; set; }

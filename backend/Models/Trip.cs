@@ -17,6 +17,20 @@ namespace Travela.Api.Models
         public decimal Price { get; set; }
 
         public int AvailableSeats { get; set; }
+        public int ChangeVersion { get; set; }
+        public string SeatLayout { get; set; } = "Unspecified";
+        public string? SeatPlanJson { get; set; }
+        public int? SeatCapacitySnapshot { get; set; }
+        public int? SellableSeatCount { get; set; }
+        public int? DepartureTerminalId { get; set; }
+        public int? ArrivalTerminalId { get; set; }
+        public Terminal? DepartureTerminal { get; set; }
+        public Terminal? ArrivalTerminal { get; set; }
+        public string? DepartureTerminalName { get; set; }
+        public string? DepartureTerminalAddress { get; set; }
+        public string? ArrivalTerminalName { get; set; }
+        public string? ArrivalTerminalAddress { get; set; }
+        public string? BoardingInstructions { get; set; }
 
         public string Status { get; set; } = "Scheduled";
 

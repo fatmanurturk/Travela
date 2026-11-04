@@ -15,6 +15,8 @@ namespace Travela.Api.Models
         public string? Model { get; set; }
 
         public int SeatCapacity { get; set; }
+        public string SeatLayout { get; set; } = "2+2";
+        public string? SeatPlanJson { get; set; }
 
         public bool IsActive { get; set; } = true;
 

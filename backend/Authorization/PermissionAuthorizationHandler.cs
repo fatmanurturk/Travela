@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Travela.Data;
+using Travela.Api.Security;
 
 namespace Travela.Api.Authorization
 {
@@ -30,6 +31,7 @@ namespace Travela.Api.Authorization
             // Kullanıcının güncel rolünü veritabanından oku
             var userRole = await _context.Users
                 .AsNoTracking()
+                .ForSession(context.User, _context)
                 .Where(u => u.Id == userId)
                 .Select(u => u.Role)
                 .FirstOrDefaultAsync();

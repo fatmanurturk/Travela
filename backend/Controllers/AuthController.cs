@@ -1,34 +1,37 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using Travela.Data;
 using Travela.DTOs;
 using Travela.Models;
+using Travela.Api.Security;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Travela.API.Controllers
 {
     [ApiController]
     [Route("api/auth")]
+    [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
     public class AuthController : ControllerBase
     {
         private readonly TravelaDbContext _context;
         private readonly Travela.Api.Security.SessionTokenService _tokens;
+        private readonly AccountEmailService _mail;
 
         public AuthController(
             TravelaDbContext context,
-            Travela.Api.Security.SessionTokenService tokens)
+            Travela.Api.Security.SessionTokenService tokens, AccountEmailService mail)
         {
             _context = context;
             _tokens = tokens;
+            _mail = mail;
         }
 
         [HttpPost("register")]
+        [EnableRateLimiting("account-links")]
         public async Task<IActionResult> Register([FromBody] RegisterDto dto)
         {
             if (dto == null)
@@ -56,6 +59,7 @@ namespace Travela.API.Controllers
                 Role = "Passenger",
                 CompanyId = null,
                 IsActive = true,
+                ActivationPending = true,
                 MustChangePassword = false,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -63,13 +67,18 @@ namespace Travela.API.Controllers
 
             var passwordHasher = new PasswordHasher<User>();
             user.PasswordHash = passwordHasher.HashPassword(user, dto.Password);
+            var activationToken = AccountEmailService.CreateToken();
+            user.PasswordResetTokenHash = AccountEmailService.HashToken(activationToken);
+            user.PasswordResetTokenExpiresAt = DateTime.UtcNow.AddDays(2);
 
             _context.Users.Add(user);
+            _mail.Queue(user, activationToken, user.PasswordResetTokenExpiresAt.Value);
             await _context.SaveChangesAsync();
 
             return StatusCode(201, new
             {
-                message = "Kullanıcı başarıyla kaydedildi.",
+                message = "Hesabınız oluşturuldu. Giriş yapmadan önce e-posta adresinize gönderilen aktivasyon bağlantısını açın.",
+                requiresActivation = true,
                 userId = user.Id,
                 fullName = user.FullName,
                 email = user.Email,
@@ -82,29 +91,15 @@ namespace Travela.API.Controllers
         {
             string email = dto.Email.Trim().ToLowerInvariant();
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == email);
             if (user == null)
             {
                 return Unauthorized(new { message = "E-posta veya şifre hatalı." });
             }
 
-            if (!user.IsActive)
+            if (!await _context.Users.PasswordLoginAccounts(_context).AnyAsync(u => u.Id == user.Id && u.SecurityVersion == user.SecurityVersion))
             {
-                return Unauthorized(new { message = "Hesabınız pasif olduğu için giriş yapamazsınız." });
-            }
-
-            if (user.Role == "Company")
-            {
-                if (!user.CompanyId.HasValue)
-                {
-                    return Unauthorized(new { message = "Firma hesabı için firma bilgisi eksik." });
-                }
-
-                var companyExists = await _context.Companies.AnyAsync(company => company.Id == user.CompanyId.Value && company.IsActive);
-                if (!companyExists)
-                {
-                    return Unauthorized(new { message = "Firma hesabı pasif veya bulunamadı." });
-                }
+                return Unauthorized(new { message = "Hesap veya firma erişime kapalı ya da hesap aktivasyonu/şifre sıfırlama bekleniyor." });
             }
 
             var passwordHasher = new PasswordHasher<User>();
@@ -114,9 +109,11 @@ namespace Travela.API.Controllers
                 return Unauthorized(new { message = "E-posta veya şifre hatalı." });
             }
 
-            user.LastLoginAt = DateTime.UtcNow;
-            user.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+            var affected = await _context.Users.PasswordLoginAccounts(_context)
+                .Where(u => u.Id == user.Id && u.SecurityVersion == user.SecurityVersion && u.PasswordHash == user.PasswordHash &&
+                    u.Role == user.Role && u.CompanyId == user.CompanyId && u.MustChangePassword == user.MustChangePassword)
+                .ExecuteUpdateAsync(update => update.SetProperty(u => u.LastLoginAt, DateTime.UtcNow).SetProperty(u => u.UpdatedAt, DateTime.UtcNow));
+            if (affected != 1) return Unauthorized(new { message = "Hesap durumu değişti. Lütfen yeniden giriş yapınız." });
 
             if (user.MustChangePassword)
             {
@@ -167,7 +164,7 @@ namespace Travela.API.Controllers
                 return BadRequest(new { message = "Şifre bilgileri gerekli." });
             }
 
-            var email = dto.Email.Trim();
+            var email = dto.Email.Trim().ToLowerInvariant();
             if (!IsValidEmail(email))
             {
                 return BadRequest(new { message = "Geçerli bir e-posta adresi giriniz." });
@@ -190,7 +187,7 @@ namespace Travela.API.Controllers
                 return BadRequest(new { message = "Yeni şifre ile tekrarı eşleşmiyor." });
             }
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            var user = await _context.Users.AsNoTracking().PasswordLoginAccounts(_context).FirstOrDefaultAsync(u => u.Email == email);
             if (user == null)
             {
                 return Unauthorized(new { message = "Kullanıcı bulunamadı." });
@@ -213,11 +210,17 @@ namespace Travela.API.Controllers
                 return BadRequest(new { message = "Yeni şifre mevcut şifre ile aynı olamaz." });
             }
 
-            user.PasswordHash = passwordHasher.HashPassword(user, dto.NewPassword);
+            var hash = passwordHasher.HashPassword(user, dto.NewPassword);
+            var affected = await _context.Users.PasswordLoginAccounts(_context)
+                .Where(u => u.Id == user.Id && u.SecurityVersion == user.SecurityVersion && u.PasswordHash == user.PasswordHash &&
+                    u.MustChangePassword && u.Role == user.Role && u.CompanyId == user.CompanyId)
+                .ExecuteUpdateAsync(update => update.SetProperty(u => u.PasswordHash, hash).SetProperty(u => u.MustChangePassword, false)
+                    .SetProperty(u => u.SecurityVersion, u => u.SecurityVersion + 1).SetProperty(u => u.UpdatedAt, DateTime.UtcNow)
+                    .SetProperty(u => u.PasswordResetTokenHash, (string?)null).SetProperty(u => u.PasswordResetTokenExpiresAt, (DateTime?)null)
+                    .SetProperty(u => u.PasswordResetTokenUsedAt, (DateTime?)null));
+            if (affected != 1) return Unauthorized(new { message = "Hesap durumu değişti. Lütfen yeniden giriş yapınız." });
             user.MustChangePassword = false;
-            user.UpdatedAt = DateTime.UtcNow;
             user.SecurityVersion += 1;
-            await _context.SaveChangesAsync();
 
             var token = GenerateJwtToken(user);
 
@@ -240,6 +243,7 @@ namespace Travela.API.Controllers
         }
 
         [HttpPost("reset-password")]
+        [EnableRateLimiting("account-links")]
         public async Task<IActionResult> ResetPassword([FromBody] PasswordResetRequestDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Token) || string.IsNullOrWhiteSpace(dto.NewPassword))
@@ -252,14 +256,11 @@ namespace Travela.API.Controllers
                 return BadRequest(new { message = "Yeni şifre en az 8 karakter olmalıdır." });
             }
 
-            var users = await _context.Users
-                .Where(u => u.PasswordResetTokenHash != null && u.PasswordResetTokenUsedAt == null)
-                .ToListAsync();
-
-            var user = users.FirstOrDefault(u =>
-                u.PasswordResetTokenExpiresAt.HasValue &&
-                u.PasswordResetTokenExpiresAt.Value > DateTime.UtcNow &&
-                HashToken(dto.Token) == u.PasswordResetTokenHash);
+            var tokenHash = HashToken(dto.Token);
+            var now = DateTime.UtcNow;
+            var eligible = _context.Users.EnabledAccounts().WithActiveCompany(_context)
+                .Where(u => u.PasswordResetTokenHash == tokenHash && u.PasswordResetTokenUsedAt == null && u.PasswordResetTokenExpiresAt > now);
+            var user = await eligible.AsNoTracking().SingleOrDefaultAsync();
 
             if (user == null)
             {
@@ -267,15 +268,15 @@ namespace Travela.API.Controllers
             }
 
             var passwordHasher = new PasswordHasher<User>();
-            user.PasswordHash = passwordHasher.HashPassword(user, dto.NewPassword);
-            user.PasswordResetTokenHash = null;
-            user.PasswordResetTokenExpiresAt = null;
-            user.PasswordResetTokenUsedAt = DateTime.UtcNow;
-            user.IsActive = true;
-            user.SecurityVersion += 1;
-            user.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
+            var hash = passwordHasher.HashPassword(user, dto.NewPassword);
+            var affected = await eligible.Where(u => u.Id == user.Id && u.SecurityVersion == user.SecurityVersion &&
+                    u.PasswordHash == user.PasswordHash && u.Role == user.Role && u.CompanyId == user.CompanyId && u.PasswordResetTokenExpiresAt > DateTime.UtcNow)
+                .ExecuteUpdateAsync(update => update.SetProperty(u => u.PasswordHash, hash)
+                    .SetProperty(u => u.PasswordResetTokenHash, (string?)null).SetProperty(u => u.PasswordResetTokenExpiresAt, (DateTime?)null)
+                    .SetProperty(u => u.PasswordResetTokenUsedAt, DateTime.UtcNow).SetProperty(u => u.ActivationPending, false)
+                    .SetProperty(u => u.PasswordResetRequired, false).SetProperty(u => u.MustChangePassword, false)
+                    .SetProperty(u => u.SecurityVersion, u => u.SecurityVersion + 1).SetProperty(u => u.UpdatedAt, DateTime.UtcNow));
+            if (affected != 1) return BadRequest(new { message = "Şifre sıfırlama tokenı geçersiz, kullanılmış veya hesap durumu değişmiş." });
 
             return Ok(new { message = "Şifre başarıyla güncellendi." });
         }

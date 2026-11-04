@@ -12,6 +12,7 @@ public class CreateReservationDto
 
 public class ReservationDto
 {
+    [System.Text.Json.Serialization.JsonIgnore] public string? TicketJourneyJson { get; set; }
     public string ReservationNumber { get; set; } = "";
     public int TripId { get; set; }
     public int SeatNumber { get; set; }

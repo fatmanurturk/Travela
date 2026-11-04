@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
+import CompactTicketCard from "./CompactTicketCard";
+import type { TicketCardProps } from "./CompactTicketCard";
 import { dateTime, money } from "../reservations";
 import { isIssuedTicket, paymentLabel, refundLabel, refundMessage, safeCheckoutPath, statusTone } from "../payments";
 import { Details } from "./UiDetails";
-import type { Purchase } from "../payments";
 
-export default function TicketCard({ item, onCancel, busy = false, showCheckout = true }: { item: Purchase; onCancel?: (p: Purchase) => void; busy?: boolean; showCheckout?: boolean }) {
+export default function TicketCard({ item, onCancel, busy = false, showCheckout = true, compact = false }: TicketCardProps & { compact?: boolean }) {
+  if (compact) return <CompactTicketCard item={item} onCancel={onCancel} busy={busy} showCheckout={showCheckout} />;
   const checkout = safeCheckoutPath(item.checkoutUrl);
   return <article className="reservation-card">
     <h2>{item.departureCity} → {item.arrivalCity}</h2>
@@ -21,11 +23,13 @@ export default function TicketCard({ item, onCancel, busy = false, showCheckout 
       {!item.pnr && item.holdExpiresAt && <div><dt>Ödeme için koltuk tutma sonu</dt><dd>{dateTime.format(new Date(item.holdExpiresAt))}</dd></div>}
       {item.cancelledAt && <div><dt>İptal zamanı</dt><dd>{dateTime.format(new Date(item.cancelledAt))}</dd></div>}
     </dl>
-    {item.pnr && item.ticketStatus === "Active" && !item.canCancel && <p>Kalkışa 2 saatten az kaldığı için yolcu iptali ve iade yapılamaz.</p>}
+    {item.pnr && item.ticketStatus === "Active" && !item.canCancel && <p>Bu bilet için yolcu iptal süresi doldu.</p>}
+    {item.changeCancellationUntil && item.canCancel && <p>Sefer değişikliği nedeniyle yeni kalkışa kadar tam iadeyle iptal hakkınız var.</p>}
     {item.cancellationReason && <Details title="İptal nedeni"><p>{item.cancellationReason}</p></Details>}
     {item.lastError && <Details title="İşlem açıklaması"><p>{item.lastError}</p></Details>}
     {item.needsAttention && <p role="status">Bu işlem destek takibi gerektiriyor.</p>}
     <Link to={`/trips/${item.tripId}`} className="site-button secondary">Sefer detayı</Link>
+    {item.purchaseGroupId && <Link to={`/purchase/${item.purchaseGroupId}`} className="site-button secondary">Ortak sipariş</Link>}
     {isIssuedTicket(item) && <Link to={`/tickets/${item.pnr}`} className="site-button primary">Bilet detayını gör</Link>}
     {showCheckout && checkout && <Link to={checkout} className="site-button primary">Ödemeye devam et</Link>}
     {onCancel && item.canCancel && <button className="site-button reservation-cancel" disabled={busy} onClick={() => onCancel(item)}>Bileti İptal Et</button>}

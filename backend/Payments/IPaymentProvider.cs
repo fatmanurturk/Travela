@@ -1,6 +1,7 @@
 namespace Travela.Api.Payments;
 
-public record ProviderPayment(Guid OrderId, string Reference, string Status, decimal Amount, string Currency, bool IsTest);
+public record ProviderLine(Guid OrderId, string TransactionId, decimal Amount);
+public record ProviderPayment(Guid OrderId, string Reference, string Status, decimal Amount, string Currency, bool IsTest, IReadOnlyList<ProviderLine>? Lines = null);
 public record ProviderRefund(string Status, string? Reference, string? Error);
 public record ProviderNotice(Guid OrderId, string EventId, long Timestamp);
 

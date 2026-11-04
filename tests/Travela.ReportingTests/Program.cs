@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -138,7 +138,7 @@ try
  startProcess.ArgumentList.Add(Path.Combine(root,"backend","bin",config,"net10.0","Travela.API.dll"));
  startProcess.Environment["ASPNETCORE_URLS"]=$"http://127.0.0.1:{port}"; startProcess.Environment["ASPNETCORE_ENVIRONMENT"]="Testing";
  startProcess.Environment["ConnectionStrings__DefaultConnection"]=cs.ConnectionString; startProcess.Environment["Jwt__Key"]=Guid.NewGuid().ToString("N")+Guid.NewGuid().ToString("N");
- startProcess.Environment["Jwt__Issuer"]="ReportTests";startProcess.Environment["Jwt__Audience"]="ReportTests";startProcess.Environment["Payments__RecoveryEnabled"]="false";startProcess.Environment["Logging__LogLevel__Default"]="Warning";
+ startProcess.Environment["Jwt__Issuer"]="ReportTests";startProcess.Environment["Jwt__Audience"]="ReportTests";startProcess.Environment["Payments__RecoveryEnabled"]="false";startProcess.Environment["Notifications__WorkerEnabled"]="false";startProcess.Environment["Logging__LogLevel__Default"]="Warning";
  server=Process.Start(startProcess)!;server.OutputDataReceived+=(_,e)=>{lock(log)log.AppendLine(e.Data);};server.ErrorDataReceived+=(_,e)=>{lock(log)log.AppendLine(e.Data);};server.BeginOutputReadLine();server.BeginErrorReadLine();
  using var http=new HttpClient{BaseAddress=new Uri($"http://127.0.0.1:{port}"),Timeout=TimeSpan.FromSeconds(45)};
  for(var i=0;i<80;i++){try{if((await http.GetAsync("/api/test")).IsSuccessStatusCode)break;}catch(HttpRequestException){} if(server.HasExited)throw new Exception(log.ToString());await Task.Delay(150);}
@@ -189,6 +189,14 @@ try
  var exportResponse=await Send(url.Replace("reports?","reports/csv?"),token);Check(exportResponse.IsSuccessStatusCode&&exportResponse.Content.Headers.ContentDisposition!.FileNameStar!.StartsWith("Travela-sefer-raporu-")&&exportResponse.Headers.CacheControl?.NoStore==true,"CSV standart dosya adı ve özel no-store yanıt");
  Check((await Send("/api/reservations/company?orderId="+active.Id,other)).StatusCode==HttpStatusCode.NotFound,"Başarısız iade bağlantısı başka firmaya veri açmıyor");
  Check((await Send(url.Replace("from=2026-11-01", "from=2026-11-04"),token)).StatusCode==HttpStatusCode.BadRequest,"HTTP geçersiz tarih aralığı 400");
+ // Exercise additive migration on older persisted tickets without touching the application's database.
+ await db.GetService<IMigrator>().MigrateAsync("20261102110356_HardenPaymentInvariants");
+ await db.Database.MigrateAsync();
+ var backfill=await db.Reservations.AsNoTracking().SingleAsync(x=>x.Id==active.ReservationId);
+ var refundBackfill=await db.PaymentOrders.AsNoTracking().SingleAsync(x=>x.Id==previous.Id);
+ var unknownBackfill=await db.PaymentOrders.AsNoTracking().SingleAsync(x=>x.Id==unknown.Id);
+ Check(backfill.Pnr==active.Reservation.Pnr&&backfill.IssuedAt==active.PaidAt&&backfill.CreatedAt==active.Reservation.CreatedAt,"Migration mevcut PNR ve geçmişi korudu; doğrulanma tarihinden düzenlenme tarihi geri dolduruldu");
+ Check(refundBackfill.RefundStatusChangedAt==refundBackfill.RefundedAt&&unknownBackfill.RefundStatusChangedAt==null&&unknownBackfill.RefundRequestedAt==null,"Migration tamamlanan iade tarihini korudu; bilinmeyen geçmişi uydurmadı");
  // New operations are exercised only in this disposable database.
  var createPermission = await db.Permissions.FirstOrDefaultAsync(p=>p.Name=="trip.create") ?? new Permission { Name="trip.create" };
  var companyRole = await db.Roles.FirstOrDefaultAsync(role=>role.Name=="Company") ?? new Role { Name="Company" };
@@ -248,14 +256,6 @@ try
  var extra=new List<Trip>();for(var i=0;i<CompanyReportingService.CsvLimit;i++)extra.Add(new(){CompanyId=a.Id,BusId=t1.BusId,RouteId=route.Id,DepartureTime=t1.DepartureTime,ArrivalTime=t1.ArrivalTime,Price=500,AvailableSeats=10});
  db.Trips.AddRange(extra);await db.SaveChangesAsync();var limit=Query();limit.Basis="departure";limit.From=limit.To=new(2026,11,10);
  try{await service.Csv(a.Id,limit,default);throw new Exception("CSV sınırı uygulanmadı");}catch(ReportQueryException ex){Check(ex.Status==422,"10000 üzeri CSV açık hata; sonuçlar kesilmedi");}
- // Exercise additive migration on older persisted tickets without touching the application's database.
- await db.GetService<IMigrator>().MigrateAsync("20261102110356_HardenPaymentInvariants");
- await db.Database.MigrateAsync();
- var backfill=await db.Reservations.AsNoTracking().SingleAsync(x=>x.Id==active.ReservationId);
- var refundBackfill=await db.PaymentOrders.AsNoTracking().SingleAsync(x=>x.Id==previous.Id);
- var unknownBackfill=await db.PaymentOrders.AsNoTracking().SingleAsync(x=>x.Id==unknown.Id);
- Check(backfill.Pnr==active.Reservation.Pnr&&backfill.IssuedAt==active.PaidAt&&backfill.CreatedAt==active.Reservation.CreatedAt,"Migration mevcut PNR ve geçmişi korudu; doğrulanma tarihinden düzenlenme tarihi geri dolduruldu");
- Check(refundBackfill.RefundStatusChangedAt==refundBackfill.RefundedAt&&unknownBackfill.RefundStatusChangedAt==null&&unknownBackfill.RefundRequestedAt==null,"Migration tamamlanan iade tarihini korudu; bilinmeyen geçmişi uydurmadı");
  Console.WriteLine($"SONUÇ: {passed} raporlama SQL/HTTP kontrolü başarılı.");
 
  Trip Trip(Company company,Travela.Api.Models.Route r,int capacity,string plate)=>new(){Company=company,Bus=new(){Company=company,SeatCapacity=capacity,PlateNumber=plate,NormalizedPlateNumber=plate.Replace(" ","")},Route=r,DepartureTime=new(2026,11,10,9,0,0,DateTimeKind.Utc),ArrivalTime=new(2026,11,10,11,0,0,DateTimeKind.Utc),Price=500,AvailableSeats=capacity};

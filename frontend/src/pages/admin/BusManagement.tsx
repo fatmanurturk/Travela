@@ -3,6 +3,8 @@ import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiUrl } from "../../api";
 import "../Admin.css";
+import SeatMap from "../../components/SeatMap";
+import { buildSeats, storedSeats } from "../../seatPlans";
 
 const API_URL = apiUrl("/api/buses");
 const ADMIN_API_URL = apiUrl("/api/admin");
@@ -16,6 +18,8 @@ type Bus = {
   brand: string | null;
   model: string | null;
   seatCapacity: number;
+  seatLayout?: string;
+  seatPlanJson?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string | null;
@@ -67,6 +71,8 @@ type BusFormState = {
   brand: string;
   model: string;
   seatCapacity: string;
+  seatLayout: string;
+  blockedSeats: number[];
   isActive: boolean;
 };
 
@@ -76,6 +82,7 @@ const emptyForm: BusFormState = {
   brand: "",
   model: "",
   seatCapacity: "46",
+  seatLayout: "2+2", blockedSeats: [],
   isActive: true,
 };
 
@@ -263,6 +270,7 @@ function BusManagement() {
       brand: bus.brand ?? "",
       model: bus.model ?? "",
       seatCapacity: String(bus.seatCapacity),
+      seatLayout: bus.seatLayout ?? "Unspecified", blockedSeats: storedSeats(bus.seatPlanJson, bus.seatLayout ?? "Unspecified", bus.seatCapacity).filter(s => s.isBlocked).map(s => s.number),
       isActive: bus.isActive,
     });
     setError("");
@@ -310,6 +318,7 @@ function BusManagement() {
             brand: form.brand,
             model: form.model,
             seatCapacity: Number(form.seatCapacity),
+            seatLayout: form.seatLayout, blockedSeats: form.blockedSeats,
             isActive: form.isActive,
           }),
         }
@@ -491,7 +500,7 @@ function BusManagement() {
                 />
               </label>
               <label>
-                Koltuk Kapasitesi *
+                Fiziksel Koltuk Kapasitesi *
                 <input
                   type="number"
                   min="1"
@@ -504,6 +513,10 @@ function BusManagement() {
                   }
                 />
               </label>
+              <label>Koltuk düzeni<select aria-label="Koltuk düzeni" value={form.seatLayout} onChange={event => setForm(current => ({ ...current, seatLayout: event.target.value }))}>
+                {form.seatLayout === "Unspecified" && <option value="Unspecified">Eski kayıt - düzen doğrulanmamış</option>}
+                <option value="2+2">2+2</option><option value="2+1">2+1</option>
+              </select></label>
               <label>
                 Durum
                 <select
@@ -533,6 +546,9 @@ function BusManagement() {
                 İptal
               </button>
             </div>
+            <p>Koltuk planı değişiklikleri yeni oluşturulacak seferlerde kullanılır. Mevcut seferlerin kaydedilmiş planı korunur.</p>
+            <SeatMap seats={buildSeats(form.seatLayout, Number(form.seatCapacity), form.blockedSeats)} layout={form.seatLayout} mode="block" disabled={saving}
+              onChoose={number => setForm(current => ({ ...current, blockedSeats: current.blockedSeats.includes(number) ? current.blockedSeats.filter(value => value !== number) : [...current.blockedSeats, number] }))} />
           </form>
         </section>
       )}
@@ -660,7 +676,7 @@ function BusManagement() {
                     <td>{bus.companyName}</td>
                     <td>{bus.brand || "—"}</td>
                     <td>{bus.model || "—"}</td>
-                    <td>{bus.seatCapacity}</td>
+                    <td>{bus.seatCapacity}<small> · {bus.seatLayout === "Unspecified" ? "Düzen doğrulanmamış" : bus.seatLayout ?? "—"}</small></td>
                     <td>
                       <span className={`status-badge ${bus.isActive ? "active" : "inactive"}`}>
                         {bus.isActive ? "Aktif" : "Pasif"}
@@ -722,6 +738,7 @@ function BusManagement() {
                   <div><strong>Plaka</strong><span>{details.plateNumber}</span></div>
                   <div><strong>Marka / Model</strong><span>{[details.brand, details.model].filter(Boolean).join(" ") || "—"}</span></div>
                   <div><strong>Koltuk Kapasitesi</strong><span>{details.seatCapacity}</span></div>
+                  <div><strong>Koltuk Düzeni</strong><span>{details.seatLayout ?? "Doğrulanmamış"}</span></div>
                   <div><strong>Durum</strong><span>{details.isActive ? "Aktif" : "Pasif"}</span></div>
                   <div><strong>Oluşturulma</strong><span>{new Date(details.createdAt).toLocaleString("tr-TR")}</span></div>
                   <div>

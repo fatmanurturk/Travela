@@ -11,6 +11,8 @@ namespace Travela.DTOs
         public string? Brand { get; set; }
         public string? Model { get; set; }
         public int SeatCapacity { get; set; }
+        public string SeatLayout { get; set; } = "Unspecified";
+        public string? SeatPlanJson { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
@@ -72,6 +74,8 @@ namespace Travela.DTOs
 
         [Range(1, 1000)]
         public int SeatCapacity { get; set; }
+        public string SeatLayout { get; set; } = "2+2";
+        public List<int> BlockedSeats { get; set; } = [];
 
         public bool IsActive { get; set; } = true;
     }
@@ -90,6 +94,8 @@ namespace Travela.DTOs
 
         [Range(1, 1000)]
         public int SeatCapacity { get; set; }
+        public string? SeatLayout { get; set; }
+        public List<int>? BlockedSeats { get; set; }
 
         public int? CompanyId { get; set; }
 

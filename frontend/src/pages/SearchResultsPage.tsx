@@ -5,6 +5,8 @@ import SiteHeader from "../components/SiteHeader";
 import TripSearchForm from "../components/TripSearchForm";
 
 type PublicTrip = {
+  departureTerminalName?: string | null;
+  arrivalTerminalName?: string | null;
   id: number;
   companyId: number;
   companyName: string;
@@ -292,6 +294,7 @@ function SearchResultsPage() {
                 return (
                   <article className={`result-card${isSelected ? " selected" : ""}`} key={trip.id}>
                     <div className="result-card-company"><span className="company-mark" aria-hidden="true">{trip.companyName.slice(0, 1)}</span><strong>{trip.companyName}</strong></div>
+                    {(trip.departureTerminalName || trip.arrivalTerminalName) && <p>{trip.departureTerminalName ?? "Terminal belirtilmemiş"} → {trip.arrivalTerminalName ?? "Terminal belirtilmemiş"}</p>}
                     <div className="result-timeline">
                       <div><strong>{timeFormatter.format(new Date(trip.departureTime))}</strong><span>{trip.departureCity}</span><small>{dateFormatter.format(new Date(trip.departureTime))}</small></div>
                       <div className="timeline-duration"><span>{durationLabel(trip.durationMinutes)}</span><i /><small>{crossesDay ? "Ertesi gün varış" : "Direkt sefer"}</small></div>

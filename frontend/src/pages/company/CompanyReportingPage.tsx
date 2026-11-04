@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { apiUrl } from "../../api";
-import CompanyAttention from "./CompanyAttention";
+import CompanyOverviewView from "./CompanyOverviewView";
 import { Details } from "../../components/UiDetails";
 import { count, dateLabel, dateTime, money, orderLink, reportHeaders, tripStatus } from "./reporting";
 import type { Report, ReportDay } from "./reporting";
@@ -81,10 +81,7 @@ export default function CompanyReportingPage({ overview = false }: { overview?: 
   ["Başarısız iade", `${report.metrics.failedRefundCount} adet · ${money.format(report.metrics.failedRefundAmount)}`, "Halen başarısız; işlem modunda bu duruma geçiş tarihi."],
   ["Tahsilat − tamamlanan iade", money.format(report.metrics.collectedMinusRefunded), "Bu iki metriğin farkıdır; kâr değildir."],
  ] : [];
- return <div className="company-dashboard company-reporting">
-  <header className="company-dashboard-header"><h1>{overview ? "Genel Bakış" : "Raporlar"}</h1></header>
-  {overview && <CompanyAttention revision={revision} />}
-  <section className="company-panel"><form className="report-filters" onSubmit={e => { e.preventDefault(); apply(); }}>
+ const filters = (<section className="company-panel"><form className="report-filters" onSubmit={e => { e.preventDefault(); apply(); }}>
    <label>Rapor kapsamı<select value={draft.basis} onChange={e => change("basis", e.target.value)}><option value="transaction">İşlem tarihi</option><option value="departure">Sefer kalkış tarihi</option></select></label>
    <label>Dönem<select value={draft.period} onChange={e => change("period", e.target.value)}><option value="today">Bugün</option><option value="week">Son 7 Gün</option><option value="month">Bu Ay</option><option value="custom">Özel Tarih Aralığı</option></select></label>
    {draft.period === "custom" && <><label>Başlangıç<input type="date" required value={draft.from} min="2000-01-01" max={draft.to || "2100-12-31"} onChange={e => change("from", e.target.value)} /></label><label>Bitiş (gün dahil)<input type="date" required value={draft.to} min={draft.from || "2000-01-01"} max="2100-12-31" onChange={e => change("to", e.target.value)} /></label></>}
@@ -92,7 +89,11 @@ export default function CompanyReportingPage({ overview = false }: { overview?: 
    <label>Güzergâh numarası<input type="number" list="report-routes" min="1" step="1" placeholder="Tüm güzergâhlar" value={draft.routeId} onChange={e => change("routeId", e.target.value)} /><datalist id="report-routes">{routes.map(r => <option key={r.id} value={r.id}>{r.departureCity} → {r.arrivalCity}</option>)}</datalist></label>
    {!overview && <><label>Sefer sıralaması<select value={draft.sort} onChange={e => change("sort", e.target.value)}>{[["departure", "Kalkış"], ["sold", "Satılan bilet"], ["collected", "Tahsilat"], ["refunded", "Tamamlanan iade"], ["occupancy", "Doluluk"], ["available", "Satışa açık koltuk"]].map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></label><label>Sıra<select value={draft.direction} onChange={e => change("direction", e.target.value)}><option value="asc">Artan</option><option value="desc">Azalan</option></select></label><label>Güzergâh sıralaması<select value={draft.routeSort} onChange={e => change("routeSort", e.target.value)}><option value="sold">Satılan bilet</option><option value="collected">Tahsilat</option><option value="refunded">Tamamlanan iade</option></select></label></>}
    <div className="company-form-actions"><button className="primary-button" type="submit">Filtreleri uygula</button><button className="secondary-button" type="button" onClick={() => { setParams({}); setFormError(""); }}>Temizle</button></div>
-  </form>{formError && <p role="alert" className="company-profile-error">{formError}</p>}</section>
+  </form>{formError && <p role="alert" className="company-profile-error">{formError}</p>}</section>);
+ if (overview) return <CompanyOverviewView report={report} loading={loading} error={error} filters={filters} refresh={() => setRevision(r => r + 1)} revision={revision} query={query} cards={cards} />;
+ return <div className="company-dashboard company-reporting">
+  <header className="company-dashboard-header"><h1>Raporlar</h1></header>
+  {filters}
   <div className="report-toolbar"><button className="secondary-button" disabled={loading} onClick={() => setRevision(r => r + 1)}>Yenile</button>{report && <span>Son güncelleme: {dateTime.format(new Date(report.scope.generatedAt))} (Türkiye)</span>}</div>
   {loading ? <p role="status">Raporlar yükleniyor...</p> : error ? <div role="alert" className="company-profile-error"><p>{error}</p><button className="secondary-button" onClick={() => setRevision(r => r + 1)}>Tekrar dene</button></div> : report && <>
    <section className="company-panel report-scope">
@@ -109,10 +110,8 @@ export default function CompanyReportingPage({ overview = false }: { overview?: 
    <div className="report-card-grid">{cards.map(([title, value]) => <section className="company-stat-card" key={title}><h2>{title}</h2><strong className="report-card-value">{value}</strong></section>)}
     <section className="company-stat-card"><h2>Doluluk</h2><strong className="report-card-value">{report.occupancy.percent == null ? "Hesaplanamadı" : `%${count.format(report.occupancy.percent)}`}</strong><p>{report.occupancy.activeSoldSeats} koltuk / {report.occupancy.capacity} kapasite</p>{report.occupancy.invalidTrips > 0 && <p role="status">{report.occupancy.invalidTrips} seferin koltuk bilgisi kontrol edilmeli.</p>}</section>
    </div>
-   {overview ? <>
-    <section className="company-panel"><h2>Yaklaşan seferler</h2>{report.upcoming.length === 0 ? <p>Bu dönemde işlem bulunmuyor</p> : <ul className="report-list">{report.upcoming.map(t => <li key={t.id}><Link to={`/company/trips?detail=${t.id}`}>#{t.id} · {t.departureCity} → {t.arrivalCity}</Link><span>{dateTime.format(new Date(t.departureTime))} · {t.activeSoldSeats} aktif satılmış / {t.capacity} kapasite</span>{t.dataWarning && <p>{t.dataWarning}</p>}</li>)}</ul>}</section>
-    <section className="company-panel"><h2>Son satışlar ve iptaller</h2>{report.recent.length === 0 ? <p>Bu dönemde işlem bulunmuyor</p> : <ul className="report-list">{report.recent.map((r, i) => <li key={`${r.orderId}-${i}`}><Link to={orderLink(r.orderId, r.tripId)}>{r.type === "Sale" ? "Satış" : "İptal"} · {r.pnr}</Link><span>{dateTime.format(new Date(r.date))} · {money.format(r.amount)}</span></li>)}</ul>}</section>
-   </> : <>
+   <>
+
     <div className="report-chart-grid"><Chart days={report.daily} label={label} /><Chart days={report.daily} cash label={label} /></div>
     <section className="company-panel"><h2>En çok bilet satılan güzergâhlar</h2><p>Seçili sıralamaya göre ilk 20 / {report.routeCount} güzergâh.</p>{report.routes.length === 0 ? <p>Bu dönemde işlem bulunmuyor</p> : <div className="table-wrap"><table className="data-table"><thead><tr><th>Güzergâh</th><th>Satılan</th><th>Aktif</th><th>İptal</th><th>Tahsilat</th><th>Tamamlanan iade</th></tr></thead><tbody>{report.routes.map(r => <tr key={r.routeId}><td>{r.departureCity} → {r.arrivalCity}</td><td>{r.sold}</td><td>{r.active}</td><td>{r.cancelled}</td><td>{money.format(r.collected)}</td><td>{money.format(r.refunded)}</td></tr>)}</tbody></table></div>}</section>
     <section className="company-panel"><h2>Sefer raporu</h2>
@@ -120,7 +119,7 @@ export default function CompanyReportingPage({ overview = false }: { overview?: 
      {report.trips.length === 0 ? <p>Bu dönemde işlem bulunmuyor{page > 1 && <button className="link-button" onClick={() => setPage(1)}>İlk sayfaya dön</button>}</p> : <div className="table-wrap report-trip-wrap"><table className="data-table report-trip-table"><thead><tr>{["Sefer", "Güzergâh", "Kalkış (Türkiye)", "Plaka / Kapasite", "Aktif satılmış", "Geçici ödeme tutması", "Eski ücretsiz blokaj", "Süresi dolmuş tutma", "Satışa açık", "Doluluk", "Dönem satışı", "İptal", "Tahsilat", "Tamamlanan iade", "Bekleyen iade", "Başarısız iade", "Sefer durumu"].map(t => <th key={t}>{t}</th>)}</tr></thead><tbody>{report.trips.map(t => <tr key={t.id}><td><Link to={`/company/trips?detail=${t.id}`}>#{t.id} Detay</Link>{t.dataWarning && <p role="status">{t.dataWarning}</p>}</td><td>{t.departureCity} → {t.arrivalCity}</td><td>{dateTime.format(new Date(t.departureTime))}</td><td>{t.plate} / {t.capacity}</td><td>{t.activeSoldSeats}</td><td>{t.heldSeats}</td><td>{t.legacyBlockedSeats}</td><td>{t.expiredHolds}</td><td>{t.availableForSale ?? "Hesaplanamadı"}</td><td>{t.occupancyPercent == null ? "Hesaplanamadı" : `%${count.format(t.occupancyPercent)}`}</td><td>{t.sold}</td><td>{t.cancelled}</td><td>{money.format(t.collected)}</td><td>{money.format(t.refunded)}</td><td>{money.format(t.pendingRefund)}</td><td>{t.failedRefundCount} · {money.format(t.failedRefundAmount)}</td><td>{tripStatus(t.status)}</td></tr>)}</tbody></table></div>}
      <div className="company-form-actions"><span>{report.totalTrips} sefer · Sayfa {page} / {Math.max(1, Math.ceil(report.totalTrips / pageSize))}</span><button className="secondary-button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Önceki</button><button className="secondary-button" disabled={page * pageSize >= report.totalTrips} onClick={() => setPage(page + 1)}>Sonraki</button></div>
     </section>
-   </>}
+   </>
    <section className="company-panel"><h2>Başarısız iadeler</h2>{report.failedRefunds.length === 0 ? <p>Bu dönemde işlem bulunmuyor</p> : <ul className="report-list">{report.failedRefunds.map(r => <li key={r.orderId}><Link to={orderLink(r.orderId, r.tripId)}>{r.pnr ?? "Ödeme işlemi"} · {money.format(r.amount)}</Link><p>İade tamamlanamadı.</p>{r.error && <Details title="Hata açıklaması"><p>{r.error}</p></Details>}<span>{r.statusDate ? dateTime.format(new Date(r.statusDate)) : "Durum tarihi bilinmiyor"}</span></li>)}</ul>}</section>
   </>}
  </div>;

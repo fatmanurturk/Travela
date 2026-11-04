@@ -1,0 +1,16 @@
+.physical-seat-map { max-width: 100%; margin: 16px 0; }
+.physical-seat-grid { display: grid; gap: 8px; padding: 12px; width: max-content; max-width: 100%; max-height: 580px; overflow: auto; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; }
+.physical-seat-grid.layout-21 { grid-template-columns: repeat(4, 46px); }
+.physical-seat-grid.layout-22 { grid-template-columns: repeat(5, 46px); }
+.physical-seat-grid.layout-legacy { grid-template-columns: repeat(4, 46px); }
+.physical-seat-grid .seat-front { grid-column: 1 / -1; text-align: center; padding: 6px; font-size: 12px; }
+.physical-seat-grid .seat-corridor { font-size: 9px; align-self: center; text-align: center; color: #64748b; }
+.physical-seat { min-width: 0; min-height: 48px; padding: 4px; background: white; border: 1px solid #2563eb; border-radius: 9px; color: #1e3a8a; cursor: pointer; }
+.physical-seat small { display: block; font-size: 8px; line-height: 1.4; }
+.physical-seat.blocked { background: #fff1f2; border-color: #e11d48; color: #9f1239; }
+.physical-seat.occupied { background: #e2e8f0; border-color: #94a3b8; color: #475569; }
+.physical-seat.selected { background: #1d4ed8; color: white; }
+.physical-seat:focus-visible { outline: 3px solid #f59e0b; outline-offset: 2px; }
+.physical-seat:disabled { cursor: default; opacity: .85; }
+.physical-seat-legend { color: #475569; font-size: 12px; }
+@media(max-width: 400px) { .physical-seat-grid { gap: 6px; padding: 8px; } .physical-seat-grid.layout-22 { grid-template-columns: repeat(5, 42px); } }

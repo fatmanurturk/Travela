@@ -106,6 +106,8 @@ function Login() {
           </button>
         </form>
 
+        <p><a href="/forgot-password">Şifremi unuttum</a> · <a href="/resend-activation">Hesabımı aktifleştir</a></p>
+
         <p>
           Hesabın yok mu? <a href="/register">Kayıt Ol</a>
         </p>

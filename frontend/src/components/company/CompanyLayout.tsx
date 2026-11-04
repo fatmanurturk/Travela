@@ -94,6 +94,7 @@ const menuItems = [
   { path: "/company/trips", label: "Sefer Yönetimi", icon: "trips" as const },
   { path: "/company/reservations", label: "Bilet ve Ödeme Yönetimi", icon: "reservations" as const },
   { path: "/company/reports", label: "Raporlar", icon: "reports" as const },
+  { path: "/company/notifications", label: "Bildirim Teslimatları", icon: "reports" as const },
   { path: "/company/profile", label: "Firma Bilgileri", icon: "profile" as const },
 ];
 

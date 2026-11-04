@@ -89,6 +89,9 @@
   text-decoration: none;
 }
 
+.login-card .account-link-message { color: #166534; background: #f0fdf4; padding: 14px; border-radius: 8px; overflow-wrap: anywhere; }
+.login-card .account-link-button { display: block; box-sizing: border-box; color: white; }
+
 .login-card a:hover {
   text-decoration: underline;
 }

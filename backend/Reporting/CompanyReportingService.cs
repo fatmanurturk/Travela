@@ -80,7 +80,7 @@ public class CompanyReportingService(TravelaDbContext db, TimeProvider clock)
         return trips.Select(t => new TripInventory
         {
             Id = t.Id, RouteId = t.RouteId, DepartureCity = t.Route.DepartureCity, ArrivalCity = t.Route.ArrivalCity,
-            Departure = t.DepartureTime, Plate = t.Bus.PlateNumber, Capacity = t.Bus.SeatCapacity, StoredAvailable = t.AvailableSeats, Status = t.Status,
+            Departure = t.DepartureTime, Plate = t.Bus.PlateNumber, Capacity = t.SellableSeatCount ?? t.Bus.SeatCapacity, StoredAvailable = t.AvailableSeats, Status = t.Status,
             ActiveSold = db.Reservations.Count(r => r.TripId == t.Id && r.Status == "Active" && r.Kind == "Ticket" && r.Pnr != null && r.Payment != null && r.Payment.PaymentStatus == "Paid"),
             Held = db.Reservations.Count(r => r.TripId == t.Id && r.Status == "Active" && r.Kind == "Hold" && r.HoldExpiresAt > now && r.Payment != null),
             Legacy = db.Reservations.Count(r => r.TripId == t.Id && r.Status == "Active" && r.Kind == "Legacy"),
@@ -88,8 +88,10 @@ public class CompanyReportingService(TravelaDbContext db, TimeProvider clock)
             Expired = db.Reservations.Count(r => r.TripId == t.Id && r.Status == "Active" && r.Kind == "Hold" && r.HoldExpiresAt <= now),
             AllActive = db.Reservations.Count(r => r.TripId == t.Id && r.Status == "Active"),
             Invalid = db.Reservations.Any(r => r.TripId == t.Id && r.Status == "Active" &&
-                (r.SeatNumber < 1 || r.SeatNumber > t.Bus.SeatCapacity || (r.Kind == "Ticket" && (r.Payment == null || r.Payment.PaymentStatus != "Paid" || r.Pnr == null)) || (r.Kind == "Hold" && r.Payment == null))),
-            Open = t.DepartureTime > now && t.Company.IsActive && t.Bus.IsActive && t.Route.IsActive && t.Bus.CompanyId == t.CompanyId && (t.Status == "Scheduled" || t.Status == "Planlandı" || t.Status == "Planlandi")
+                (r.SeatNumber < 1 || r.SeatNumber > (t.SeatCapacitySnapshot ?? t.Bus.SeatCapacity) || (r.Kind == "Ticket" && (r.Payment == null || r.Payment.PaymentStatus != "Paid" || r.Pnr == null)) || (r.Kind == "Hold" && r.Payment == null))),
+            Open = t.DepartureTime > now && t.Company.IsActive && t.Bus.IsActive && t.Route.IsActive && t.Bus.CompanyId == t.CompanyId &&
+                (t.DepartureTerminal == null || t.DepartureTerminal.IsActive) && (t.ArrivalTerminal == null || t.ArrivalTerminal.IsActive) &&
+                (t.Status == "Scheduled" || t.Status == "Planlandı" || t.Status == "Planlandi")
         });
     }
     private IQueryable<TripReport> TripRows(int companyId, CompanyReportQuery q, ReportScope s, IQueryable<ReportFact> facts)

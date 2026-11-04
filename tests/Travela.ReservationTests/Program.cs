@@ -18,6 +18,10 @@ using Travela.Models;
 var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
 Directory.SetCurrentDirectory(root);
 using var source = new TravelaDbContextFactory().CreateDbContext([]);
+if (args.Contains("--migrate-journey")) { await JourneyMigration.Apply(source); return; }
+if (args.Contains("--migrate-notifications")) { await NotificationMigration.Apply(source); return; }
+if (args.Contains("--migrate-group-purchases")) { await GroupPurchaseMigration.Apply(source); return; }
+if (args.Contains("--migrate-ticket-operations")) { await TicketOperationsMigration.Apply(source); return; }
 if (args.Contains("--verify-existing"))
 {
     if ((await source.Database.GetPendingMigrationsAsync()).Any()) throw new Exception("Bekleyen migration var.");
@@ -67,6 +71,10 @@ try
     start.Environment["Jwt__Key"] = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
     start.Environment["Jwt__Issuer"] = "PaymentTests"; start.Environment["Jwt__Audience"] = "PaymentTests";
     start.Environment["Payments__RecoveryEnabled"] = "false";
+    start.Environment["Notifications__WorkerEnabled"] = "false";
+    start.Environment["Iyzico__ApiKey"] = "sandbox-test-key";
+    start.Environment["Iyzico__SecretKey"] = "sandbox-test-secret";
+    start.Environment["Iyzico__CallbackBaseUrl"] = "https://example.test";
     start.Environment["Logging__LogLevel__Default"] = "Warning";
     server = Process.Start(start)!;
     server.OutputDataReceived += (_, e) => { lock (log) log.AppendLine(e.Data); };
@@ -197,7 +205,11 @@ try
     await Service(s => s.ProcessRefund(activeTicket.Id, default));
     Check((await Get(activeTicket.Id)).RefundStatus == "Succeeded", "Firma iptalinin iadesi sağlayıcıdan doğrulandı");
     Check(await db.Trips.AsNoTracking().Where(t => t.Id == trip.Id).Select(t => t.AvailableSeats).SingleAsync() == 20, "Tüm sefer iptallerinden sonra kontenjan tam ve eski ücretsiz kayıt geçmişte korunuyor");
-    Console.WriteLine($"SONUÇ: {passed} ödeme/bilet/iade kontrolü başarılı.");
+    await TicketOperationsChecks.Run(db, http, Check);
+    await JourneyChecks.Run(db, http, Check);
+    await NotificationChangeChecks.Run(db, http, Check, root);
+    await GroupPurchaseChecks.Run(db, http, Check, root);
+    Console.WriteLine($"SONUÇ: {passed} ödeme/bilet/iade/yönetici kontrolü başarılı.");
 
     async Task<string> Login(User u)
     {

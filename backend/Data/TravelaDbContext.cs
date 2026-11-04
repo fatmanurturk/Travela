@@ -13,12 +13,21 @@ namespace Travela.Data
         }
 
         public DbSet<User> Users { get; set; }
+        public DbSet<AccountEmailMessage> AccountEmailMessages { get; set; }
+        public DbSet<TravelNotification> TravelNotifications { get; set; }
+        public DbSet<NotificationAttempt> NotificationAttempts { get; set; }
+        public DbSet<TripChange> TripChanges { get; set; }
+        public DbSet<TripChangeTicket> TripChangeTickets { get; set; }
         public DbSet<Company> Companies { get; set; }
         public DbSet<Bus> Buses { get; set; }
+        public DbSet<Terminal> Terminals { get; set; }
        public DbSet<Travela.Api.Models.Route> Routes { get; set; }
         public DbSet<Trip> Trips { get; set; }
         public DbSet<Reservation> Reservations { get; set; }
         public DbSet<PaymentOrder> PaymentOrders { get; set; }
+        public DbSet<PurchaseGroup> PurchaseGroups { get; set; }
+        public DbSet<ProviderRefundAttempt> ProviderRefundAttempts { get; set; }
+        public DbSet<PaymentEvent> PaymentEvents { get; set; }
         public DbSet<LocalPaymentRecord> LocalPaymentRecords { get; set; }
         public DbSet<PaymentNotification> PaymentNotifications { get; set; }
         public DbSet<Role> Roles { get; set; }
@@ -28,9 +37,87 @@ namespace Travela.Data
       protected override void OnModelCreating(ModelBuilder modelBuilder)
 {
     base.OnModelCreating(modelBuilder);
+    modelBuilder.Entity<PurchaseGroup>(e =>
+    {
+        e.Property(g => g.Amount).HasPrecision(18, 2); e.Property(g => g.Currency).HasMaxLength(3);
+        e.Property(g => g.RequestHash).HasMaxLength(64); e.Property(g => g.Provider).HasMaxLength(30);
+        e.Property(g => g.PaymentStatus).HasMaxLength(20); e.Property(g => g.CheckoutState).HasMaxLength(20);
+        e.Property(g => g.ProviderToken).HasMaxLength(200); e.Property(g => g.ProviderPaymentId).HasMaxLength(128); e.Property(g => g.LastError).HasMaxLength(1000);
+        e.HasIndex(g => new { g.PassengerId, g.RequestKey }).IsUnique();
+        e.HasIndex(g => new { g.Provider, g.ProviderToken }).IsUnique().HasFilter("[ProviderToken] IS NOT NULL");
+        e.HasIndex(g => new { g.PaymentStatus, g.NextReconciliationAt });
+        e.HasOne<Trip>().WithMany().HasForeignKey(g => g.TripId).OnDelete(DeleteBehavior.NoAction);
+        e.HasOne<User>().WithMany().HasForeignKey(g => g.PassengerId).OnDelete(DeleteBehavior.NoAction);
+    });
+    modelBuilder.Entity<PaymentOrder>().HasOne(p => p.PurchaseGroup).WithMany(g => g.Items).HasForeignKey(p => p.PurchaseGroupId).OnDelete(DeleteBehavior.NoAction);
+    modelBuilder.Entity<ProviderRefundAttempt>(e =>
+    {
+        e.HasIndex(a => a.OrderId).IsUnique(); e.Property(a => a.RefundKey).HasMaxLength(32); e.Property(a => a.Status).HasMaxLength(20); e.Property(a => a.Reference).HasMaxLength(128);
+        e.HasOne<PaymentOrder>().WithMany().HasForeignKey(a => a.OrderId).OnDelete(DeleteBehavior.NoAction);
+    });
+    modelBuilder.Entity<User>().Property(u => u.EmailNotificationsEnabled).HasDefaultValue(true);
+    modelBuilder.Entity<TravelNotification>(e =>
+    {
+        e.Property(n => n.EventKey).HasMaxLength(160); e.Property(n => n.Type).HasMaxLength(40);
+        e.Property(n => n.Channel).HasMaxLength(10); e.Property(n => n.Status).HasMaxLength(20);
+        e.Property(n => n.Recipient).HasMaxLength(450); e.Property(n => n.Subject).HasMaxLength(200);
+        e.Property(n => n.LastError).HasMaxLength(500); e.Property(n => n.ProviderReference).HasMaxLength(100);
+        e.HasIndex(n => new { n.ReservationId, n.EventKey, n.Channel }).IsUnique();
+        e.HasIndex(n => new { n.Status, n.NextAttemptAt });
+        e.HasOne(n => n.Reservation).WithMany().HasForeignKey(n => n.ReservationId).OnDelete(DeleteBehavior.NoAction);
+    });
+    modelBuilder.Entity<NotificationAttempt>(e =>
+    {
+        e.Property(a => a.Status).HasMaxLength(30); e.Property(a => a.Error).HasMaxLength(500); e.Property(a => a.Reason).HasMaxLength(1000);
+        e.HasOne(a => a.Notification).WithMany().HasForeignKey(a => a.NotificationId).OnDelete(DeleteBehavior.NoAction);
+        e.HasIndex(a => new { a.NotificationId, a.CreatedAt });
+    });
+    modelBuilder.Entity<TripChange>(e =>
+    {
+        e.Property(c => c.Reason).HasMaxLength(1000); e.Property(c => c.RequestHash).HasMaxLength(64);
+        e.HasIndex(c => c.RequestKey).IsUnique(); e.HasIndex(c => new { c.TripId, c.Version }).IsUnique();
+        e.HasOne(c => c.Trip).WithMany().HasForeignKey(c => c.TripId).OnDelete(DeleteBehavior.NoAction);
+    });
+    modelBuilder.Entity<TripChangeTicket>(e =>
+    {
+        e.HasKey(c => new { c.TripChangeId, c.ReservationId });
+        e.HasOne(c => c.TripChange).WithMany().HasForeignKey(c => c.TripChangeId).OnDelete(DeleteBehavior.NoAction);
+        e.HasOne(c => c.Reservation).WithMany().HasForeignKey(c => c.ReservationId).OnDelete(DeleteBehavior.NoAction);
+    });
+    modelBuilder.Entity<Bus>().Property(b => b.SeatLayout).HasMaxLength(20).HasDefaultValue("Unspecified");
+    modelBuilder.Entity<Trip>().Property(t => t.SeatLayout).HasMaxLength(20).HasDefaultValue("Unspecified");
+    modelBuilder.Entity<Trip>().Property(t => t.DepartureTerminalName).HasMaxLength(160);
+    modelBuilder.Entity<Trip>().Property(t => t.ArrivalTerminalName).HasMaxLength(160);
+    modelBuilder.Entity<Trip>().Property(t => t.DepartureTerminalAddress).HasMaxLength(640);
+    modelBuilder.Entity<Trip>().Property(t => t.ArrivalTerminalAddress).HasMaxLength(640);
+    modelBuilder.Entity<Trip>().Property(t => t.BoardingInstructions).HasMaxLength(1000);
+    modelBuilder.Entity<Trip>().HasOne(t => t.DepartureTerminal).WithMany().HasForeignKey(t => t.DepartureTerminalId).OnDelete(DeleteBehavior.NoAction);
+    modelBuilder.Entity<Trip>().HasOne(t => t.ArrivalTerminal).WithMany().HasForeignKey(t => t.ArrivalTerminalId).OnDelete(DeleteBehavior.NoAction);
+    modelBuilder.Entity<Terminal>(e =>
+    {
+        e.Property(t => t.Name).HasMaxLength(160); e.Property(t => t.City).HasMaxLength(100); e.Property(t => t.Address).HasMaxLength(500);
+        e.HasIndex(t => new { t.City, t.Name }).IsUnique();
+    });
+
+    modelBuilder.Entity<User>().Property(u => u.ActivationPending).HasDefaultValue(false);
+    modelBuilder.Entity<User>().Property(u => u.PasswordResetRequired).HasDefaultValue(false);
+    modelBuilder.Entity<AccountEmailMessage>(e =>
+    {
+        e.Property(m => m.Recipient).HasMaxLength(320);
+        e.Property(m => m.Subject).HasMaxLength(200);
+        e.Property(m => m.TokenHash).HasMaxLength(64);
+        e.Property(m => m.Status).HasMaxLength(20);
+        e.Property(m => m.LastError).HasMaxLength(500);
+        e.HasIndex(m => new { m.UserId, m.CreatedAt });
+        e.HasIndex(m => new { m.Status, m.NextAttemptAt });
+        e.HasOne(m => m.User).WithMany().HasForeignKey(m => m.UserId).OnDelete(DeleteBehavior.NoAction);
+    });
 
     modelBuilder.Entity<Reservation>(entity =>
     {
+        entity.Property(r => r.PassengerEmailSnapshot).HasMaxLength(450);
+        entity.Property(r => r.PassengerPhoneSnapshot).HasMaxLength(20);
+        entity.Property(r => r.PassengerSnapshotSource).HasMaxLength(20);
         entity.Property(r => r.ReservationNumber).HasMaxLength(32);
         entity.Property(r => r.Price).HasPrecision(18, 2);
         entity.Property(r => r.Status).HasMaxLength(20).HasDefaultValue("Active");
@@ -69,9 +156,21 @@ namespace Travela.Data
         e.HasIndex(p => p.RefundKey).IsUnique();
         e.HasOne(p => p.Reservation).WithOne(r => r.Payment).HasForeignKey<PaymentOrder>(p => p.ReservationId).OnDelete(DeleteBehavior.NoAction);
         e.HasIndex(p => new { p.RefundStatus, p.NextRefundAttemptAt });
+        e.HasIndex(p => new { p.PaymentStatus, p.NextReconciliationAt });
         e.HasIndex(p => new { p.IsTest, p.PaidAt });
         e.HasIndex(p => new { p.IsTest, p.RefundStatusChangedAt });
         e.HasIndex(p => new { p.IsTest, p.RefundedAt });
+    });
+    modelBuilder.Entity<PaymentEvent>(e =>
+    {
+        e.Property(p => p.Type).HasMaxLength(50);
+        e.Property(p => p.PaymentStatus).HasMaxLength(20);
+        e.Property(p => p.RefundStatus).HasMaxLength(20);
+        e.Property(p => p.Reason).HasMaxLength(1000);
+        e.Property(p => p.RefundAmount).HasPrecision(18, 2);
+        e.HasIndex(p => new { p.OrderId, p.CreatedAt });
+        e.HasIndex(p => new { p.ActorUserId, p.RequestKey }).IsUnique().HasFilter("[RequestKey] IS NOT NULL");
+        e.HasOne(p => p.Order).WithMany().HasForeignKey(p => p.OrderId).OnDelete(DeleteBehavior.NoAction);
     });
     modelBuilder.Entity<LocalPaymentRecord>(e =>
     {

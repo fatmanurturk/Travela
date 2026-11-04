@@ -20,7 +20,7 @@ namespace Travela.DTOs
 
         public int? CompanyId { get; set; }
 
-        public bool IsActive { get; set; } = false;
+        public bool IsActive { get; set; } = true;
     }
 
     public class CreateCompanyUserDto
@@ -51,6 +51,9 @@ namespace Travela.DTOs
         public int? CompanyId { get; set; }
         public string? CompanyName { get; set; }
         public bool IsActive { get; set; }
+        public bool ActivationPending { get; set; }
+        public bool PasswordResetRequired { get; set; }
+        public bool MustChangePassword { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? LastLoginAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
@@ -65,6 +68,9 @@ namespace Travela.DTOs
         public int? CompanyId { get; set; }
         public string? CompanyName { get; set; }
         public bool IsActive { get; set; }
+        public bool ActivationPending { get; set; }
+        public bool PasswordResetRequired { get; set; }
+        public bool MustChangePassword { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? LastLoginAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
@@ -114,9 +120,14 @@ namespace Travela.DTOs
     {
         [Required]
         [MinLength(8)]
+        [MaxLength(128)]
         public string NewPassword { get; set; } = string.Empty;
 
+        [Required, Compare(nameof(NewPassword))]
+        public string ConfirmPassword { get; set; } = string.Empty;
+
         [Required]
+        [MaxLength(256)]
         public string Token { get; set; } = string.Empty;
     }
 }

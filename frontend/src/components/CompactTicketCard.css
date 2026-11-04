@@ -1,0 +1,42 @@
+.reservation-list.ticket-compact-list { gap: 14px; }
+.reservation-card.ticket-compact { padding: 18px 20px; border-radius: 14px; }
+.ticket-compact-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.ticket-compact-header > div { min-width: 0; }
+.ticket-compact .ticket-compact-header h2 { margin: 0; font-size: 20px; line-height: 1.35; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.ticket-compact-header h2 span { color: #7d90ab; font-weight: 400; padding: 0 3px; }
+.ticket-compact .ticket-compact-meta { margin: 6px 0 0; color: #64748b; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.ticket-compact-meta > span { white-space: normal; }
+.ticket-compact-badge { flex: 0 0 auto; padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: 650; line-height: 1.4; background: #f0f3f8; color: #52647a; }
+.ticket-compact-badge.success { background: #eaf8ef; color: #16633e; }
+.ticket-compact-badge.danger { background: #fff0f0; color: #ad3030; }
+.ticket-compact-badge.pending { background: #fff7df; color: #8a5d0e; }
+.ticket-compact-facts { display: grid; grid-template-columns: 1.4fr 1.4fr .65fr 1fr; gap: 14px 24px; margin: 18px 0 16px; }
+.ticket-compact-facts > div, .ticket-extra-facts > div { min-width: 0; }
+.ticket-compact-facts dt { color: #6b7b90; font-size: 12px; margin-bottom: 6px; }
+.ticket-compact-facts dt span { font-size: 10px; }
+.ticket-compact-facts dd { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+.ticket-compact-facts .ticket-compact-price { font-size: 17px; color: #163862; }
+.ticket-compact-notices { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 12px; }
+.ticket-compact .ticket-compact-notices p, .ticket-compact .ticket-compact-note { margin: 0; font-size: 12px; line-height: 1.5; }
+.ticket-compact .ticket-compact-note { color: #6b7b90; margin: 0 0 12px; }
+.ticket-compact-footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px 18px; border-top: 1px solid #edf0f5; padding-top: 12px; }
+.ticket-extra { flex: 1 1 230px; min-width: 0; }
+.ticket-extra summary { width: fit-content; cursor: pointer; min-height: 36px; padding: 9px 0; color: #365c8e; font-size: 12px; font-weight: 600; }
+.ticket-extra summary:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; border-radius: 4px; }
+.ticket-extra-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 12px 0; }
+.ticket-extra-facts dt { font-size: 12px; color: #6b7b90; }
+.ticket-extra-facts dd { margin: 5px 0 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.ticket-extra-note { margin: 12px 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.ticket-extra-note p { margin: 4px 0 0; }
+.ticket-compact-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.ticket-compact .ticket-compact-actions .site-button { margin: 0; min-height: 36px; padding: 8px 12px; font-size: 12px; line-height: 1.4; }
+@media (max-width: 700px) {
+  .reservation-card.ticket-compact { padding: 16px; }
+  .ticket-compact-header { flex-direction: column; gap: 8px; }
+  .ticket-compact .ticket-compact-header h2 { font-size: 18px; }
+  .ticket-compact-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+  .ticket-compact-facts dd { font-size: 13px; }
+  .ticket-compact-facts .ticket-compact-price { font-size: 16px; }
+  .ticket-extra { flex-basis: 100%; }
+  .ticket-compact-actions { width: 100%; justify-content: flex-start; }
+}

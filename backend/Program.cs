@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -10,6 +9,10 @@ using Travela.Api.Payments;
 using Travela.Api.Documents;
 using Travela.Api.Reporting;
 using Travela.Api.Trips;
+using Travela.Api.Security;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 var jwtKey = builder.Configuration["Jwt:Key"]
@@ -85,14 +88,46 @@ builder.Services.AddControllers(options => options.Filters.AddService<TripLifecy
 if (builder.Configuration["Trips:LifecycleEnabled"] != "false") builder.Services.AddHostedService<TripLifecycleWorker>();
 builder.Services.AddSingleton<TicketPdfRenderer>();
 builder.Services.AddScoped<CompanyReportingService>();
-// No live provider is installed. Fail closed outside development/test instead of charging money.
+// This integration is sandbox-only. An environment switch must never turn test charges into live sales.
 if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
-    throw new InvalidOperationException("Gerçek ödeme sağlayıcısı yapılandırılmadı. LocalTest yalnızca geliştirme/test ortamında çalışır.");
+    throw new InvalidOperationException("LocalTest ve IyzicoSandbox yalnızca geliştirme/test ortamında çalışır; canlı satış sağlayıcısı yapılandırılmadı.");
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddDataProtection().SetApplicationName("Travela.AccountEmail");
+builder.Services.AddOptions<AccountEmailOptions>().Bind(builder.Configuration.GetSection("AccountEmail"))
+    .Validate(options => options.Valid(builder.Environment), "Hesap e-postası veya ön yüz adresi yapılandırması geçersiz.").ValidateOnStart();
+builder.Services.AddScoped<AccountEmailService>();
+builder.Services.AddScoped<EmailTransport>();
+builder.Services.AddOptions<Travela.Api.Notifications.SmsOptions>().Bind(builder.Configuration.GetSection("TravelSms"))
+    .Validate(options => options.Valid(builder.Environment), "SMS yapılandırması geçersiz.").ValidateOnStart();
+builder.Services.AddHttpClient<Travela.Api.Notifications.SmsTransport>(http => http.Timeout = TimeSpan.FromSeconds(45));
+builder.Services.AddScoped<Travela.Api.Notifications.NotificationDelivery>();
+if (builder.Configuration["Notifications:WorkerEnabled"] != "false") builder.Services.AddHostedService<Travela.Api.Notifications.TravelNotificationWorker>();
+builder.Services.AddScoped<AccountEmailDelivery>();
+builder.Services.AddHostedService<AccountEmailWorker>();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, ct) =>
+    {
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        await context.HttpContext.Response.WriteAsJsonAsync(new { message = "Çok fazla bağlantı isteği gönderildi. Bir dakika sonra tekrar deneyin." }, cancellationToken: ct);
+    };
+    options.AddPolicy("account-links", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = builder.Configuration.GetValue("AccountEmail:RequestLimitPerMinute", 20),
+            Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+});
 builder.Services.AddScoped<Travela.Api.Security.SessionTokenService>();
 builder.Services.AddSingleton<LocalWebhookKey>();
 builder.Services.AddScoped<LocalTestPaymentProvider>();
-builder.Services.AddScoped<IPaymentProvider>(sp => sp.GetRequiredService<LocalTestPaymentProvider>());
+var paymentProvider = builder.Configuration["Payments:Provider"] ?? "LocalTest";
+if (paymentProvider is not ("LocalTest" or "IyzicoSandbox")) throw new InvalidOperationException("Ödeme sağlayıcısı geçersiz.");
+builder.Services.AddOptions<IyzicoOptions>().Bind(builder.Configuration.GetSection("Iyzico"))
+    .Validate(options => paymentProvider != "IyzicoSandbox" || options.Valid, "iyzico sandbox anahtarları ve HTTPS callback adresi gereklidir.").ValidateOnStart();
+builder.Services.AddHttpClient<IyzicoSandboxProvider>(http => http.Timeout = TimeSpan.FromSeconds(20))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddScoped<PaymentProviderRegistry>();
+builder.Services.AddScoped<IPaymentProvider>(sp => sp.GetRequiredService<PaymentProviderRegistry>().Get(paymentProvider));
 builder.Services.AddScoped<PaymentService>();
 if (builder.Configuration["Payments:RecoveryEnabled"] != "false") builder.Services.AddHostedService<PaymentRecoveryWorker>();
 
@@ -127,6 +162,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("TravelaFrontend");
+app.UseRateLimiter();
 
 app.MapGet("/weatherforecast", () =>
 {
@@ -167,28 +203,12 @@ app.Use(async (context, next) =>
 {
     if (context.User.Identity?.IsAuthenticated == true)
     {
-        var userIdClaim = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (int.TryParse(userIdClaim, out var userId))
+        var db = context.RequestServices.GetRequiredService<TravelaDbContext>();
+        if (!await db.Users.AsNoTracking().ForSession(context.User, db).AnyAsync(context.RequestAborted))
         {
-            var db = context.RequestServices.GetRequiredService<TravelaDbContext>();
-            var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
-            if (user == null)
-            {
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsJsonAsync(new { message = "Kullanıcı bulunamadı." });
-                return;
-            }
-
-            var tokenRole = context.User.FindFirstValue(ClaimTypes.Role);
-            var tokenVersionClaim = context.User.FindFirstValue("security_version");
-            var tokenVersion = int.TryParse(tokenVersionClaim, out var version) ? version : -1;
-
-            if (!user.IsActive || user.Role != tokenRole || user.SecurityVersion != tokenVersion)
-            {
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsJsonAsync(new { message = "Hesabınız pasif veya oturumunuz geçersiz kılındı." });
-                return;
-            }
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await context.Response.WriteAsJsonAsync(new { message = "Hesabınız veya firmanız erişime kapalı, şifre işlemi bekliyor ya da oturumunuz geçersiz kılındı." });
+            return;
         }
     }
 

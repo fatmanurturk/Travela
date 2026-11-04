@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Travela.Api.Reporting;
 using Travela.Data;
 using Travela.DTOs;
+using Travela.Api.Security;
 
 namespace Travela.Api.Controllers;
 
@@ -14,7 +15,7 @@ public class CompanyReportsController(TravelaDbContext db, CompanyReportingServi
     private async Task<int?> Company(CancellationToken ct)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id)) return null;
-        return await db.Users.AsNoTracking().Where(u => u.Id == id && u.IsActive && u.Role == "Company" && !u.MustChangePassword && u.CompanyId != null && db.Companies.Any(c => c.Id == u.CompanyId && c.IsActive))
+        return await db.Users.AsNoTracking().ForSession(User, db).Where(u => u.Id == id && u.Role == "Company")
             .Select(u => u.CompanyId).SingleOrDefaultAsync(ct);
     }
     [HttpGet]

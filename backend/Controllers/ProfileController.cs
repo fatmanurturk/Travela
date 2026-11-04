@@ -25,6 +25,8 @@ public sealed class ChangePasswordDto
 }
 public sealed class NotificationPreferencesDto
 {
+    public bool? Email { get; set; }
+    public bool? Sms { get; set; }
     [Required] public bool? TripReminders { get; set; }
     [Required] public bool? Cancellations { get; set; }
     [Required] public bool? RefundUpdates { get; set; }
@@ -39,10 +41,9 @@ public sealed class RevokeOtherSessionsDto
 public partial class ProfileController(TravelaDbContext db, SessionTokenService tokens, TimeProvider clock) : ControllerBase
 {
     private static readonly ConcurrentDictionary<int, Queue<DateTime>> SecurityAttempts = new();
-    private int UserId => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : -1;
-    private Task<User?> CurrentUser(CancellationToken ct) => db.Users.AsNoTracking()
-        .SingleOrDefaultAsync(u => u.Id == UserId && u.IsActive && u.Role == "Passenger" && !u.MustChangePassword, ct);
-    private static object Preferences(User user) => new { tripReminders = user.TripRemindersEnabled, cancellations = user.CancellationNotificationsEnabled, refundUpdates = user.RefundNotificationsEnabled };
+    private Task<User?> CurrentUser(CancellationToken ct) => db.Users.AsNoTracking().ForSession(User, db)
+        .SingleOrDefaultAsync(u => u.Role == "Passenger", ct);
+    private static object Preferences(User user) => new { tripReminders = user.TripRemindersEnabled, cancellations = user.CancellationNotificationsEnabled, refundUpdates = user.RefundNotificationsEnabled, email = user.EmailNotificationsEnabled, sms = user.SmsNotificationsEnabled };
 
     [HttpGet]
     public async Task<IActionResult> GetProfile(CancellationToken ct)
@@ -60,7 +61,7 @@ public partial class ProfileController(TravelaDbContext db, SessionTokenService 
         if (name.Length == 0) return BadRequest(new { message = "Ad soyad boş olamaz." });
         if (!TryPhone(dto.PhoneNumber, out var phone)) return BadRequest(new { message = "Geçerli bir telefon numarası girin. Örnek: 05xx xxx xx xx veya +ülke kodu ve numara." });
         var user = await CurrentUser(ct); if (user == null) return Unauthorized();
-        var affected = await db.Users.Where(u => u.Id == user.Id && u.SecurityVersion == user.SecurityVersion && u.IsActive)
+        var affected = await db.Users.ForSession(User, db).Where(u => u.Id == user.Id && u.SecurityVersion == user.SecurityVersion)
             .ExecuteUpdateAsync(update => update.SetProperty(u => u.FullName, name).SetProperty(u => u.PhoneNumber, phone).SetProperty(u => u.UpdatedAt, clock.GetUtcNow().UtcDateTime), ct);
         if (affected != 1) return Unauthorized();
         return Ok(new { message = "Kişisel bilgilerin güncellendi.", fullName = name, phoneNumber = phone });
@@ -72,13 +73,15 @@ public partial class ProfileController(TravelaDbContext db, SessionTokenService 
         if (dto.TripReminders is not bool reminders || dto.Cancellations is not bool cancellations || dto.RefundUpdates is not bool refunds)
             return BadRequest(new { message = "Tüm bildirim tercihlerini belirtin." });
         var user = await CurrentUser(ct); if (user == null) return Unauthorized();
-        var affected = await db.Users.Where(u => u.Id == user.Id && u.SecurityVersion == user.SecurityVersion && u.IsActive)
+        var affected = await db.Users.ForSession(User, db).Where(u => u.Id == user.Id && u.SecurityVersion == user.SecurityVersion)
             .ExecuteUpdateAsync(update => update.SetProperty(u => u.TripRemindersEnabled, reminders)
                 .SetProperty(u => u.CancellationNotificationsEnabled, cancellations)
                 .SetProperty(u => u.RefundNotificationsEnabled, refunds)
+                .SetProperty(u => u.EmailNotificationsEnabled, dto.Email ?? user.EmailNotificationsEnabled)
+                .SetProperty(u => u.SmsNotificationsEnabled, dto.Sms ?? user.SmsNotificationsEnabled)
                 .SetProperty(u => u.UpdatedAt, clock.GetUtcNow().UtcDateTime), ct);
         if (affected != 1) return Unauthorized();
-        return Ok(new { message = "Bildirim tercihlerin kaydedildi.", notificationPreferences = new { tripReminders = reminders, cancellations = cancellations, refundUpdates = refunds } });
+        return Ok(new { message = "Bildirim tercihlerin kaydedildi.", notificationPreferences = new { tripReminders = reminders, cancellations = cancellations, refundUpdates = refunds, email = dto.Email ?? user.EmailNotificationsEnabled, sms = dto.Sms ?? user.SmsNotificationsEnabled } });
     }
 
     [HttpPost("change-password")]
@@ -92,7 +95,7 @@ public partial class ProfileController(TravelaDbContext db, SessionTokenService 
         if (hasher.VerifyHashedPassword(user, user.PasswordHash, dto.CurrentPassword) == PasswordVerificationResult.Failed)
             return BadRequest(new { message = "Mevcut şifre yanlış." });
         var hash = hasher.HashPassword(user, dto.NewPassword);
-        var affected = await db.Users.Where(u => u.Id == user.Id && u.SecurityVersion == user.SecurityVersion && u.PasswordHash == user.PasswordHash && u.IsActive)
+        var affected = await db.Users.ForSession(User, db).Where(u => u.Id == user.Id && u.SecurityVersion == user.SecurityVersion && u.PasswordHash == user.PasswordHash)
             .ExecuteUpdateAsync(update => update.SetProperty(u => u.PasswordHash, hash).SetProperty(u => u.SecurityVersion, u => u.SecurityVersion + 1)
                 .SetProperty(u => u.MustChangePassword, false).SetProperty(u => u.UpdatedAt, clock.GetUtcNow().UtcDateTime)
                 .SetProperty(u => u.PasswordResetTokenHash, (string?)null).SetProperty(u => u.PasswordResetTokenExpiresAt, (DateTime?)null).SetProperty(u => u.PasswordResetTokenUsedAt, (DateTime?)null), ct);
@@ -108,7 +111,7 @@ public partial class ProfileController(TravelaDbContext db, SessionTokenService 
         if (RateLimited(user.Id)) return StatusCode(429, new { message = "Çok fazla güvenlik işlemi denendi. Lütfen 5 dakika sonra tekrar deneyin." });
         if (new PasswordHasher<User>().VerifyHashedPassword(user, user.PasswordHash, dto.CurrentPassword) == PasswordVerificationResult.Failed)
             return BadRequest(new { message = "Mevcut şifre yanlış." });
-        var affected = await db.Users.Where(u => u.Id == user.Id && u.SecurityVersion == user.SecurityVersion && u.IsActive)
+        var affected = await db.Users.ForSession(User, db).Where(u => u.Id == user.Id && u.SecurityVersion == user.SecurityVersion)
             .ExecuteUpdateAsync(update => update.SetProperty(u => u.SecurityVersion, u => u.SecurityVersion + 1).SetProperty(u => u.UpdatedAt, clock.GetUtcNow().UtcDateTime), ct);
         if (affected != 1) return Unauthorized();
         user.SecurityVersion++;

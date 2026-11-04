@@ -1616,3 +1616,8 @@
 .reservation-card .site-button { margin: 6px 6px 6px 0; }
 .company-panel > h2, .report-chart > h2 { font-size: 21px; margin: 0 0 16px; }
 @media print { .identifier-copy, .test-environment-notice { display: none !important; } .ticket-document .ui-details-content { display: block !important; } }
+.passenger-checkout-form, .passenger-checkout-form fieldset { display: grid; gap: 12px; min-width: 0; }
+.passenger-checkout-form fieldset { margin: 0; padding: 14px; border: 1px solid #d8e1ef; border-radius: 10px; }
+.passenger-checkout-form label { display: grid; gap: 6px; font-size: 14px; }
+.passenger-checkout-form input:not([type="checkbox"]) { width: 100%; min-width: 0; box-sizing: border-box; padding: 10px; border: 1px solid #ccd8e8; border-radius: 6px; font: inherit; }
+.group-ticket-passenger { min-width: 0; overflow-wrap: anywhere; }

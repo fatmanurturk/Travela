@@ -23,6 +23,7 @@ namespace Travela.DTOs
 
         [Required(ErrorMessage = "Yeni şifre zorunludur.")]
         [MinLength(8, ErrorMessage = "Yeni şifre en az 8 karakter olmalıdır.")]
+        [MaxLength(128)]
         public string NewPassword { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Şifre tekrarı zorunludur.")]

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Details } from "../components/UiDetails";
 import SiteHeader from "../components/SiteHeader";
+import JourneyStops from "../components/JourneyStops";
+import TicketCommunications from "../components/TicketCommunications";
 import { apiUrl } from "../api";
 import { dateTime, money } from "../reservations";
 import { isIssuedTicket, paymentLabel, refundLabel, refundMessage, statusTone } from "../payments";
@@ -17,6 +19,7 @@ function TicketDetails({ pnr }: { pnr: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmCancellation, setConfirmCancellation] = useState(false);
   const navigate = useNavigate();
   const load = useCallback(async (signal?: AbortSignal): Promise<Purchase | null> => {
     const response = await fetch(apiUrl(`/api/tickets/${encodeURIComponent(pnr)}`), {
@@ -65,6 +68,14 @@ function TicketDetails({ pnr }: { pnr: string }) {
     } catch (cause) { setError(cause instanceof TypeError ? "Sunucuya bağlanılamadı. Belge alınamadı." : cause instanceof Error ? cause.message : "Belge işlemi tamamlanamadı."); }
     finally { setBusy(false); setLoading(false); }
   };
+  const cancel = async () => {
+    if (busy) return; setBusy(true); setError("");
+    try {
+      const response = await fetch(apiUrl(`/api/tickets/${encodeURIComponent(pnr)}/cancel`), { method: "POST", headers: { Authorization: `Bearer ${sessionStorage.getItem("travela_token")}` } });
+      const data = await response.json(); if (!response.ok) throw new Error(data.message ?? "Bilet iptal edilemedi.");
+      setTicket(data); setConfirmCancellation(false);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "İptal sonucu alınamadı. Bileti güncelleyip kontrol edin."); } finally { setBusy(false); }
+  };
   const cancelled = ticket?.ticketStatus === "Cancelled";
   return <div className="travela-site ticket-details-view"><SiteHeader /><main className="trip-detail-page">
     <div className="ticket-document-actions"><Link to="/tickets" className="back-home">← Biletlerim</Link><button className="site-button secondary" disabled={busy} onClick={() => void act("refresh")}>Güncelle</button>{ticket && <><button className="site-button primary" disabled={busy} onClick={() => void act("pdf")}>{busy ? "İşleniyor..." : "PDF indir"}</button><button className="site-button secondary" disabled={busy} onClick={() => void act("print")}>Yazdır</button></>}</div>
@@ -77,6 +88,8 @@ function TicketDetails({ pnr }: { pnr: string }) {
       <p className="ticket-pnr">PNR <strong>{ticket.pnr}</strong></p>
       <dl className="reservation-facts ticket-document-facts">
         <div><dt>Yolcu</dt><dd>{ticket.passengerName}</dd></div><div><dt>Firma</dt><dd>{ticket.companyName}</dd></div>
+        {ticket.passengerEmail && <div><dt>Bilet iletişim e-postası</dt><dd>{ticket.passengerEmail}</dd></div>}
+        {ticket.passengerPhone && <div><dt>Bilet iletişim telefonu</dt><dd>{ticket.passengerPhone}</dd></div>}
         <div><dt>Kalkış (Türkiye)</dt><dd>{dateTime.format(new Date(ticket.departureTime))}</dd></div><div><dt>Varış (Türkiye)</dt><dd>{dateTime.format(new Date(ticket.arrivalTime))}</dd></div>
         <div><dt>Koltuk</dt><dd>{ticket.seatNumber}</dd></div><div><dt>Bilet tutarı</dt><dd>{money.format(ticket.amount)}</dd></div>
         <div><dt>Bilet durumu</dt><dd className={`status-text ${statusTone(ticket.ticketStatus)}`}>{cancelled ? "İptal Edildi" : "Aktif"}</dd></div><div><dt>Ödeme durumu</dt><dd className={`status-text ${statusTone(ticket.paymentStatus)}`}>{paymentLabel(ticket.paymentStatus)}</dd></div>
@@ -84,7 +97,13 @@ function TicketDetails({ pnr }: { pnr: string }) {
         {!cancelled && <div><dt>İptal son zamanı (Türkiye)</dt><dd>{dateTime.format(new Date(ticket.cancelDeadline))}</dd></div>}
         {ticket.cancelledAt && <div><dt>İptal zamanı (Türkiye)</dt><dd>{dateTime.format(new Date(ticket.cancelledAt))}</dd></div>}
       </dl>
-      {!cancelled && <p>{ticket.canCancel ? "Kalkışa en az 2 saat kala iptal ederek tam iade alabilirsiniz." : "Kalkışa 2 saatten az kaldığında iptal ve iade yapılamaz."}</p>}
+      <JourneyStops journey={ticket} />
+      {ticket.passengerSnapshotSource === "Migration" && <p className="ticket-document-stamp">Bu eski biletin yolcu bilgileri sistem geçişinde mevcut hesaptan sabitlenmiştir.</p>}
+      {!cancelled && <p>{ticket.changeCancellationUntil ? `Sefer değişikliği nedeniyle ${dateTime.format(new Date(ticket.changeCancellationUntil))} tarihine kadar tam iadeyle iptal hakkınız var.` : ticket.canCancel ? "Kalkışa en az 2 saat kala iptal ederek tam iade alabilirsiniz." : "Kalkışa 2 saatten az kaldığında iptal ve iade yapılamaz."}</p>}
+      {ticket.busPlateNumber && <p>Araç: {ticket.busPlateNumber}</p>}
+      {ticket.canCancel && <button type="button" className="site-button reservation-cancel" disabled={busy} onClick={() => setConfirmCancellation(true)}>Bileti İptal Et</button>}
+      {ticket.canCancel && confirmCancellation && <section aria-label="Bilet iptal onayı"><h3>Bilet iptal edilsin mi?</h3><p>Tam iade talebi: {money.format(ticket.amount)}. İadenin tamamlanması ödeme sağlayıcısından doğrulanacak.</p><button type="button" className="site-button secondary" disabled={busy} onClick={() => setConfirmCancellation(false)}>Vazgeç</button><button type="button" className="site-button reservation-cancel" disabled={busy} onClick={() => void cancel()}>Evet, iptal et</button></section>}
+      {ticket.pnr && <TicketCommunications pnr={ticket.pnr} revision={ticket.retrievedAt} />}
       {ticket.cancellationReason && <section className="ticket-history"><h3>İptal nedeni</h3><p>{ticket.cancellationReason}</p></section>}
       {ticket.refundStatus !== "None" && <section className="ticket-refund-explanation" aria-live="polite"><h3>İade durumu</h3><p className={`status-text ${statusTone(ticket.refundStatus)}`}>{refundMessage(ticket.refundStatus)} · {money.format(ticket.refundAmount)}</p>{ticket.lastError && <Details title="İade açıklaması"><p>{ticket.lastError}</p></Details>}</section>}
       <p className="ticket-document-stamp">Güncelleme: {dateTime.format(new Date(ticket.retrievedAt))} · Türkiye saati</p>

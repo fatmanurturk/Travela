@@ -10,6 +10,7 @@ using Travela.Api.Models;
 using Travela.Data;
 using Travela.DTOs;
 using Travela.Models;
+using Travela.Api.Security;
 
 namespace Travela.API.Controllers
 {
@@ -19,10 +20,12 @@ namespace Travela.API.Controllers
     public class AdminController : ControllerBase
     {
         private readonly TravelaDbContext _context;
+        private readonly AccountEmailService _mail;
 
-        public AdminController(TravelaDbContext context)
+        public AdminController(TravelaDbContext context, AccountEmailService mail)
         {
             _context = context;
+            _mail = mail;
         }
 
         [HttpGet("dashboard")]
@@ -150,6 +153,9 @@ namespace Travela.API.Controllers
                         ? _context.Companies.Where(c => c.Id == u.CompanyId.Value).Select(c => c.Name).FirstOrDefault()
                         : null,
                     IsActive = u.IsActive,
+                    ActivationPending = u.ActivationPending,
+                    PasswordResetRequired = u.PasswordResetRequired,
+                    MustChangePassword = u.MustChangePassword,
                     CreatedAt = u.CreatedAt,
                     LastLoginAt = u.LastLoginAt,
                     UpdatedAt = u.UpdatedAt
@@ -173,8 +179,15 @@ namespace Travela.API.Controllers
 
             if (!string.IsNullOrWhiteSpace(status))
             {
-                bool isActive = status.Equals("Aktif", StringComparison.OrdinalIgnoreCase) || status.Equals("Active", StringComparison.OrdinalIgnoreCase);
-                query = query.Where(u => u.IsActive == isActive);
+                query = status.ToLowerInvariant() switch
+                {
+                    "aktif" or "active" => query.Where(u => u.IsActive && !u.ActivationPending && !u.PasswordResetRequired && !u.MustChangePassword),
+                    "pasif" or "inactive" => query.Where(u => !u.IsActive),
+                    "activationpending" => query.Where(u => u.IsActive && u.ActivationPending),
+                    "passwordresetrequired" => query.Where(u => u.IsActive && u.PasswordResetRequired),
+                    "mustchangepassword" => query.Where(u => u.IsActive && !u.ActivationPending && !u.PasswordResetRequired && u.MustChangePassword),
+                    _ => query.Where(_ => false)
+                };
             }
 
             if (startDate.HasValue)
@@ -236,6 +249,9 @@ namespace Travela.API.Controllers
                         ? _context.Companies.Where(c => c.Id == u.CompanyId.Value).Select(c => c.Name).FirstOrDefault()
                         : null,
                     IsActive = u.IsActive,
+                    ActivationPending = u.ActivationPending,
+                    PasswordResetRequired = u.PasswordResetRequired,
+                    MustChangePassword = u.MustChangePassword,
                     CreatedAt = u.CreatedAt,
                     LastLoginAt = u.LastLoginAt,
                     UpdatedAt = u.UpdatedAt
@@ -259,7 +275,7 @@ namespace Travela.API.Controllers
             }
 
             var fullName = dto.FullName.Trim();
-            var email = dto.Email.Trim();
+            var email = dto.Email.Trim().ToLowerInvariant();
             var role = dto.Role?.Trim();
 
             if (role != "Admin" && role != "Company" && role != "Passenger")
@@ -321,23 +337,23 @@ namespace Travela.API.Controllers
 
                 var passwordHasher = new PasswordHasher<User>();
                 user.PasswordHash = passwordHasher.HashPassword(user, dto.Password);
-                user.IsActive = true;
                 user.MustChangePassword = role == "Company";
             }
             else
             {
-                user.IsActive = false;
+                user.ActivationPending = true;
                 activationToken = CreateSecureToken();
                 user.PasswordResetTokenHash = HashToken(activationToken);
                 user.PasswordResetTokenExpiresAt = DateTime.UtcNow.AddDays(2);
             }
 
             _context.Users.Add(user);
+            if (user.ActivationPending && user.IsActive) _mail.Queue(user, activationToken, user.PasswordResetTokenExpiresAt!.Value);
             await _context.SaveChangesAsync();
 
             return StatusCode(201, new
             {
-                message = user.IsActive ? "Kullanıcı başarıyla oluşturuldu." : "Kullanıcı oluşturuldu. Hesap aktivasyonu için doğrulama tokenı hazırlandı.",
+                message = user.ActivationPending && user.IsActive ? "Kullanıcı oluşturuldu. Aktivasyon e-postası gönderim kuyruğuna alındı." : "Kullanıcı başarıyla oluşturuldu.",
                 user = new
                 {
                     user.Id,
@@ -346,9 +362,11 @@ namespace Travela.API.Controllers
                     user.Role,
                     user.CompanyId,
                     user.IsActive,
+                    user.ActivationPending,
+                    user.PasswordResetRequired,
+                    user.MustChangePassword,
                     user.CreatedAt
-                },
-                activationToken
+                }
             });
         }
 
@@ -371,7 +389,7 @@ namespace Travela.API.Controllers
                 return BadRequest(new { message = "E-posta formatı geçersiz." });
             }
 
-            var normalizedEmail = dto.Email.Trim();
+            var normalizedEmail = dto.Email.Trim().ToLowerInvariant();
             if (await _context.Users.AnyAsync(u => u.Id != id && u.Email.ToLower() == normalizedEmail.ToLower()))
             {
                 return Conflict(new { message = "Bu e-posta adresi başka bir kullanıcıya ait." });
@@ -382,6 +400,9 @@ namespace Travela.API.Controllers
             {
                 return BadRequest(new { message = "Geçersiz kullanıcı rolü." });
             }
+
+            var accessError = await ValidateAdminAccessChange(user, role, dto.IsActive);
+            if (accessError != null) return accessError;
 
             if (role == "Company")
             {
@@ -411,6 +432,8 @@ namespace Travela.API.Controllers
             user.FullName = dto.FullName.Trim();
             user.Email = normalizedEmail;
             user.Role = role;
+            user.IsActive = dto.IsActive;
+            if (!user.IsActive) InvalidateResetToken(user);
             user.UpdatedAt = DateTime.UtcNow;
             user.SecurityVersion += 1;
 
@@ -421,26 +444,14 @@ namespace Travela.API.Controllers
         [HttpPatch("users/{id:int}/status")]
         public async Task<IActionResult> UpdateUserStatus(int id, [FromBody] UpdateUserStatusDto dto)
         {
-            var currentUserId = GetCurrentUserId();
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
             if (user == null)
             {
                 return NotFound(new { message = "Kullanıcı bulunamadı." });
             }
 
-            if (user.Role == "Admin" && currentUserId == user.Id)
-            {
-                return BadRequest(new { message = "Kendi hesabınızı pasifleştiremezsiniz." });
-            }
-
-            if (user.Role == "Admin" && user.IsActive && !dto.IsActive)
-            {
-                var activeAdmins = await _context.Users.CountAsync(u => u.Role == "Admin" && u.IsActive && u.Id != user.Id);
-                if (activeAdmins == 0)
-                {
-                    return Conflict(new { message = "Sistemde başka aktif Admin bulunmadığı için son aktif Admin pasifleştirilemez." });
-                }
-            }
+            var accessError = await ValidateAdminAccessChange(user, user.Role, dto.IsActive);
+            if (accessError != null) return accessError;
 
             user.IsActive = dto.IsActive;
             user.UpdatedAt = DateTime.UtcNow;
@@ -448,9 +459,7 @@ namespace Travela.API.Controllers
 
             if (!dto.IsActive)
             {
-                user.PasswordResetTokenHash = null;
-                user.PasswordResetTokenExpiresAt = null;
-                user.PasswordResetTokenUsedAt = DateTime.UtcNow;
+                InvalidateResetToken(user);
             }
 
             await _context.SaveChangesAsync();
@@ -472,14 +481,8 @@ namespace Travela.API.Controllers
                 return BadRequest(new { message = "Geçersiz kullanıcı rolü." });
             }
 
-            if (user.Role == "Admin" && role != "Admin")
-            {
-                var activeAdmins = await _context.Users.CountAsync(u => u.Role == "Admin" && u.IsActive && u.Id != user.Id);
-                if (activeAdmins == 0)
-                {
-                    return Conflict(new { message = "Son aktif Admin hesabının rolü değiştirilemez." });
-                }
-            }
+            var accessError = await ValidateAdminAccessChange(user, role, user.IsActive);
+            if (accessError != null) return accessError;
 
             if (role == "Company")
             {
@@ -518,21 +521,29 @@ namespace Travela.API.Controllers
                 return NotFound(new { message = "Kullanıcı bulunamadı." });
             }
 
-            var resetToken = CreateSecureToken();
-            user.PasswordResetTokenHash = HashToken(resetToken);
-            user.PasswordResetTokenExpiresAt = DateTime.UtcNow.AddHours(24);
-            user.PasswordResetTokenUsedAt = null;
-            user.UpdatedAt = DateTime.UtcNow;
-            user.IsActive = false;
-            user.SecurityVersion += 1;
+            if (!user.IsActive)
+                return Conflict(new { message = "Yönetici tarafından kapatılmış hesap için önce hesabı aktifleştirin." });
+            if (!await _context.Users.EnabledAccounts().WithActiveCompany(_context).AnyAsync(u => u.Id == user.Id))
+                return Conflict(new { message = "Hesap veya firma erişime kapalı." });
 
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var resetToken = CreateSecureToken();
+            var tokenHash = HashToken(resetToken);
+            var expiresAt = DateTime.UtcNow.AddHours(24);
+            var affected = await _context.Users.Where(u => u.Id == user.Id && u.IsActive && u.SecurityVersion == user.SecurityVersion)
+                .ExecuteUpdateAsync(update => update.SetProperty(u => u.PasswordResetTokenHash, tokenHash)
+                    .SetProperty(u => u.PasswordResetTokenExpiresAt, expiresAt).SetProperty(u => u.PasswordResetTokenUsedAt, (DateTime?)null)
+                    .SetProperty(u => u.PasswordResetRequired, true).SetProperty(u => u.UpdatedAt, DateTime.UtcNow)
+                    .SetProperty(u => u.SecurityVersion, u => u.SecurityVersion + 1));
+            if (affected != 1) return Conflict(new { message = "Hesap durumu değişti. Lütfen tekrar deneyiniz." });
+            _mail.Queue(user, resetToken, expiresAt);
             await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
 
             return Ok(new
             {
-                message = "Şifre sıfırlama süreci başlatıldı.",
-                resetToken,
-                expiresAt = user.PasswordResetTokenExpiresAt
+                message = "Şifre yenileme e-postası gönderim kuyruğuna alındı.",
+                expiresAt
             });
         }
 
@@ -575,7 +586,7 @@ namespace Travela.API.Controllers
                 return BadRequest(new { message = "Pasif firma için kullanıcı oluşturulamaz." });
             }
 
-            var email = dto.Email.Trim();
+            var email = dto.Email.Trim().ToLowerInvariant();
             if (await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower()))
             {
                 return Conflict(new { message = "Bu e-posta adresi başka bir hesaba ait." });
@@ -687,7 +698,7 @@ namespace Travela.API.Controllers
                 company.IsActive = dto.IsActive.Value;
             }
 
-            await _context.SaveChangesAsync();
+            await SaveCompanyAccess(company);
 
             return Ok(new
             {
@@ -715,7 +726,7 @@ namespace Travela.API.Controllers
             }
 
             company.IsActive = !company.IsActive;
-            await _context.SaveChangesAsync();
+            await SaveCompanyAccess(company);
 
             return Ok(new
             {
@@ -724,6 +735,33 @@ namespace Travela.API.Controllers
                 company.Name,
                 company.IsActive
             });
+        }
+
+        private async Task SaveCompanyAccess(Company company)
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            await _context.SaveChangesAsync();
+            if (!company.IsActive)
+                await _context.Users.Where(u => u.Role == "Company" && u.CompanyId == company.Id)
+                    .ExecuteUpdateAsync(update => update.SetProperty(u => u.SecurityVersion, u => u.SecurityVersion + 1)
+                        .SetProperty(u => u.UpdatedAt, DateTime.UtcNow));
+            await transaction.CommitAsync();
+        }
+
+        private static void InvalidateResetToken(User user)
+        {
+            user.PasswordResetTokenHash = null;
+            user.PasswordResetTokenExpiresAt = null;
+            user.PasswordResetTokenUsedAt = DateTime.UtcNow;
+        }
+
+        private async Task<IActionResult?> ValidateAdminAccessChange(User user, string nextRole, bool nextActive)
+        {
+            if (user.Role != "Admin" || (nextRole == "Admin" && nextActive)) return null;
+            if (user.Id == GetCurrentUserId()) return BadRequest(new { message = "Kendi yönetici erişiminizi kapatamazsınız." });
+            if (!await _context.Users.SessionAccounts(_context).AnyAsync(u => u.Role == "Admin" && u.Id != user.Id))
+                return Conflict(new { message = "Son erişilebilir Admin hesabı kapatılamaz veya rolü değiştirilemez." });
+            return null;
         }
 
         private int GetCurrentUserId()

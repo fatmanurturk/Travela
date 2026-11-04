@@ -11,6 +11,8 @@ namespace Travela.Models
         [System.ComponentModel.DataAnnotations.MaxLength(20)]
         public string? PhoneNumber { get; set; }
         public bool TripRemindersEnabled { get; set; }
+        public bool EmailNotificationsEnabled { get; set; } = true;
+        public bool SmsNotificationsEnabled { get; set; }
         public bool CancellationNotificationsEnabled { get; set; }
         public bool RefundNotificationsEnabled { get; set; }
 
@@ -21,6 +23,10 @@ namespace Travela.Models
         public int? CompanyId { get; set; }
 
         public bool IsActive { get; set; } = true;
+
+        public bool ActivationPending { get; set; }
+
+        public bool PasswordResetRequired { get; set; }
 
         public bool MustChangePassword { get; set; } = false;
 

@@ -37,7 +37,7 @@ function Register() {
         const body = await response.json() as { message?: string };
         throw new Error(body.message ?? "Kayıt oluşturulamadı.");
       }
-      navigate("/login", { replace: true });
+      navigate("/resend-activation", { replace: true, state: { email: email.trim(), registered: true } });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Sunucuya bağlanılamadı.");
     } finally {
@@ -54,19 +54,19 @@ function Register() {
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="full-name">Ad soyad</label>
-            <input id="full-name" value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" required />
+            <input id="full-name" value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" required maxLength={120} />
           </div>
           <div className="form-group">
             <label htmlFor="register-email">E-posta</label>
-            <input id="register-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
+            <input id="register-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required maxLength={254} />
           </div>
           <div className="form-group">
             <label htmlFor="register-password">Şifre</label>
-            <input id="register-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} autoComplete="new-password" required />
+            <input id="register-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} maxLength={128} autoComplete="new-password" required />
           </div>
           <div className="form-group">
             <label htmlFor="register-confirm-password">Şifre Tekrar</label>
-            <input id="register-confirm-password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength={8} autoComplete="new-password" required />
+            <input id="register-confirm-password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength={8} maxLength={128} autoComplete="new-password" required />
           </div>
           {error && <p className="register-error" role="alert">{error}</p>}
           <button type="submit" className="login-submit-btn" disabled={loading}>{loading ? "Hesap oluşturuluyor..." : "Kayıt Ol"}</button>

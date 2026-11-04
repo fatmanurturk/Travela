@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Travela.Data;
 using Travela.DTOs;
 using Travela.Models;
+using Travela.Api.Security;
 
 namespace Travela.Api.Controllers
 {
@@ -154,6 +155,7 @@ namespace Travela.Api.Controllers
 
             return await _context.Users
                 .AsNoTracking()
+                .ForSession(User, _context)
                 .FirstOrDefaultAsync(user => user.Id == id);
         }
 

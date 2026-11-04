@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Travela.Api.Models;
 using Travela.Data;
 using Travela.DTOs;
+using Travela.Api.Security;
 
 namespace Travela.Api.Controllers;
 
@@ -77,8 +78,8 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
         [FromQuery] int pageSize = 20, [FromQuery] Guid? orderId = null, CancellationToken cancellationToken = default)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)) return Unauthorized();
-        var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId && u.IsActive && u.Role == "Company" && !u.MustChangePassword, cancellationToken);
-        if (user?.CompanyId == null || !await db.Companies.AnyAsync(c => c.Id == user.CompanyId && c.IsActive, cancellationToken)) return Forbid();
+        var user = await db.Users.AsNoTracking().ForSession(User, db).SingleOrDefaultAsync(u => u.Id == userId && u.Role == "Company", cancellationToken);
+        if (user?.CompanyId == null) return Forbid();
         if (pageNumber < 1 || pageSize < 1 || pageSize > 100 || tripId <= 0 || dateFrom > dateTo || status is not (null or "" or "Active" or "Cancelled"))
             return BadRequest(new { message = "Sefer, tarih, durum veya sayfa filtresi geçersiz." });
         // Never accept a company id from the caller. Scope every query to the authenticated company.
@@ -111,7 +112,7 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
             .Select(r => new CompanyReservationDto
             {
                 ReservationNumber = r.ReservationNumber, TripId = r.TripId, SeatNumber = r.SeatNumber, Price = r.Price,
-                PassengerName = r.Passenger.FullName, CompanyName = r.Trip.Company.Name,
+                PassengerName = r.PassengerNameSnapshot ?? "Yolcu bilgisi kaydedilmemiş", CompanyName = r.Trip.Company.Name, TicketJourneyJson = r.TicketJourneyJson,
                 LastError = r.Payment == null || r.Payment.LastError == null ? null : r.Payment.LastError.Replace("Yerel test adaptörü iade hatası.", "İade işlemi tamamlanamadı."),
                 NeedsAttention = r.Payment != null && r.Payment.NeedsAttention,
                 RefundAttempts = r.Payment == null ? 0 : r.Payment.RefundAttempts,
@@ -129,7 +130,7 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
     private async Task<int?> GetPassengerId(CancellationToken cancellationToken)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id)) return null;
-        return await db.Users.AnyAsync(u => u.Id == id && u.IsActive && u.Role == "Passenger" && !u.MustChangePassword, cancellationToken) ? id : null;
+        return await db.Users.ForSession(User, db).AnyAsync(u => u.Id == id && u.Role == "Passenger", cancellationToken) ? id : null;
     }
 
     private static IQueryable<ReservationDto> Project(IQueryable<Reservation> query) => query.Select(r => new ReservationDto
@@ -144,6 +145,7 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
 
     private static void SetUtc(ReservationDto item)
     {
+        if (item.TicketJourneyJson != null) { var journey = Travela.Api.Trips.TicketJourney.Read(item.TicketJourneyJson); item.CompanyName = journey.CompanyName; item.DepartureCity = journey.DepartureCity; item.ArrivalCity = journey.ArrivalCity; item.DepartureTime = journey.DepartureTime; item.ArrivalTime = journey.ArrivalTime; }
         item.CreatedAt = DateTime.SpecifyKind(item.CreatedAt, DateTimeKind.Utc);
         if (item.CancelledAt.HasValue) item.CancelledAt = DateTime.SpecifyKind(item.CancelledAt.Value, DateTimeKind.Utc);
         item.DepartureTime = DateTime.SpecifyKind(item.DepartureTime, DateTimeKind.Utc);

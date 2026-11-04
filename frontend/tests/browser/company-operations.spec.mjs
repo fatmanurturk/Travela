@@ -1,11 +1,12 @@
 import { test, expect } from "@playwright/test";
-const trip = { id: 12, companyId: 1, companyName: "Travela Turizm", busId: 4, busPlateNumber: "34 ABC 123", busCapacity: 40, routeId: 3, departureCity: "İstanbul", arrivalCity: "Ankara", departureTime: "2099-01-01T07:00:00Z", arrivalTime: "2099-01-01T13:00:00Z", price: 550, availableSeats: 35, status: "Scheduled" };
+const trip = { id: 12, companyId: 1, companyName: "Travela Turizm", busId: 4, busPlateNumber: "34 ABC 123", busCapacity: 40, routeId: 3, departureTerminalId:1, arrivalTerminalId:2, departureCity: "İstanbul", arrivalCity: "Ankara", departureTime: "2099-01-01T07:00:00Z", arrivalTime: "2099-01-01T13:00:00Z", price: 550, availableSeats: 35, status: "Scheduled" };
 async function setup(page, width=1440) {
  await page.setViewportSize({ width, height: 1000 });
  await page.addInitScript(() => { sessionStorage.setItem("travela_token", "operations-token"); sessionStorage.setItem("travela_user", JSON.stringify({ role: "Company", name: "Firma Kullanıcısı", companyName: "Travela Turizm" })); });
  await page.route("**/api/company/profile", r => r.fulfill({json:{name:"Travela Turizm"}}));
  await page.route("**/api/buses?*", r => r.fulfill({json:{items:[{id:4,companyId:1,plateNumber:"34 ABC 123",seatCapacity:40,isActive:true}]}}));
  await page.route("**/api/routes", r=>r.fulfill({json:[{id:3,departureCity:"İstanbul",arrivalCity:"Ankara",estimatedDurationMinutes:360}]}));
+ await page.route("**/api/terminals",r=>r.fulfill({json:[{id:1,city:"İstanbul",name:"İstanbul Terminali",address:"İstanbul"},{id:2,city:"Ankara",name:"Ankara Terminali",address:"Ankara"}]}));
  await page.route("**/api/trips?*", r=>r.fulfill({json:{items:[trip],totalCount:1,totalPages:1}}));
  await page.route("**/api/trips/summary",r=>r.fulfill({json:{totalTrips:1,scheduledTrips:1,inProgressTrips:0,completedTrips:0,cancelledTrips:0}}));
 }
