@@ -32,7 +32,8 @@ internal static class NotificationChangeChecks
         async Task<JsonElement> Json(HttpResponseMessage response) { if (!response.IsSuccessStatusCode) throw new Exception(response.StatusCode + ": " + await response.Content.ReadAsStringAsync()); return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone(); }
         async Task<string> Login(User u) => (await Json(await Send("POST", "/api/auth/login", null, new { email = u.Email, password = "TestPass123!" }))).GetProperty("token").GetString()!;
         var pt = await Login(passenger); var mt = await Login(manager); var at = await Login(admin); var st = await Login(stranger);
-        async Task<PurchaseDto> Buy(int seat) => (await (await Send("POST", "/api/tickets/checkout", pt, new { tripId = trip.Id, seatNumber = seat, requestKey = Guid.NewGuid() })).Content.ReadFromJsonAsync<PurchaseDto>())!;
+        async Task<PurchaseDto> Buy(int seat) => (await (await Send("POST", "/api/tickets/checkout", pt,
+            new { tripId = trip.Id, seatNumber = seat, requestKey = Guid.NewGuid(), legalAcceptances = GroupPurchaseChecks.SalesConsent() })).Content.ReadFromJsonAsync<PurchaseDto>())!;
         var purchase = await Buy(1); purchase = (await (await Send("POST", $"/api/tickets/local/{purchase.Id}/complete", pt, new { outcome = "Succeeded" })).Content.ReadFromJsonAsync<PurchaseDto>())!;
         check(purchase.Pnr != null && await db.TravelNotifications.CountAsync(n => n.Reservation.Payment!.Id == purchase.Id && n.Type == "Purchase" && n.Status == "Pending") == 2, "Ödeme doğrulanınca PNR ve iki kanallı bildirim aynı işlemde kaydedilir");
         await Send("POST", $"/api/tickets/local/{purchase.Id}/complete", pt, new { outcome = "Succeeded" });

@@ -4,6 +4,9 @@ namespace Travela.DTOs
 {
     public class RegisterDto
     {
+        [MaxLength(8)]
+        public List<LegalAcceptanceDto>? LegalAcceptances { get; set; }
+
         [Required(ErrorMessage = "Ad soyad zorunludur.")]
         [MaxLength(120)]
         public string FullName { get; set; } = string.Empty;

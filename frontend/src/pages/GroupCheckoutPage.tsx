@@ -8,7 +8,27 @@ import TicketCard from "../components/TicketCard";
 import JourneyStops from "../components/JourneyStops";
 import { money, dateTime } from "../reservations";
 import "../campaigns.css";
-type Group = { id: string; amount: number; originalAmount: number; discountAmount: number; campaignName: string | null; couponCode: string | null; provider: string; isTest: boolean; paymentStatus: string; checkoutState: string; checkoutUrl: string | null; lastError: string | null; needsAttention: boolean; holdExpiresAt: string; refundRequested: number; refunded: number; tickets: Purchase[] };
+import PendingLegalAcceptance from "../components/PendingLegalAcceptance";
+type Group = {
+  id: string;
+  amount: number;
+  originalAmount: number;
+  discountAmount: number;
+  campaignName: string | null;
+  couponCode: string | null;
+  provider: string;
+  isTest: boolean;
+  paymentStatus: string;
+  checkoutState: string;
+  checkoutUrl: string | null;
+  lastError: string | null;
+  needsAttention: boolean;
+  holdExpiresAt: string;
+  refundRequested: number;
+  refunded: number;
+  tickets: Purchase[];
+  legalAccepted?: boolean;
+};
 export default function GroupCheckoutPage() {
   const { id } = useParams(); return <GroupCheckout key={id} id={id ?? ""} />;
 }
@@ -20,8 +40,14 @@ function GroupCheckout({ id }: { id: string }) {
     <section className="booking-summary"><h2>{group.tickets.length} yolcu · {money.format(group.amount)}</h2><p>Sipariş: {group.id}</p><p>{group.provider === "LocalTest" ? "Yerel ödeme simülasyonu" : "iyzico sandbox"} · Test işlemi</p><p>{group.paymentStatus === "Paid" ? "Ödeme doğrulandı" : group.paymentStatus === "Failed" ? "Ödeme başarısız" : "Ödeme sonucu bekleniyor"}</p><p>İade talebi: {money.format(group.refundRequested)} · Doğrulanmış iade: {money.format(group.refunded)}</p>
       {group.discountAmount > 0 && <div className="campaign-price"><dl><div><dt>İndirim öncesi</dt><dd>{money.format(group.originalAmount)}</dd></div><div className="campaign-saving"><dt>{group.campaignName}{group.couponCode && ` · ${group.couponCode}`}</dt><dd>−{money.format(group.discountAmount)}</dd></div><div className="campaign-total"><dt>Sipariş tutarı</dt><dd>{money.format(group.amount)}</dd></div></dl><small>İndirim bilet tutarlarına dağıtıldı. İade, ilgili biletin ödenen tutarı üzerinden hesaplanır.</small></div>}
       {group.paymentStatus === "Pending" && <><p>Koltuk tutma sonu: {dateTime.format(new Date(group.holdExpiresAt))}. Sonradan gelen ödeme tüm biletleri düzenleyemezse tamamı iade sürecine girer.</p>
-      {group.provider === "IyzicoSandbox" && safeProviderCheckout(group.checkoutUrl) && <a className="site-button primary" href={safeProviderCheckout(group.checkoutUrl)!} referrerPolicy="no-referrer">iyzico sandbox ödeme sayfasına git</a>}
-      {group.provider === "LocalTest" && group.checkoutUrl && <div><button type="button" className="site-button primary" disabled={busy} onClick={() => void action("local-complete", { outcome: "Succeeded" })}>Ödemeyi başarılı yap</button><button type="button" className="site-button secondary" disabled={busy} onClick={() => void action("local-complete", { outcome: "Failed" })}>Ödemeyi başarısız yap</button></div>}
+      <PendingLegalAcceptance
+        key={group.id}
+        endpoint={`/api/purchases/${group.id}/legal-acceptance`}
+        accepted={group.legalAccepted === true}
+        onSaved={() => setRevision(value => value + 1)}
+      />
+      {group.legalAccepted && group.provider === "IyzicoSandbox" && safeProviderCheckout(group.checkoutUrl) && <a className="site-button primary" href={safeProviderCheckout(group.checkoutUrl)!} referrerPolicy="no-referrer">iyzico sandbox ödeme sayfasına git</a>}
+      {group.legalAccepted && group.provider === "LocalTest" && group.checkoutUrl && <div><button type="button" className="site-button primary" disabled={busy} onClick={() => void action("local-complete", { outcome: "Succeeded" })}>Ödemeyi başarılı yap</button><button type="button" className="site-button secondary" disabled={busy} onClick={() => void action("local-complete", { outcome: "Failed" })}>Ödemeyi başarısız yap</button></div>}
       <button type="button" className="site-button secondary" disabled={busy} onClick={() => void action("refresh")}>Sağlayıcıdan durumu sorgula</button></>}
       {group.lastError && <p role="status">{group.lastError}</p>}{group.needsAttention && <p>Siparişiniz destek takibinde. Yeni ödeme başlatmadan durumu kontrol edin.</p>}
     </section><p>Her yolcunun ayrı PNR'si ve iptal/iade tutarı vardır. Bir bileti iptal etmek diğer biletleri iptal etmez.</p>

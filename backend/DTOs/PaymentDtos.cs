@@ -2,7 +2,12 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Travela.DTOs;
 
-public class StartPurchaseDto : CreateReservationDto { public Guid RequestKey { get; set; } }
+public class StartPurchaseDto : CreateReservationDto
+{
+    public Guid RequestKey { get; set; }
+    [MaxLength(8)]
+    public List<LegalAcceptanceDto>? LegalAcceptances { get; set; }
+}
 public record TestPaymentDto(string Outcome, string RefundOutcome = "Succeeded");
 public class PurchaseDto : JourneyDto
 {
@@ -48,4 +53,5 @@ public class PurchaseDto : JourneyDto
     public string? LastError { get; set; }
     public bool NeedsAttention { get; set; }
     public string? CheckoutUrl { get; set; }
+    public bool LegalAccepted { get; set; }
 }

@@ -8,13 +8,18 @@ using Travela.Api.Notifications;
 using Travela.Api.Security;
 using Travela.Api.Trips;
 using Travela.DTOs;
+using Travela.Api.Legal;
 
 namespace Travela.Api.Payments;
 
 public partial class PaymentService
 {
-    public async Task<PurchaseGroup> StartGroup(int userId, StartGroupPurchaseDto dto, string? protectedBuyer, CancellationToken ct)
+    public async Task<PurchaseGroup> StartGroup(
+        int userId, StartGroupPurchaseDto dto, string? protectedBuyer,
+        CancellationToken ct, string? clientIp = null)
     {
+        LegalDocuments.Validate(dto.LegalAcceptances, LegalDocuments.Sales);
+        var consentIp = LegalDocuments.RequireIp(clientIp);
         if (dto.RequestKey == Guid.Empty || dto.Passengers is not { Count: >= 1 and <= 10 } || dto.Passengers.Any(p => p == null || string.IsNullOrWhiteSpace(p.FullName) || string.IsNullOrWhiteSpace(p.Email)) || dto.Passengers.Select(p => p.SeatNumber).Distinct().Count() != dto.Passengers.Count)
             throw new PaymentFlowException("1–10 farklı koltuk ve her yolcu için geçerli bilgiler gereklidir.", 400);
         if (provider.Name == "IyzicoSandbox" && dto.Buyer == null) throw new PaymentFlowException("Ödeme için alıcı bilgileri gereklidir.", 400);
@@ -66,6 +71,11 @@ public partial class PaymentService
                 group.Items.Add(line); PaymentHistory.Record(db, line, "CheckoutCreated", Now);
             }
             db.PurchaseGroups.Add(group); trip.AvailableSeats -= passengers.Count;
+            var acceptance = PurchaseAcceptance(userId, trip, dto.RequestKey, consentIp,
+                new { group.Amount, group.Currency, group.OriginalAmount, group.DiscountAmount,
+                    seats = passengers.Select(p => p.SeatNumber).ToArray() });
+            acceptance.PurchaseGroupId = group.Id;
+            db.LegalAcceptances.Add(acceptance);
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         }
         return await EnsureGroupCheckout(group.Id, ct);
@@ -79,6 +89,7 @@ public partial class PaymentService
         {
             group = await db.PurchaseGroups.FromSqlInterpolated($"SELECT * FROM PurchaseGroups WITH (UPDLOCK, HOLDLOCK) WHERE Id = {id}").SingleAsync(ct);
             if (group.CheckoutState != "New" || group.PaymentStatus != "Pending" || group.HoldExpiresAt <= Now) return group;
+            if (!await HasLegalAcceptance(group.PassengerId, group.Id, true, ct)) return group;
             group.CheckoutState = "Initializing"; group.CheckoutLeaseUntil = Now.AddMinutes(2);
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         }
@@ -99,6 +110,8 @@ public partial class PaymentService
         if (group.PaymentStatus == "Paid") return;
         try
         {
+            if (group.CheckoutState == "New" && !await HasLegalAcceptance(group.PassengerId, id, true, ct))
+                return;
             if (group.CheckoutState == "New" && group.HoldExpiresAt > Now) await EnsureGroupCheckout(id, ct);
             var source = ProviderFor(group.Provider);
             await ApplyGroupVerified(await source.GetPayment(id, ct), source.Name, eventId, ct);

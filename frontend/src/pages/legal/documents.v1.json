@@ -1,0 +1,210 @@
+{
+  "notice": "Hukuki inceleme gerektirir",
+  "version": "2026-11-09.v1",
+  "updatedAt": "2026-11-09",
+  "documents": [
+    {
+      "type": "About",
+      "slug": "hakkimizda",
+      "title": "Hakkımızda",
+      "sections": [
+        {
+          "title": "Travela hakkında",
+          "paragraphs": [
+            "Travela, otobüs seferlerini arama, karşılaştırma ve online bilet satın alma işlemleri için geliştirilmiş bir platformdur. Platformun işletmecisi [ŞİRKET ADI] olup merkezi [ŞİRKET ADRESİ] adresindedir.",
+            "Ticaret sicili: [TİCARET SİCİLİ VE NUMARASI]. MERSİS: [MERSİS NUMARASI]. Vergi dairesi ve numarası: [VERGİ DAİRESİ / VERGİ NUMARASI]. İletişim: [E-POSTA ADRESİ], [TELEFON NUMARASI].",
+            "Taşıma hizmetini seçilen seferde belirtilen taşıyıcı firma sağlar. Platform işletmecisi ile taşıyıcının acente, aracı veya sağlayıcı sıfatları ve yetki belgeleri [HUKUKİ ROL VE YETKİ BELGELERİ] alanında yayına alınmadan önce açıklanmalıdır."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Contact",
+      "slug": "iletisim",
+      "title": "İletişim",
+      "sections": [
+        {
+          "title": "İşletmeci ve destek bilgileri",
+          "paragraphs": [
+            "Ticari unvan: [ŞİRKET ADI]. Adres: [ŞİRKET ADRESİ]. E-posta: [E-POSTA ADRESİ]. Telefon: [TELEFON NUMARASI]. KEP: [KEP ADRESİ]. Destek saatleri: [DESTEK ÇALIŞMA SAATLERİ].",
+            "Biletle ilgili başvurunuzda PNR veya sipariş numaranızı ve talebinizi belirtin. Kart numaranızı, kart güvenlik kodunuzu, hesap şifrenizi veya tek kullanımlık doğrulama kodunuzu paylaşmayın.",
+            "Bu taslakta iletişim kanalları henüz tanımlanmamıştır. Gerçek işletmeci bilgileri eklenene kadar bu sayfa üzerinden mesaj gönderilmez."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Help",
+      "slug": "yardim",
+      "title": "Yardım ve Sıkça Sorulan Sorular",
+      "sections": [
+        {
+          "title": "Sefer aramak için üye olmam gerekir mi?",
+          "paragraphs": ["Hayır. Seferleri giriş yapmadan arayabilir ve karşılaştırabilirsiniz. Bilet satın alma ve biletlerinizi yönetme işlemleri için yolcu hesabı gerekir."]
+        },
+        {
+          "title": "Arama sonuçları hangi bilgilere göre listeleniyor?",
+          "paragraphs": ["Sonuçlar aktif firma, otobüs ve güzergâhlara bağlı, kalkış zamanı gelmemiş ve seçilen yolcu sayısına yeterli boş koltuğu bulunan seferlerden oluşur. Fiyat ve koltuk durumu ödeme öncesinde yeniden kontrol edilir."]
+        },
+        {
+          "title": "Gidiş-dönüş seferlerini birlikte arayabilir miyim?",
+          "paragraphs": ["Evet. Arama formunda gidiş-dönüş seçip iki tarih belirleyebilirsiniz. Gidiş ve dönüş seferleri ayrı listelenir."]
+        },
+        {
+          "title": "Koltuk seçtiğimde bilet oluşur mu?",
+          "paragraphs": ["Hayır. Koltuk seçimi tek başına bilet düzenlemez. Sipariş başlatıldığında koltuklar en fazla 10 dakika ve her durumda kalkış zamanına kadar tutulur. Ödeme sağlayıcı tarafından doğrulanınca bilet ve PNR oluşur. Ödeme yetişmez veya tüm koltuklar için bilet düzenlenemezse sistemdeki iade süreci uygulanır."]
+        },
+        {
+          "title": "Biletimi nasıl iptal ederim?",
+          "paragraphs": ["Biletlerim sayfasından ilgili bileti açın. Normal yolcu iptalinde kalkışa en az 2 saat varsa, tam 2 saat dahil, ilgili bilet için ödenen tutarın tamamı iade sürecine alınır. 2 saatten az kaldığında normal iptal ve iade yapılamaz. Taşıyıcı iptali ve sistemde tanımlı sefer değişikliği hakları ayrıca değerlendirilir."]
+        },
+        {
+          "title": "İade talebi açıldı; para hesabıma geçti mi?",
+          "paragraphs": ["İade talebi ile tamamlanmış iade farklı durumlardır. İadenin tamamlanması sağlayıcı sonucu ile doğrulanır. Banka veya ödeme kuruluşunun hesaba yansıtma süresi değişebilir; bu taslak kesin bir banka süresi taahhüt etmez."]
+        }
+      ]
+    },
+    {
+      "type": "PrivacyNotice",
+      "slug": "gizlilik-ve-kvkk",
+      "title": "Gizlilik ve KVKK Aydınlatma Metni",
+      "sections": [
+        {
+          "title": "1. Veri sorumlusu ve kapsam",
+          "paragraphs": [
+            "Veri sorumlusu [ŞİRKET ADI], [ŞİRKET ADRESİ], [MERSİS / VERGİ NUMARASI] olup başvuru kanalı [KVKK BAŞVURU E-POSTASI / KEP / POSTA ADRESİ] şeklindedir. Bu metin hesap, sefer arama, biletleme, ödeme ve destek süreçleri için hazırlanmış bir taslaktır.",
+            "Bu metni okuduğunuzu belirtmeniz, aydınlatmanın sunulduğuna ilişkin kayıt oluşturur; pazarlama, reklam, isteğe bağlı çerez veya tüm veri işleme faaliyetleri için genel açık rıza anlamına gelmez."
+          ]
+        },
+        {
+          "title": "2. İşlenen veriler ve amaçlar",
+          "paragraphs": [
+            "Hesap için ad soyad, e-posta, sağlanırsa telefon, şifre özeti, hesap durumu ve oturum güvenliği bilgileri; hesap oluşturma, kimlik doğrulama, hesap güvenliği ve iletişim amacıyla işlenir. Şifre düz metin olarak saklanmaz.",
+            "Bilet işlemlerinde yolcunun ad soyadı, e-posta ve telefonu, güzergâh, tarih, koltuk, PNR, sipariş, tutar, indirim, ödeme ve iade durumları; sözleşmenin kurulması ve ifası, bilet düzenlenmesi, destek ve işlem geçmişinin tutulması amacıyla işlenir. Başka bir kişi adına bilet alıyorsanız bu aydınlatmayı o kişiye de iletmeniz gerekir.",
+            "Seçilen ödeme sağlayıcısının gerektirdiği durumlarda alıcı adı, soyadı, kimlik numarası, fatura adresi ve iletişim bilgileri ödeme işlemi için kullanılır. Kart bilgileri sağlayıcının ödeme ekranına girilir; bu uygulamanın bilet formunda kart numarası veya kart güvenlik kodu istenmez.",
+            "IP adresi, sunucu işlem zamanı, kullanıcı kimliği, onaylanan belge türü ve sürümü, metin özeti ve metin kopyası; güvenlik, işlem takibi ve aydınlatma/sözleşme kabulünün kanıtlanması amacıyla kaydedilir. Bildirim tercihleri yalnızca seçilen bildirimleri yönetmek için kullanılır."
+          ]
+        },
+        {
+          "title": "3. Toplama yöntemi, hukuki sebepler ve aktarım",
+          "paragraphs": [
+            "Veriler web formları, oturum ve bilet işlemleri, ödeme kuruluşu bildirimleri ve destek başvuruları üzerinden elektronik olarak elde edilir. İlgili faaliyete göre sözleşmenin kurulması veya ifası, hukuki yükümlülük, bir hakkın tesisi/kullanılması/korunması ve ölçülü meşru menfaat sebepleri değerlendirilir. Her faaliyet için hukuki sebep [VERİ İŞLEME ENVANTERİ VE HUKUKİ SEBEP EŞLEŞTİRMESİ] ile kesinleştirilmelidir.",
+            "Gerekli veriler taşıyıcı firma, ödeme kuruluşu, e-posta/SMS ve barındırma hizmeti sağlayıcıları ile yetkili kamu kurumlarına, ilgili amaç ve hukuki sebep ölçüsünde aktarılabilir. Gerçek alıcı grupları ve sağlayıcılar [AKTARIM YAPILAN KURULUŞLAR] alanında belirtilmelidir.",
+            "Yurt dışına aktarım ihtimali kullanılan gerçek altyapıya göre değerlendirilir. [YURT DIŞI AKTARIM DURUMU VE HUKUKİ GÜVENCELER] doldurulmadan yurt dışına aktarım yapılmadığı veya belirli bir güvencenin sağlandığı taahhüt edilmez."
+          ]
+        },
+        {
+          "title": "4. Saklama süreleri ve güvenlik",
+          "paragraphs": [
+            "Hesap verileri [HESAP VERİSİ SAKLAMA SÜRESİ], bilet/ödeme ve muhasebe kayıtları [BİLET VE MALİ KAYIT SAKLAMA SÜRESİ], onay ve güvenlik kayıtları [ONAY VE GÜVENLİK KAYDI SAKLAMA SÜRESİ] boyunca, ilgili amaç ve zorunlu mevzuat süreleri esas alınarak saklanır. Bu alanlar veri kategorisi ve hukuki dayanaklarıyla işletmeci tarafından doldurulmalıdır.",
+            "İşleme sebebi sona erdiğinde ve zorunlu saklama süreleri dolduğunda silme, yok etme veya anonimleştirme politikası uygulanmalıdır. Hesabın kapatılması zorunlu mali veya uyuşmazlık kayıtlarının derhal silineceği anlamına gelmez. Yetki sınırları, şifreleme ve erişim güvenliği tedbirleri uygulanır; mutlak güvenlik taahhüt edilmez."
+          ]
+        },
+        {
+          "title": "5. Haklarınız ve başvuru",
+          "paragraphs": [
+            "KVKK kapsamındaki şartlarla verilerinizin işlenip işlenmediğini öğrenme, işlenmişse bilgi isteme, işleme amacını ve amaca uygun kullanılıp kullanılmadığını öğrenme, yurt içinde veya dışında aktarılan üçüncü kişileri bilme, eksik/yanlış verilerin düzeltilmesini isteme, silme/yok etme ve bu işlemlerin alıcılara bildirilmesini isteme, yalnızca otomatik sistemlerle aleyhinize bir sonuca itiraz etme ve hukuka aykırı işleme nedeniyle zararın giderilmesini talep etme haklarınız bulunur.",
+            "Başvurunuzu kimliğinizi doğrulamaya elverişli bilgilerle [KVKK BAŞVURU KANALI] üzerinden iletebilirsiniz. Gereksiz kimlik belgesi, kart veya şifre paylaşmayın. Başvurular mevzuattaki usul ve sürelerde değerlendirilir; bu taslak işletmecinin gerçek başvuru prosedürüyle tamamlanmalıdır."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "TermsOfUse",
+      "slug": "kullanim-kosullari",
+      "title": "Kullanım Koşulları",
+      "sections": [
+        {
+          "title": "Hesap ve platform kullanımı",
+          "paragraphs": [
+            "Platform işletmecisi [ŞİRKET ADI], adresi [ŞİRKET ADRESİ], iletişimi [E-POSTA / TELEFON] şeklindedir. Gerçek ve güncel hesap/yolcu bilgisi kullanmanız, hesabınızın güvenliğini korumanız ve yetkisiz erişim girişiminde bulunmamanız gerekir.",
+            "Hesap kaydı bilet satın alındığı anlamına gelmez. Sefer ve koltuk bilgileri işlem sırasında değişebilir; satın alma öncesinde gösterilen güncel bilgiler esas alınır. Bir başkası adına bilet alırken gerekli yetkiyi ve doğru bilgileri sağlamanız gerekir.",
+            "Bilet ve ödeme işlemleri ayrıca sunulan mesafeli satış/taşıma sözleşmesi, ön bilgilendirme ve iade koşullarına tabidir. Kanundan doğan zorunlu haklar bu koşullarla ortadan kaldırılmaz. İşletmecinin sorumluluğunu sınırsız biçimde kaldıran bir hüküm öngörülmez.",
+            "Platform sürümleri ve koşulları değişebilir; yeni sürümler geçmişte kurulmuş sözleşmelerin içeriğini kendiliğinden değiştirmez. Uyuşmazlık ve destek başvuruları [BAŞVURU KANALI] üzerinden alınır."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "DistanceSales",
+      "slug": "mesafeli-satis-sozlesmesi",
+      "title": "Mesafeli Satış Sözleşmesi ve Ön Bilgilendirme Formu",
+      "sections": [
+        {
+          "title": "1. Ön bilgilendirme: taraflar ve hizmet",
+          "paragraphs": [
+            "Platform işletmecisi: [ŞİRKET ADI]. Adres: [ŞİRKET ADRESİ]. MERSİS: [MERSİS NUMARASI]. Vergi dairesi/numarası: [VERGİ DAİRESİ / VERGİ NUMARASI]. E-posta/telefon: [E-POSTA ADRESİ / TELEFON NUMARASI]. Taşıyıcı: seçilen seferde gösterilen firma; ticari ve iletişim bilgileri [TAŞIYICI UNVANI, ADRESİ, YETKİ VE İLETİŞİM BİLGİLERİ] ile tamamlanmalıdır.",
+            "Hizmet, ödeme öncesinde gösterilen kalkış/varış şehirleri, tarih/saat, firma, yolcu ve koltuk bilgilerine uygun otobüs yolcu taşıma biletidir. Alıcı ve yolcu bilgileri formda girilen bilgilerdir. İşletmecinin aracı/acente veya doğrudan sağlayıcı rolü [İŞLETMECİNİN HUKUKİ ROLÜ] alanında kesinleştirilmelidir."
+          ]
+        },
+        {
+          "title": "2. Ön bilgilendirme: fiyat, ödeme ve bilet teslimi",
+          "paragraphs": [
+            "Kişi başı fiyat, seçilen koltuk sayısı, indirim öncesi bedel, uygulanabilen kampanya/kupon ve ödenecek toplam ödeme öncesinde gösterilir. Siparişin tutarı sunucuda yeniden hesaplanır. Gösterilmeyen ek bir bedel bu taslakla kabul ettirilmez; vergi ve varsa hizmet bedeli açıklaması [VERGİ VE HİZMET BEDELİ AÇIKLAMASI] ile tamamlanmalıdır.",
+            "Ödeme seçilen sağlayıcı üzerinden yapılır. Ödeme başlatma veya koltuk seçimi tek başına düzenlenmiş bilet değildir. Doğrulanmış ödeme sonrasında elektronik bilet ve PNR hesabın Biletlerim bölümünde sunulur. Bildirim teslimi kullanıcının tercihleri ve yapılandırılan kanallara bağlıdır.",
+            "Ödeme için koltuklar en fazla 10 dakika, kalkış daha erkense kalkış zamanına kadar tutulur. Birden fazla yolcu aynı siparişte ödeyebilir; her biletin PNR'si ve iptal/iadesi ayrıdır. Tüm biletler düzenlenemezse tahsil edilmiş tutar için sistemdeki tam iade süreci başlatılır."
+          ]
+        },
+        {
+          "title": "3. İptal, iade ve istisnalar",
+          "paragraphs": [
+            "Uygulamanın normal yolcu iptal kuralı: kalkışa en az 2 saat varsa, tam 2 saat dahil, bilet iptal edilebilir ve o bilet için ödenen tutarın tamamı iade sürecine alınır. Kalkışa 2 saatten az kaldığında normal yolcu iptali ve iadesi yapılamaz. Süre sunucu saatiyle kontrol edilir; ekrandaki saatler Türkiye saatidir.",
+            "İade ilgili biletin indirim sonrası ödenmiş tutarı üzerinden yapılır. Talep, sağlayıcıya iletilmesi ve tamamlanmış iade ayrı durumlardır; banka/ödeme kuruluşunun hesaba yansıtma süresi değişebilir. Sabit bir banka süresi taahhüt edilmez.",
+            "Taşıyıcının seferi iptal etmesi ve sistemde tanımlı sefer değişikliği nedeniyle verilen özel tam iade hakkı, normal iki saat kuralından ayrı uygulanır. Sistem geçerli değişiklik hakkını yeni kalkışa kadar tanıyabilir. Zorunlu mevzuattan doğan diğer haklar saklıdır.",
+            "Yolcu taşıma hizmetleri için genel online mal satışlarındaki cayma kuralları otomatik olarak varsayılmaz. Bu metin uygulamadaki sözleşmesel iptal akışını açıklar; yolcu taşıma ve tüketici mevzuatının somut işletmeci/taşıyıcı ilişkisine uygulanması hukukçu tarafından incelenmelidir."
+          ]
+        },
+        {
+          "title": "4. Başvuru, kabul ve sözleşme kaydı",
+          "paragraphs": [
+            "Destek ve şikâyetler [E-POSTA / TELEFON / POSTA ADRESİ] üzerinden alınır. Uyuşmazlıklarda, şartları oluştuğunda yetkili tüketici hakem heyetlerine ve tüketici mahkemelerine başvuru hakları saklıdır; parasal sınırlar güncel mevzuata göre belirlenir.",
+            "Ödemeye geçmeden önce sefer, yolcu, koltuk ve toplamı kontrol etmeniz ve bu sözleşme ile ön bilgilendirme formunu kabul etmeniz istenir. Belge türü, sürümü, metin kopyası/özeti, işlem zamanı, kullanıcı ve IP adresi kabulün kanıtlanması için sunucuda kaydedilir. Onay belgesi bir ödeme veya bilet düzenleme teyidi değildir."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "RefundPolicy",
+      "slug": "iade-ve-iptal",
+      "title": "İade ve İptal Koşulları",
+      "sections": [
+        {
+          "title": "Normal yolcu iptali",
+          "paragraphs": [
+            "Kalkışa en az 2 saat varsa, tam 2 saat dahil, ilgili düzenlenmiş bilet için ödenen tutarın tamamı iade sürecine alınır. Kalkışa 2 saatten az kaldığında normal yolcu iptali ve iadesi yapılamaz. Kontrol sunucu saatine göre yapılır.",
+            "Biletlerim üzerinden ilgili bileti açarak iptal işlemini başlatabilirsiniz. Çok yolculu siparişlerde her bilet ayrı iptal edilir; diğer yolcuların biletleri kendiliğinden iptal olmaz. İade indirimden sonra o bilet için ödenmiş tutardır."
+          ]
+        },
+        {
+          "title": "Özel durumlar ve iadenin takibi",
+          "paragraphs": [
+            "Taşıyıcı tarafından sefer iptal edildiğinde ve sistemde geçerli özel sefer değişikliği hakkı bulunduğunda normal iki saat sınırından bağımsız tam iade akışları uygulanabilir. Kanundan doğan zorunlu haklar saklıdır.",
+            "İade talebi kaydedildiğinde para otomatik olarak hesaba geçmiş sayılmaz. Tamamlanma ödeme sağlayıcısının doğrulanan sonucuyla takip edilir. Banka/ödeme kuruluşunun yansıtma süresi değişebilir. Başarısız veya bekleyen işlemleri Biletlerim bölümünden takip edin; gerekirse [DESTEK E-POSTASI / TELEFON] üzerinden başvurun.",
+            "Ödenmemiş koltuk tutma süresi dolduğunda bilet oluşmaz. Geç veya doğrulanamayan tahsilat ve tüm yolculara bilet düzenlenememesi durumlarında sistemin sağlayıcı doğrulaması ve iade süreci uygulanır."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "CookiePolicy",
+      "slug": "cerez-politikasi",
+      "title": "Çerez Politikası",
+      "sections": [
+        {
+          "title": "Kullanılan tarayıcı depolaması",
+          "paragraphs": [
+            "Travela oturum belirteci ve oturum kullanıcı bilgileri gibi gerekli verileri tarayıcının sessionStorage alanında tutar. sessionStorage, çerezle aynı teknoloji değildir; bu metinde tarayıcı depolaması olarak ayrıca açıklanır. Oturum kapatıldığında uygulama bu oturum bilgilerini temizler; tarayıcı oturumu sona erdiğinde ilgili tarayıcı kuralları uygulanır.",
+            "Bu taslak sürümde uygulamanın kendisi için reklam veya analiz çerezi kurulumu tanımlanmamıştır. Ödeme sağlayıcısının ayrı ekranı ve gerçek barındırma altyapısının çerezleri ayrıca değerlendirilmelidir. Tam envanter [ÇEREZ / DEPOLAMA ADI, SAĞLAYICI, AMAÇ, HUKUKİ SEBEP, SÜRE] bilgileriyle yayına alınmadan önce tamamlanmalıdır."
+          ]
+        },
+        {
+          "title": "Tercihler ve iletişim",
+          "paragraphs": [
+            "Tarayıcınızdan çerez ve site depolama verilerini silebilirsiniz; gerekli oturum verilerini engellemeniz giriş ve ödeme işlevlerini etkileyebilir. İsteğe bağlı reklam/analiz teknolojileri ileride eklenirse gerekli tercih ve açık rıza mekanizması bunlar çalıştırılmadan önce ayrıca sağlanmalıdır.",
+            "Veri sorumlusu [ŞİRKET ADI], iletişim [E-POSTA / ADRES] şeklindedir. Veri işleme ve başvuru haklarınız Gizlilik ve KVKK Aydınlatma Metni'nde açıklanır."
+          ]
+        }
+      ]
+    }
+  ]
+}

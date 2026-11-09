@@ -22,10 +22,14 @@ public class CheckoutBuyerDto
 }
 public class StartGroupPurchaseDto
 {
+    [MaxLength(8)]
+    public List<LegalAcceptanceDto>? LegalAcceptances { get; set; }
+
     [Range(1,int.MaxValue)] public int TripId { get; set; }
     public Guid RequestKey { get; set; }
     [Required, MinLength(1), MaxLength(10)] public List<TicketPassengerDto> Passengers { get; set; } = [];
     public CheckoutBuyerDto? Buyer { get; set; }
     [MaxLength(32)] public string? CouponCode { get; set; }
-    [Range(typeof(decimal), "0.01", "999999999")] public decimal? ExpectedAmount { get; set; }
+    [Range(typeof(decimal), "0.01", "999999999", ParseLimitsInInvariantCulture = true)]
+    public decimal? ExpectedAmount { get; set; }
 }

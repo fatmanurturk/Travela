@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiUrl } from "../api";
 import "./Login.css";
+import "../components/LegalConsent.css";
+import { legalAcceptances } from "../legal";
 
 function Register() {
   const navigate = useNavigate();
@@ -11,10 +13,17 @@ function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [privacyRead, setPrivacyRead] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
+
+    if (!privacyRead || !termsAccepted) {
+      setError("Devam etmek için aydınlatma metnini okuyup kullanım koşullarını kabul edin.");
+      return;
+    }
 
     if (password.length < 8) {
       setError("Şifre en az 8 karakter olmalıdır.");
@@ -31,7 +40,13 @@ function Register() {
       const response = await fetch(apiUrl("/api/auth/register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, email, password, confirmPassword }),
+        body: JSON.stringify({
+          fullName,
+          email,
+          password,
+          confirmPassword,
+          legalAcceptances: legalAcceptances("PrivacyNotice", "TermsOfUse"),
+        }),
       });
       if (!response.ok) {
         const body = await response.json() as { message?: string };
@@ -69,7 +84,43 @@ function Register() {
             <input id="register-confirm-password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength={8} maxLength={128} autoComplete="new-password" required />
           </div>
           {error && <p className="register-error" role="alert">{error}</p>}
-          <button type="submit" className="login-submit-btn" disabled={loading}>{loading ? "Hesap oluşturuluyor..." : "Kayıt Ol"}</button>
+          <label className="legal-consent">
+            <input
+              type="checkbox"
+              required
+              checked={privacyRead}
+              disabled={loading}
+              onChange={event => setPrivacyRead(event.target.checked)}
+              aria-label="Gizlilik ve KVKK aydınlatma metnini okudum"
+            />
+            <span>
+              <Link to="/gizlilik-ve-kvkk" target="_blank" rel="noopener noreferrer">
+                Gizlilik ve KVKK aydınlatma metnini
+              </Link>{" "}okudum.
+            </span>
+          </label>
+          <label className="legal-consent">
+            <input
+              type="checkbox"
+              required
+              checked={termsAccepted}
+              disabled={loading}
+              onChange={event => setTermsAccepted(event.target.checked)}
+              aria-label="Kullanım koşullarını kabul ediyorum"
+            />
+            <span>
+              <Link to="/kullanim-kosullari" target="_blank" rel="noopener noreferrer">
+                Kullanım koşullarını
+              </Link>{" "}kabul ediyorum.
+            </span>
+          </label>
+          <button
+            type="submit"
+            className="login-submit-btn"
+            disabled={loading || !privacyRead || !termsAccepted}
+          >
+            {loading ? "Hesap oluşturuluyor..." : "Kayıt Ol"}
+          </button>
         </form>
         <p>Zaten hesabın var mı? <Link to="/login">Giriş Yap</Link></p>
       </div>

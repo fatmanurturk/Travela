@@ -75,7 +75,8 @@ internal static class JourneyChecks
             "2+1 planında koridor boşluğu, pencere ve tekli koltuğun konumu doğrudur");
         check(plan.DepartureTerminalName == departureDto.name && plan.DepartureMapUrl?.StartsWith("https://www.google.com/maps/") == true && plan.BoardingInstructions?.Contains("Peron 12") == true,
             "Sefer detayında terminal, açık adres, güvenli harita bağlantısı ve biniş açıklaması bulunur");
-        Task<HttpResponseMessage> StartSeat(int seat) => Send("POST", "/api/tickets/checkout", ownerToken, new { tripId, seatNumber = seat, requestKey = Guid.NewGuid() });
+        Task<HttpResponseMessage> StartSeat(int seat) => Send("POST", "/api/tickets/checkout", ownerToken,
+            new { tripId, seatNumber = seat, requestKey = Guid.NewGuid(), legalAcceptances = GroupPurchaseChecks.SalesConsent() });
         check((await StartSeat(3)).StatusCode == HttpStatusCode.Conflict && (await StartSeat(10)).StatusCode == HttpStatusCode.BadRequest,
             "API manipülasyonuyla kapalı veya kapasite dışı koltuk alınamaz");
         var hold = (await Json(await StartSeat(1))).GetProperty("id").GetGuid();

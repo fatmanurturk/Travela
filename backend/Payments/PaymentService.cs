@@ -5,6 +5,8 @@ using Travela.Data;
 using Travela.Api.Security;
 using Travela.Api.Trips;
 using Travela.Api.Notifications;
+using Travela.Api.Legal;
+using Travela.DTOs;
 
 namespace Travela.Api.Payments;
 
@@ -20,8 +22,12 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
         .Include(t => t.Company).Include(t => t.Bus).Include(t => t.Route).Include(t => t.DepartureTerminal).Include(t => t.ArrivalTerminal).SingleAsync(ct);
     private static bool Scheduled(Trip trip) => trip.Status.ToLowerInvariant() is "scheduled" or "planlandı" or "planlandi";
 
-    public async Task<PaymentOrder> Start(int userId, int tripId, int seat, Guid requestKey, CancellationToken ct)
+    public async Task<PaymentOrder> Start(
+        int userId, int tripId, int seat, Guid requestKey, CancellationToken ct,
+        IReadOnlyList<LegalAcceptanceDto>? legalAcceptances = null, string? clientIp = null)
     {
+        LegalDocuments.Validate(legalAcceptances, LegalDocuments.Sales);
+        var consentIp = LegalDocuments.RequireIp(clientIp);
         if (provider.Name != "LocalTest") throw new PaymentFlowException("Yolcu bilgileri ve ortak sipariş akışını kullanın.", 400);
         if (requestKey == Guid.Empty || seat < 1) throw new PaymentFlowException("Geçerli koltuk ve işlem anahtarı gereklidir.", 400);
         if (!await db.Trips.AnyAsync(t => t.Id == tripId, ct)) throw new PaymentFlowException("Sefer bulunamadı.", 404);
@@ -59,6 +65,10 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
                 Kind = "Hold", HoldExpiresAt = new[] { Now.AddMinutes(10), trip.DepartureTime }.Min() };
             var order = new PaymentOrder { PassengerId = userId, Reservation = hold, RequestKey = requestKey, Amount = trip.Price, OriginalAmount = trip.Price, Provider = provider.Name, IsTest = provider.IsTest };
             db.PaymentOrders.Add(order); trip.AvailableSeats--;
+            var acceptance = PurchaseAcceptance(userId, trip, requestKey, consentIp,
+                new { order.Amount, order.Currency, seats = new[] { seat } });
+            acceptance.PaymentOrderId = order.Id;
+            db.LegalAcceptances.Add(acceptance);
             PaymentHistory.Record(db, order, "CheckoutCreated", Now);
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
             await tx.DisposeAsync();
@@ -69,7 +79,8 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
     public async Task<PaymentOrder> EnsureCheckout(PaymentOrder order, CancellationToken ct)
     {
         if (order.PurchaseGroupId.HasValue) return order;
-        if (order.CheckoutUrl == null && order.PaymentStatus == "Pending")
+        if (order.CheckoutUrl == null && order.PaymentStatus == "Pending" &&
+            await HasLegalAcceptance(order.PassengerId, order.Id, false, ct))
         {
             var url = await ProviderFor(order.Provider).OpenCheckout(order.Id, order.Amount, order.Currency, ct);
             order.CheckoutUrl = url;
@@ -96,6 +107,8 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
         var source = ProviderFor(order.Provider);
         try
         {
+            if (order.CheckoutUrl == null && !await HasLegalAcceptance(order.PassengerId, id, false, ct))
+                return;
             if (order.CheckoutUrl == null && await db.Reservations.AnyAsync(r => r.Id == order.ReservationId && r.Kind == "Hold" && r.Status == "Active" && r.HoldExpiresAt > Now, ct))
             {
                 var url = await source.OpenCheckout(order.Id, order.Amount, order.Currency, ct);

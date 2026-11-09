@@ -6,7 +6,7 @@ const directory = path.resolve("../tmp/ticket-qa");
 const active = JSON.parse(readFileSync(path.join(directory, "active.json"), "utf8"));
 const cancelled = JSON.parse(readFileSync(path.join(directory, "cancelled.json"), "utf8"));
 const legacy = { ...active, reservationNumber: "1234567890ABCDEF1234567890ABCDEF", price: active.amount, status: "Active", kind: "Legacy", isTest: false, pnr: null, createdAt: active.paidAt, tripStatus: "Scheduled", canCancel: true };
-const pending = { ...active, pnr: null, kind: "Hold", paymentStatus: "Pending", ticketStatus: "Active", refundStatus: "None", canCancel: false, holdExpiresAt: new Date(Date.now() + 600000).toISOString(), checkoutUrl: `/test-payment/${active.id}` };
+const pending = { ...active, pnr: null, kind: "Hold", paymentStatus: "Pending", legalAccepted: true, ticketStatus: "Active", refundStatus: "None", canCancel: false, holdExpiresAt: new Date(Date.now() + 600000).toISOString(), checkoutUrl: `/test-payment/${active.id}` };
 const shots = path.resolve("../tmp/ui-simplification"); mkdirSync(shots, { recursive: true });
 async function prepare(page, width, company = false) {
  await page.setViewportSize({ width, height: 900 });

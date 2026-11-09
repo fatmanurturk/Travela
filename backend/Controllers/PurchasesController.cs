@@ -33,11 +33,21 @@ public class PurchasesController(TravelaDbContext db, PaymentService payments, I
     public Task<IActionResult> Start(StartGroupPurchaseDto dto, CancellationToken ct) => Run(async user =>
     {
         var protectedBuyer = dto.Buyer == null ? null : protection.CreateProtector("Travela.IyzicoBuyer.v1").Protect(JsonSerializer.Serialize(new IyzicoBuyer(dto.Buyer, user.Email, HttpContext.Connection.RemoteIpAddress?.ToString() ?? throw new PaymentFlowException("İstemci adresi alınamadı.")), new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-        var group = await payments.StartGroup(user.Id, dto, protectedBuyer, ct);
+        var group = await payments.StartGroup(
+            user.Id, dto, protectedBuyer, ct, HttpContext.Connection.RemoteIpAddress?.ToString());
         return Ok(await Detail(group.Id, user.Id, ct));
     }, ct);
     [HttpGet("{id:guid}")]
     public Task<IActionResult> Get(Guid id, CancellationToken ct) => Run(async user => !await Owns(id, user.Id, ct) ? NotFound() : Ok(await Detail(id, user.Id, ct)), ct);
+
+    [HttpPost("{id:guid}/legal-acceptance")]
+    public Task<IActionResult> AcceptLegal(Guid id, AcceptPurchaseLegalDto dto, CancellationToken ct) => Run(async user =>
+    {
+        await payments.AcceptOrderLegal(user.Id, id, true, dto.LegalAcceptances,
+            HttpContext.Connection.RemoteIpAddress?.ToString(), ct);
+        await payments.EnsureGroupCheckout(id, ct);
+        return Ok(await Detail(id, user.Id, ct));
+    }, ct);
     [HttpPost("{id:guid}/refresh")]
     public Task<IActionResult> Refresh(Guid id, CancellationToken ct) => Run(async user =>
     {
@@ -50,6 +60,8 @@ public class PurchasesController(TravelaDbContext db, PaymentService payments, I
     public Task<IActionResult> Simulate(Guid id, TestPaymentDto dto, CancellationToken ct) => Run(async user =>
     {
         if (!(env.IsDevelopment() || env.IsEnvironment("Testing")) || !await db.PurchaseGroups.AnyAsync(g => g.Id == id && g.PassengerId == user.Id && g.Provider == "LocalTest", ct)) return NotFound();
+        if (!await payments.HasLegalAcceptance(user.Id, id, true, ct))
+            return BadRequest(new { message = "Ödemeden önce sözleşme ve ön bilgilendirme onayını tamamlayın." });
         var notice = await local.Simulate(id, dto.Outcome, dto.RefundOutcome, ct); await payments.HandleNotice(notice, local.Sign(notice), ct);
         return Ok(await Detail(id, user.Id, ct));
     }, ct);
@@ -57,9 +69,11 @@ public class PurchasesController(TravelaDbContext db, PaymentService payments, I
     private async Task<object> Detail(Guid id, int userId, CancellationToken ct)
     {
         var group = await db.PurchaseGroups.AsNoTracking().Include(g => g.Items).SingleAsync(g => g.Id == id && g.PassengerId == userId, ct);
+        var legalAccepted = await payments.HasLegalAcceptance(userId, id, true, ct);
         var tickets = new List<PurchaseDto>(); foreach (var item in group.Items.OrderBy(p => p.ReservationId)) tickets.Add(await PurchasePresentation.Detail(db, userId, item.Id, clock, ct));
         return new { group.Id, group.Amount, group.OriginalAmount, group.DiscountAmount, group.CampaignName, group.CouponCode, group.Currency, group.Provider, group.IsTest, group.PaymentStatus, group.CheckoutState, group.LastError, group.NeedsAttention,
-            holdExpiresAt = DateTime.SpecifyKind(group.HoldExpiresAt, DateTimeKind.Utc), checkoutUrl = group.PaymentStatus == "Pending" && group.HoldExpiresAt > clock.GetUtcNow().UtcDateTime && group.CheckoutState == "Ready" ? group.CheckoutUrl : null,
+            legalAccepted,
+            holdExpiresAt = DateTime.SpecifyKind(group.HoldExpiresAt, DateTimeKind.Utc), checkoutUrl = legalAccepted && group.PaymentStatus == "Pending" && group.HoldExpiresAt > clock.GetUtcNow().UtcDateTime && group.CheckoutState == "Ready" ? group.CheckoutUrl : null,
             refundRequested = group.Items.Sum(p => p.RefundAmount), refunded = group.Items.Where(p => p.RefundStatus == "Succeeded").Sum(p => p.RefundAmount), tickets };
     }
 }

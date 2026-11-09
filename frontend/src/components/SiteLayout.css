@@ -1,0 +1,30 @@
+.site-layout {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+.site-layout-content {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.site-layout-content > .travela-site {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.site-layout-content > .travela-site > main {
+  flex: 1;
+  min-height: 0;
+}
+
+.site-layout-content > .login-page {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}

@@ -27,7 +27,13 @@ internal static class AccountRecoveryChecks
         }
         Task<HttpResponseMessage> Inspect(string token) => Send("account-link", new { token });
         var email = "new@recovery.example";
-        var registered = await Json(await Send("register", new { fullName = "Ayşe <b>Öztürk</b>", email, password, confirmPassword = password }));
+        var legalAcceptances = new[] { "PrivacyNotice", "TermsOfUse" }.Select(documentType => new
+        {
+            documentType,
+            version = Travela.Api.Legal.LegalDocuments.Version,
+            accepted = true
+        });
+        var registered = await Json(await Send("register", new { fullName = "Ayşe <b>Öztürk</b>", email, password, confirmPassword = password, legalAcceptances }));
         var id = registered.GetProperty("userId").GetInt32();
         check(registered.GetProperty("requiresActivation").GetBoolean() && !registered.TryGetProperty("token", out _) && !registered.TryGetProperty("activationToken", out _),
             "Kayıt aktivasyon bekler; API oturum veya aktivasyon token'ı sızdırmaz");

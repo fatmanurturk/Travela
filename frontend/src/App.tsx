@@ -3,6 +3,9 @@ import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
+import SiteLayout from "./components/SiteLayout";
+import NotFoundPage from "./pages/NotFoundPage";
+const LegalDocumentPage = lazy(() => import("./pages/legal/LegalDocumentPage"));
 import Admin from "./pages/Admin";
 import AdminLayout from "./components/admin/AdminLayout";
 import CompanyManagement from "./pages/admin/CompanyManagement";
@@ -37,24 +40,6 @@ import "./Site.css";
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/search" element={<SearchResultsPage />} />
-      <Route path="/campaigns" element={<Suspense fallback={<p role="status">Kampanyalar yükleniyor...</p>}><CampaignsPage /></Suspense>} />
-      <Route path="/trips/:id" element={<PublicTripDetailsPage />} />
-      <Route path="/tickets" element={<ProtectedRoute allowedRole="Passenger"><MyReservationsPage /></ProtectedRoute>} />
-      <Route path="/tickets/:pnr" element={<ProtectedRoute allowedRole="Passenger"><TicketDetailsPage /></ProtectedRoute>} />
-      <Route path="/reservations" element={<Navigate to="/tickets" replace />} />
-      <Route path="/payment/:id" element={<ProtectedRoute allowedRole="Passenger"><CheckoutPage /></ProtectedRoute>} />
-      <Route path="/purchase/:id" element={<ProtectedRoute allowedRole="Passenger"><Suspense fallback={<p role="status">Sipariş yükleniyor...</p>}><GroupCheckoutPage /></Suspense></ProtectedRoute>} />
-      <Route path="/test-payment/:id" element={<ProtectedRoute allowedRole="Passenger"><CheckoutPage /></ProtectedRoute>} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/forgot-password" element={<EmailLinkRequestPage key="forgot" />} />
-      <Route path="/resend-activation" element={<EmailLinkRequestPage key="resend" activation />} />
-      <Route path="/reset-password" element={<AccountLinkPage />} />
-      <Route path="/activate-account" element={<AccountLinkPage activation />} />
-      <Route path="/first-login-password-change" element={<FirstLoginPasswordChange />} />
-
       <Route
         path="/company"
         element={
@@ -73,15 +58,6 @@ function App() {
         <Route path="notifications" element={<Suspense fallback={<p role="status">Bildirimler yükleniyor...</p>}><NotificationManagement /></Suspense>} />
         <Route path="profile" element={<CompanyProfile />} />
       </Route>
-
-<Route
-  path="/profile"
-  element={
-    <ProtectedRoute allowedRole="Passenger">
-      <Profile />
-    </ProtectedRoute>
-  }
-/>
 
       <Route
         path="/admin"
@@ -102,6 +78,109 @@ function App() {
         <Route path="buses" element={<Suspense fallback={<p role="status">Otobüsler yükleniyor...</p>}><BusManagement /></Suspense>} />
         <Route path="trips" element={<TripManagement />} />
         <Route path="routes" element={<Suspense fallback={<p role="status">Güzergâhlar yükleniyor...</p>}><RouteManagement /></Suspense>} />
+      </Route>
+
+      <Route element={<SiteLayout />}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/search" element={<SearchResultsPage />} />
+        <Route
+          path="/campaigns"
+          element={
+            <Suspense fallback={<p role="status">Kampanyalar yükleniyor...</p>}>
+              <CampaignsPage />
+            </Suspense>
+          }
+        />
+        <Route path="/trips/:id" element={<PublicTripDetailsPage />} />
+        <Route
+          path="/tickets"
+          element={
+            <ProtectedRoute allowedRole="Passenger">
+              <MyReservationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tickets/:pnr"
+          element={
+            <ProtectedRoute allowedRole="Passenger">
+              <TicketDetailsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/reservations" element={<Navigate to="/tickets" replace />} />
+        <Route
+          path="/payment/:id"
+          element={
+            <ProtectedRoute allowedRole="Passenger">
+              <CheckoutPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/:id"
+          element={
+            <ProtectedRoute allowedRole="Passenger">
+              <Suspense fallback={<p role="status">Sipariş yükleniyor...</p>}>
+                <GroupCheckoutPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/test-payment/:id"
+          element={
+            <ProtectedRoute allowedRole="Passenger">
+              <CheckoutPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute allowedRole="Passenger">
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route
+          path="/forgot-password"
+          element={<EmailLinkRequestPage key="forgot" />}
+        />
+        <Route
+          path="/resend-activation"
+          element={<EmailLinkRequestPage key="resend" activation />}
+        />
+        <Route path="/reset-password" element={<AccountLinkPage />} />
+        <Route path="/activate-account" element={<AccountLinkPage activation />} />
+        <Route
+          path="/first-login-password-change"
+          element={<FirstLoginPasswordChange />}
+        />
+        {[
+          ["/hakkimizda", "About"],
+          ["/iletisim", "Contact"],
+          ["/yardim", "Help"],
+          ["/gizlilik-ve-kvkk", "PrivacyNotice"],
+          ["/kullanim-kosullari", "TermsOfUse"],
+          ["/mesafeli-satis-sozlesmesi", "DistanceSales"],
+          ["/iade-ve-iptal", "RefundPolicy"],
+          ["/cerez-politikasi", "CookiePolicy"],
+        ].map(([path, type]) => (
+          <Route
+            key={path}
+            path={path}
+            element={
+              <Suspense fallback={<p role="status">Bilgilendirme metni yükleniyor...</p>}>
+                <LegalDocumentPage type={type} />
+              </Suspense>
+            }
+          />
+        ))}
+        <Route path="/iade-ve-iptal-kosullari" element={<Navigate to="/iade-ve-iptal" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );

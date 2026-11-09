@@ -54,7 +54,7 @@ try{
  PaymentOrder Order(User passenger,Trip trip,int seat,bool cancelled=false,string status="Paid"){
   var reservation=new Reservation{Passenger=passenger,Trip=trip,SeatNumber=seat,Price=550,Kind=status=="Paid"?"Ticket":"Hold",Pnr=status=="Paid"?Guid.NewGuid().ToString("N").ToUpperInvariant():null,
    IssuedAt=status=="Paid"?now.AddDays(-3):null,HoldExpiresAt=status=="Paid"?null:now.AddMinutes(5),Status=cancelled?"Cancelled":"Active",CancelledAt=cancelled?now.AddHours(-1):null};
-  var order=new PaymentOrder{PassengerId=passenger.Id,Reservation=reservation,RequestKey=Guid.NewGuid(),Amount=550,PaymentStatus=status,PaidAt=status=="Paid"?now.AddDays(-3):null,ProviderReference=status=="Paid"?Guid.NewGuid().ToString("N"):null,
+  var order=new PaymentOrder{PassengerId=passenger.Id,Reservation=reservation,RequestKey=Guid.NewGuid(),Amount=550,OriginalAmount=550,PaymentStatus=status,PaidAt=status=="Paid"?now.AddDays(-3):null,ProviderReference=status=="Paid"?Guid.NewGuid().ToString("N"):null,
    RefundStatus=cancelled?"Pending":"None",RefundAmount=cancelled?550:0,RefundStatusChangedAt=cancelled?now.AddMinutes(-30):null,RefundRequestedAt=cancelled?now.AddHours(-1):null};db.Add(order);return order;
  }
  var nearest=Order(user,near,1);Order(user,later,1);Order(user,past,1);var cancelled=Order(user,near,2,true);Order(user,near,3,false,"Pending");var foreign=Order(other,near,4);

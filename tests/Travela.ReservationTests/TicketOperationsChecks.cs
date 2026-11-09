@@ -48,7 +48,7 @@ internal static class TicketOperationsChecks
             return (await response.Content.ReadFromJsonAsync<PurchaseDto>())!;
         }
         Task<HttpResponseMessage> Start(int seat, Guid key) => Send("POST", "/api/tickets/checkout", ownerToken,
-            new { tripId = trip.Id, seatNumber = seat, requestKey = key, passengerName = "Enjekte edilen ad" });
+            new { tripId = trip.Id, seatNumber = seat, requestKey = key, passengerName = "Enjekte edilen ad", legalAcceptances = GroupPurchaseChecks.SalesConsent() });
         async Task Service(Func<PaymentService, Task> action)
         {
             await using var context = new TravelaDbContext(new DbContextOptionsBuilder<TravelaDbContext>().UseSqlServer(db.Database.GetConnectionString()).Options);

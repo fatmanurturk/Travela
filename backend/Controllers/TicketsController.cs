@@ -30,8 +30,18 @@ public class TicketsController(TravelaDbContext db, PaymentService payments, Loc
     [HttpPost("checkout")]
     public Task<IActionResult> Start(StartPurchaseDto dto, CancellationToken ct) => Run(async () =>
     {
-        var order = await payments.Start(UserId, dto.TripId, dto.SeatNumber, dto.RequestKey, ct);
+        var order = await payments.Start(UserId, dto.TripId, dto.SeatNumber, dto.RequestKey, ct,
+            dto.LegalAcceptances, HttpContext.Connection.RemoteIpAddress?.ToString());
         return Ok(await Detail(order.Id, ct));
+    }, ct);
+    [HttpPost("orders/{id:guid}/legal-acceptance")]
+    public Task<IActionResult> AcceptLegal(Guid id, AcceptPurchaseLegalDto dto, CancellationToken ct) => Run(async () =>
+    {
+        await payments.AcceptOrderLegal(UserId, id, false, dto.LegalAcceptances,
+            HttpContext.Connection.RemoteIpAddress?.ToString(), ct);
+        var order = await db.PaymentOrders.SingleAsync(p => p.Id == id && p.PassengerId == UserId, ct);
+        await payments.EnsureCheckout(order, ct);
+        return Ok(await Detail(id, ct));
     }, ct);
     [HttpGet("mine")]
     public Task<IActionResult> Mine(CancellationToken ct) => Run(async () =>
@@ -81,6 +91,10 @@ public class TicketsController(TravelaDbContext db, PaymentService payments, Loc
     {
         if (!TestEnvironment()) return NotFound();
         if (!await Owns(id, ct) || !await db.PaymentOrders.AnyAsync(p => p.Id == id && p.Provider == "LocalTest", ct)) return NotFound();
+        if (await db.PaymentOrders.AnyAsync(p => p.Id == id && p.PurchaseGroupId != null, ct))
+            return Conflict(new { message = "Bu bilet ortak siparişe aittir. Ödemeyi ortak sipariş üzerinden tamamlayın." });
+        if (!await payments.HasLegalAcceptance(UserId, id, false, ct))
+            return BadRequest(new { message = "Ödemeden önce sözleşme ve ön bilgilendirme onayını tamamlayın." });
         var notice = await local.Simulate(id, dto.Outcome, dto.RefundOutcome, ct);
         await payments.HandleNotice(notice, local.Sign(notice), ct);
         return Ok(await Detail(id, ct));

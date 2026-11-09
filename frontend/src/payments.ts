@@ -7,6 +7,7 @@ export type Purchase = Journey & {
   cancelDeadline: string; holdExpiresAt: string | null; amount: number; currency: string;
   originalAmount?: number; discountAmount?: number; campaignName?: string | null; couponCode?: string | null;
   isTest: boolean; provider?: string; paymentStatus: string; ticketStatus: string; refundStatus: string;
+  legalAccepted?: boolean;
   refundAmount: number; canCancel: boolean; cancellationReason: string | null;
   changeCancellationUntil?: string | null; busPlateNumber?: string | null;
   refundStatusLabel: string; refundDescription: string;

@@ -271,6 +271,73 @@ namespace Travela.API.Migrations
                     b.ToTable("Companies");
                 });
 
+            modelBuilder.Entity("Travela.Api.Models.LegalAcceptance", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("AcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Context")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("DocumentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("DocumentSnapshot")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("DocumentVersion")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("IpAddress")
+                        .IsRequired()
+                        .HasMaxLength(45)
+                        .HasColumnType("nvarchar(45)");
+
+                    b.Property<Guid?>("PaymentOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("PurchaseGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("RequestKey")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TransactionSnapshot")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaymentOrderId");
+
+                    b.HasIndex("PurchaseGroupId");
+
+                    b.HasIndex("UserId", "Context", "RequestKey", "DocumentType")
+                        .IsUnique();
+
+                    b.ToTable("LegalAcceptances");
+                });
+
             modelBuilder.Entity("Travela.Api.Models.LocalPaymentRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1401,6 +1468,27 @@ namespace Travela.API.Migrations
                         .WithMany()
                         .HasForeignKey("RouteId")
                         .OnDelete(DeleteBehavior.NoAction);
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.LegalAcceptance", b =>
+                {
+                    b.HasOne("Travela.Api.Models.PaymentOrder", null)
+                        .WithMany()
+                        .HasForeignKey("PaymentOrderId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Travela.Api.Models.PurchaseGroup", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseGroupId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Travela.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Travela.Api.Models.NotificationAttempt", b =>

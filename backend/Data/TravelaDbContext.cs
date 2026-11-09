@@ -13,6 +13,7 @@ namespace Travela.Data
         }
 
         public DbSet<User> Users { get; set; }
+        public DbSet<LegalAcceptance> LegalAcceptances { get; set; }
         public DbSet<AccountEmailMessage> AccountEmailMessages { get; set; }
         public DbSet<TravelNotification> TravelNotifications { get; set; }
         public DbSet<NotificationAttempt> NotificationAttempts { get; set; }
@@ -38,6 +39,22 @@ namespace Travela.Data
       protected override void OnModelCreating(ModelBuilder modelBuilder)
 {
     base.OnModelCreating(modelBuilder);
+    modelBuilder.Entity<LegalAcceptance>(entity =>
+    {
+        entity.Property(a => a.DocumentType).HasMaxLength(40);
+        entity.Property(a => a.DocumentVersion).HasMaxLength(40);
+        entity.Property(a => a.DocumentHash).HasMaxLength(64);
+        entity.Property(a => a.IpAddress).HasMaxLength(45);
+        entity.Property(a => a.Context).HasMaxLength(20);
+        entity.HasOne(a => a.User).WithMany().HasForeignKey(a => a.UserId)
+            .OnDelete(DeleteBehavior.NoAction);
+        entity.HasOne<PurchaseGroup>().WithMany().HasForeignKey(a => a.PurchaseGroupId)
+            .OnDelete(DeleteBehavior.NoAction);
+        entity.HasOne<PaymentOrder>().WithMany().HasForeignKey(a => a.PaymentOrderId)
+            .OnDelete(DeleteBehavior.NoAction);
+        entity.HasIndex(a => new { a.UserId, a.Context, a.RequestKey, a.DocumentType })
+            .IsUnique().HasFilter(null);
+    });
     modelBuilder.Entity<Campaign>(e =>
     {
         e.Property(c => c.Name).HasMaxLength(120); e.Property(c => c.Description).HasMaxLength(1000);

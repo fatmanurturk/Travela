@@ -9,6 +9,8 @@ using Travela.DTOs;
 using Travela.Models;
 using Travela.Api.Security;
 using Microsoft.AspNetCore.RateLimiting;
+using Travela.Api.Legal;
+using Travela.Api.Payments;
 
 namespace Travela.API.Controllers
 {
@@ -37,6 +39,17 @@ namespace Travela.API.Controllers
             if (dto == null)
             {
                 return BadRequest(new { message = "Kayıt bilgileri gerekli." });
+            }
+
+            string clientIp;
+            try
+            {
+                LegalDocuments.Validate(dto.LegalAcceptances, LegalDocuments.Privacy, LegalDocuments.Terms);
+                clientIp = LegalDocuments.RequireIp(HttpContext.Connection.RemoteIpAddress?.ToString());
+            }
+            catch (PaymentFlowException exception)
+            {
+                return StatusCode(exception.Status, new { message = exception.Message });
             }
 
             if (!string.Equals(dto.Password, dto.ConfirmPassword, StringComparison.Ordinal))
@@ -72,6 +85,13 @@ namespace Travela.API.Controllers
             user.PasswordResetTokenExpiresAt = DateTime.UtcNow.AddDays(2);
 
             _context.Users.Add(user);
+            foreach (var type in new[] { LegalDocuments.Privacy, LegalDocuments.Terms })
+            {
+                var acceptance = LegalDocuments.Record(type, DateTime.UtcNow, clientIp);
+                acceptance.User = user;
+                acceptance.Context = "Registration";
+                _context.LegalAcceptances.Add(acceptance);
+            }
             _mail.Queue(user, activationToken, user.PasswordResetTokenExpiresAt.Value);
             await _context.SaveChangesAsync();
 

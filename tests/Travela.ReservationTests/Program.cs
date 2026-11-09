@@ -119,7 +119,7 @@ try
     var failed = await Complete(failedOrder.Id, "Failed");
     Check(failed.Pnr == null && failed.PaymentStatus == "Failed" && failed.TicketStatus == "Cancelled", "Başarısız ödemede bilet yok ve koltuk serbest");
     Check((await Start(2)).Id != failed.Id, "Başarısız ödeme koltuğu yeni satın almaya açık");
-    var sameSeat = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Send("POST", "/api/tickets/checkout", token1, new { tripId = trip.Id, seatNumber = 3, requestKey = Guid.NewGuid(), amount = 1 })));
+    var sameSeat = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Send("POST", "/api/tickets/checkout", token1, new { tripId = trip.Id, seatNumber = 3, requestKey = Guid.NewGuid(), amount = 1, legalAcceptances = GroupPurchaseChecks.SalesConsent() })));
     Check(sameSeat.Count(r => r.IsSuccessStatusCode) == 1 && sameSeat.Count(r => r.StatusCode == HttpStatusCode.Conflict) == 7, "Aynı koltuğa 8 eş zamanlı satın alma: tek tutma");
     var repeatedKey = Guid.NewGuid();
     var clicks = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => Start(12, repeatedKey)));
@@ -243,7 +243,7 @@ try
         if (!r.IsSuccessStatusCode) throw new Exception($"HTTP {(int)r.StatusCode}: {await r.Content.ReadAsStringAsync()}\n{log}");
         return (await r.Content.ReadFromJsonAsync<PurchaseDto>())!;
     }
-    Task<PurchaseDto> Start(int seat, Guid? key = null) => Send("POST", "/api/tickets/checkout", token1, new { tripId = trip.Id, seatNumber = seat, requestKey = key ?? Guid.NewGuid(), amount = 1 }).ContinueWith(async t => await Read(await t)).Unwrap();
+    Task<PurchaseDto> Start(int seat, Guid? key = null) => Send("POST", "/api/tickets/checkout", token1, new { tripId = trip.Id, seatNumber = seat, requestKey = key ?? Guid.NewGuid(), amount = 1, legalAcceptances = GroupPurchaseChecks.SalesConsent() }).ContinueWith(async t => await Read(await t)).Unwrap();
     async Task<PurchaseDto> Complete(Guid id, string outcome) => await Read(await Send("POST", $"/api/tickets/local/{id}/complete", token1, new { outcome }));
     async Task<PurchaseDto> Refund(Guid id, string outcome) => await Read(await Send("POST", $"/api/tickets/local/{id}/refund-result", token1, new { outcome }));
     async Task<PurchaseDto> Get(Guid id) => await Read(await Send("GET", $"/api/tickets/orders/{id}", token1));

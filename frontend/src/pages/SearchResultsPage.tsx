@@ -47,7 +47,6 @@ const timeFormatter = new Intl.DateTimeFormat("tr-TR", {
   minute: "2-digit",
   timeZone: "Europe/Istanbul",
 });
-const CURRENT_YEAR = new Date().getFullYear();
 
 function localDate(value: string) {
   const date = new Date(value);
@@ -412,7 +411,6 @@ function SearchResultsPage() {
           </>
         )}
       </main>
-      <footer className="site-footer"><Link to="/" className="site-logo">Travela<span>.</span></Link><small>© {CURRENT_YEAR} Travela</small></footer>
     </div>
   );
 }

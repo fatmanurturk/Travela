@@ -27,6 +27,8 @@ test("Kayıt sonrası aktivasyon açıklaması ve e-posta görünür; yeniden is
   await page.getByLabel("E-posta", { exact: true }).fill("ayse@example.com");
   await page.getByLabel("Şifre", { exact: true }).fill("RecoveryPass123!");
   await page.getByLabel("Şifre Tekrar", { exact: true }).fill("RecoveryPass123!");
+  await page.getByRole("checkbox", { name: "Gizlilik ve KVKK aydınlatma metnini okudum" }).check();
+  await page.getByRole("checkbox", { name: "Kullanım koşullarını kabul ediyorum" }).check();
   await page.getByRole("button", { name: "Kayıt Ol", exact: true }).click();
   await expect(page).toHaveURL(/\/resend-activation$/);
   await expect(page.getByRole("status")).toContainText("Hesabınız oluşturuldu");

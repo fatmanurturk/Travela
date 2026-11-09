@@ -18,6 +18,11 @@ using RouteModel = Travela.Api.Models.Route;
 var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
 Directory.SetCurrentDirectory(root);
 using var source = new TravelaDbContextFactory().CreateDbContext([]);
+if (args.Contains("--migrate-legal"))
+{
+    await LegalMigration.Apply(source);
+    return;
+}
 if (args.Contains("--verify-live") || args.Contains("--diagnose-live"))
 {
     await LiveRouteChecks.Run(root, source, args.Contains("--diagnose-live"));
@@ -159,7 +164,15 @@ try
     var ownerList = await Json(await Send("GET", "/api/routes?includeInactive=true", owner));
     Check(ownerList.EnumerateArray().Sum(r => r.GetProperty("tripCount").GetInt32()) == await db.Trips.CountAsync(t => t.CompanyId == company.Id),
         "Kartın liste toplamı Trips tablosundaki gerçek firma sefer sayısıyla eşleşir");
-    Console.WriteLine($"SONUÇ: {passed} güzergâh API/yetki/izolasyon/iş kuralı kontrolü başarılı.");
+    try
+    {
+        await LegalConsentChecks.Run(db, Send, passenger, Check);
+    }
+    catch (Exception exception)
+    {
+        throw new Exception(exception.Message + Environment.NewLine + log, exception);
+    }
+    Console.WriteLine($"SONUÇ: {passed} güzergâh ve hukuki onay API kontrolü başarılı.");
 }
 finally
 {

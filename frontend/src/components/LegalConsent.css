@@ -1,0 +1,47 @@
+.legal-consent-block {
+  margin: 18px 0;
+}
+
+label.legal-consent {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 14px 0;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.legal-consent input[type="checkbox"] {
+  flex: 0 0 18px;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 3px 0 0;
+  padding: 0;
+  accent-color: #2563eb;
+}
+
+.legal-consent span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.legal-consent a,
+.legal-refund-note a {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.legal-refund-note {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.login-card .login-submit-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
