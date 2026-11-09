@@ -17,6 +17,7 @@ export default function TicketCard({ item, onCancel, busy = false, showCheckout 
       <div><dt>Kalkış (Türkiye saati)</dt><dd>{dateTime.format(new Date(item.departureTime))}</dd></div>
       <div><dt>Varış (Türkiye saati)</dt><dd>{dateTime.format(new Date(item.arrivalTime))}</dd></div>
       <div><dt>Bilet tutarı</dt><dd>{money.format(item.amount)}</dd></div>
+      {!!item.discountAmount && <><div><dt>İndirim öncesi</dt><dd>{money.format(item.originalAmount ?? item.amount + item.discountAmount)}</dd></div><div><dt>{item.campaignName ?? "Kampanya indirimi"}{item.couponCode && ` · ${item.couponCode}`}</dt><dd>−{money.format(item.discountAmount)}</dd></div></>}
       <div><dt>Ödeme durumu</dt><dd className={`status-text ${statusTone(item.paymentStatus)}`}>{paymentLabel(item.paymentStatus)}</dd></div>
       <div><dt>İade durumu</dt><dd className={`status-text ${statusTone(item.refundStatus)}`}>{item.refundStatus === "None" ? refundLabel(item.refundStatus) : refundMessage(item.refundStatus)}{item.refundStatus !== "None" && ` · ${money.format(item.refundAmount)}`}</dd></div>
       {item.pnr && <div><dt>Yolcu iptali son zamanı (Türkiye)</dt><dd>{dateTime.format(new Date(item.cancelDeadline))}</dd></div>}

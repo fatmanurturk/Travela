@@ -92,6 +92,7 @@ function TicketDetails({ pnr }: { pnr: string }) {
         {ticket.passengerPhone && <div><dt>Bilet iletişim telefonu</dt><dd>{ticket.passengerPhone}</dd></div>}
         <div><dt>Kalkış (Türkiye)</dt><dd>{dateTime.format(new Date(ticket.departureTime))}</dd></div><div><dt>Varış (Türkiye)</dt><dd>{dateTime.format(new Date(ticket.arrivalTime))}</dd></div>
         <div><dt>Koltuk</dt><dd>{ticket.seatNumber}</dd></div><div><dt>Bilet tutarı</dt><dd>{money.format(ticket.amount)}</dd></div>
+        {!!ticket.discountAmount && <><div><dt>İndirim öncesi</dt><dd>{money.format(ticket.originalAmount ?? ticket.amount + ticket.discountAmount)}</dd></div><div><dt>{ticket.campaignName ?? "Kampanya indirimi"}{ticket.couponCode && ` · ${ticket.couponCode}`}</dt><dd>−{money.format(ticket.discountAmount)}</dd></div></>}
         <div><dt>Bilet durumu</dt><dd className={`status-text ${statusTone(ticket.ticketStatus)}`}>{cancelled ? "İptal Edildi" : "Aktif"}</dd></div><div><dt>Ödeme durumu</dt><dd className={`status-text ${statusTone(ticket.paymentStatus)}`}>{paymentLabel(ticket.paymentStatus)}</dd></div>
         {ticket.refundStatus === "None" && <div><dt>İade durumu</dt><dd>{refundLabel(ticket.refundStatus)}</dd></div>}
         {!cancelled && <div><dt>İptal son zamanı (Türkiye)</dt><dd>{dateTime.format(new Date(ticket.cancelDeadline))}</dd></div>}

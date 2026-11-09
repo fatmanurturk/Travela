@@ -58,7 +58,7 @@ public class PurchasesController(TravelaDbContext db, PaymentService payments, I
     {
         var group = await db.PurchaseGroups.AsNoTracking().Include(g => g.Items).SingleAsync(g => g.Id == id && g.PassengerId == userId, ct);
         var tickets = new List<PurchaseDto>(); foreach (var item in group.Items.OrderBy(p => p.ReservationId)) tickets.Add(await PurchasePresentation.Detail(db, userId, item.Id, clock, ct));
-        return new { group.Id, group.Amount, group.Currency, group.Provider, group.IsTest, group.PaymentStatus, group.CheckoutState, group.LastError, group.NeedsAttention,
+        return new { group.Id, group.Amount, group.OriginalAmount, group.DiscountAmount, group.CampaignName, group.CouponCode, group.Currency, group.Provider, group.IsTest, group.PaymentStatus, group.CheckoutState, group.LastError, group.NeedsAttention,
             holdExpiresAt = DateTime.SpecifyKind(group.HoldExpiresAt, DateTimeKind.Utc), checkoutUrl = group.PaymentStatus == "Pending" && group.HoldExpiresAt > clock.GetUtcNow().UtcDateTime && group.CheckoutState == "Ready" ? group.CheckoutUrl : null,
             refundRequested = group.Items.Sum(p => p.RefundAmount), refunded = group.Items.Where(p => p.RefundStatus == "Succeeded").Sum(p => p.RefundAmount), tickets };
     }

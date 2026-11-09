@@ -5,6 +5,7 @@ export type Purchase = Journey & {
   passengerName: string; arrivalTime: string; paidAt: string | null; retrievedAt: string;
   passengerEmail?: string | null; passengerPhone?: string | null; passengerCapturedAt?: string | null; passengerSnapshotSource?: string | null;
   cancelDeadline: string; holdExpiresAt: string | null; amount: number; currency: string;
+  originalAmount?: number; discountAmount?: number; campaignName?: string | null; couponCode?: string | null;
   isTest: boolean; provider?: string; paymentStatus: string; ticketStatus: string; refundStatus: string;
   refundAmount: number; canCancel: boolean; cancellationReason: string | null;
   changeCancellationUntil?: string | null; busPlateNumber?: string | null;

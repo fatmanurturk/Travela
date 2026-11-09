@@ -22,6 +22,7 @@ export default function CompactTicketCard({ item, onCancel, busy = false, showCh
       <div><dt>Varış <span>(Türkiye)</span></dt><dd>{shortDate.format(new Date(item.arrivalTime))}</dd></div>
       <div><dt>Koltuk</dt><dd>{item.seatNumber}</dd></div>
       <div><dt>Bilet tutarı</dt><dd className="ticket-compact-price">{money.format(item.amount)}</dd></div>
+      {!!item.discountAmount && <div><dt>{item.campaignName ?? "Kampanya indirimi"}</dt><dd>−{money.format(item.discountAmount)}</dd></div>}
     </dl>
     {(item.refundStatus !== "None" || item.needsAttention) && <div className="ticket-compact-notices">
       {item.refundStatus !== "None" && <p className={`status-text ${statusTone(item.refundStatus)}`}>{refundMessage(item.refundStatus)} · {money.format(item.refundAmount)}</p>}

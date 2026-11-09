@@ -57,7 +57,7 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
                 PassengerNameSnapshot = passenger.FullName, PassengerEmailSnapshot = passenger.Email, PassengerPhoneSnapshot = passenger.PhoneNumber,
                 PassengerCapturedAt = Now, PassengerSnapshotSource = "Checkout",
                 Kind = "Hold", HoldExpiresAt = new[] { Now.AddMinutes(10), trip.DepartureTime }.Min() };
-            var order = new PaymentOrder { PassengerId = userId, Reservation = hold, RequestKey = requestKey, Amount = trip.Price, Provider = provider.Name, IsTest = provider.IsTest };
+            var order = new PaymentOrder { PassengerId = userId, Reservation = hold, RequestKey = requestKey, Amount = trip.Price, OriginalAmount = trip.Price, Provider = provider.Name, IsTest = provider.IsTest };
             db.PaymentOrders.Add(order); trip.AvailableSeats--;
             PaymentHistory.Record(db, order, "CheckoutCreated", Now);
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);

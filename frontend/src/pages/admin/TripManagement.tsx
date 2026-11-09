@@ -80,6 +80,7 @@ type Route = {
   arrivalCity: string;
   distanceKm: number | null;
   estimatedDurationMinutes: number | null;
+  isActive?: boolean;
 };
 
 type ListResponse = {
@@ -279,7 +280,7 @@ function TripManagement() {
         setCompanies(adminCompanyData);
       }
       setBuses(normalizedBuses);
-      setRoutes(normalizedRoutes);
+      setRoutes(normalizedRoutes.filter(route => route.isActive !== false));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Seçim verileri yüklenemedi.");
     }
@@ -582,7 +583,7 @@ function TripManagement() {
               </button>
             )}
           </div>
-          {routes.length === 0 && <p className="trip-helper">Sefer eklemek için önce aktif bir güzergâh oluşturun.</p>}
+          {routes.length === 0 && <p className="trip-helper">Sefer oluşturmak için kullanılabilir aktif güzergâh bulunmuyor. {isAdmin ? "Güzergâh Yönetimi ekranından aktif bir güzergâh ekleyin." : "Aktif güzergâh eklenmesi için Admin ile iletişime geçin."}</p>}
           <form className="user-form" onSubmit={submitTrip}>
             {copiedFrom && <p className="trip-helper">Sefer #{copiedFrom} bilgileri kopyalandı. Yeni kalkış ve varış tarihlerini seçin. Biletler, yolcular ve önceki seferin durumu kopyalanmaz.</p>}
             {!editingTrip && <label>Oluşturma biçimi<select value={scheduleMode} disabled={saving} onChange={e => setScheduleMode(e.target.value as ScheduleMode)}><option value="single">Tek sefer</option><option value="weekly">Haftalık tekrar</option><option value="dates">Tarih seçerek toplu oluştur</option></select></label>}
@@ -875,7 +876,7 @@ function TripManagement() {
                   <input required maxLength={100} value={routeForm.arrivalCity} onChange={(event) => setRouteForm((current) => ({ ...current, arrivalCity: event.target.value }))} />
                 </label>
                 <label>Mesafe (km)
-                  <input type="number" min="0" value={routeForm.distanceKm} onChange={(event) => setRouteForm((current) => ({ ...current, distanceKm: event.target.value }))} />
+                  <input type="number" min="1" max="100000" value={routeForm.distanceKm} onChange={(event) => setRouteForm((current) => ({ ...current, distanceKm: event.target.value }))} />
                 </label>
                 <label>Tahmini süre (dakika)
                   <input type="number" min="1" required value={routeForm.estimatedDurationMinutes} onChange={(event) => setRouteForm((current) => ({ ...current, estimatedDurationMinutes: event.target.value }))} />

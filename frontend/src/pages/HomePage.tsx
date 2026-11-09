@@ -199,6 +199,8 @@ function HomePage() {
           )}
         </section>
 
+        <section className="site-section"><div className="section-heading"><div><span className="eyebrow">Yolculuğuna avantaj kat</span><h2>Kuponlar ve kampanyalar</h2><p>Firma fırsatlarını incele; uygun seferinde kupon kodunu kullan veya otomatik indirimden yararlan.</p></div><Link to="/campaigns" className="site-button primary">Kampanyaları keşfet →</Link></div></section>
+
         <section className="site-section how-section">
           <div className="section-heading">
             <div><span className="eyebrow">Üç adımda yola çık</span><h2>Nasıl çalışır?</h2></div>

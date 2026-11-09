@@ -65,6 +65,7 @@ try{
  start.ArgumentList.Add(Path.Combine(root,"backend","bin",config,"net10.0","Travela.API.dll"));
  start.Environment["ASPNETCORE_URLS"]=$"http://127.0.0.1:{port}";start.Environment["ASPNETCORE_ENVIRONMENT"]="Testing";start.Environment["ConnectionStrings__DefaultConnection"]=cs.ConnectionString;
  start.Environment["Jwt__Key"]=Guid.NewGuid().ToString("N")+Guid.NewGuid().ToString("N");start.Environment["Jwt__Issuer"]="ProfileTests";start.Environment["Jwt__Audience"]="ProfileTests";start.Environment["Payments__RecoveryEnabled"]="false";start.Environment["Notifications__WorkerEnabled"]="false";start.Environment["Logging__LogLevel__Default"]="Warning";
+ start.Environment["AccountEmail__Worker__IdleIntervalSeconds"]="2";
  TestMailbox.DirectoryPath=Path.Combine(root,"tmp","account-email-qa",database);
  start.Environment["AccountEmail__DeliveryMode"]="Pickup";start.Environment["AccountEmail__PickupDirectory"]=TestMailbox.DirectoryPath;
  start.Environment["AccountEmail__RequestLimitPerMinute"]="1000";

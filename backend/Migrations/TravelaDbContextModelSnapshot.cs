@@ -145,6 +145,100 @@ namespace Travela.API.Migrations
                     b.ToTable("Buses");
                 });
 
+            modelBuilder.Entity("Travela.Api.Models.Campaign", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DepartureFrom")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DepartureUntil")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("DiscountType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("MaximumDiscount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("MinimumSubtotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("PerUserLimit")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RouteId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UsageLimit")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Value")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte[]>("Version")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RouteId");
+
+                    b.HasIndex("CompanyId", "Code")
+                        .IsUnique()
+                        .HasFilter("[Code] IS NOT NULL");
+
+                    b.HasIndex("CompanyId", "IsActive", "StartsAt", "EndsAt");
+
+                    b.ToTable("Campaigns", t =>
+                        {
+                            t.HasCheckConstraint("CK_Campaigns_Rules", "[EndsAt] > [StartsAt] AND [Value] > 0 AND ([DiscountType] = N'Fixed' OR ([DiscountType] = N'Percentage' AND [Value] <= 99)) AND [MinimumSubtotal] >= 0 AND ([MaximumDiscount] IS NULL OR [MaximumDiscount] > 0) AND ([UsageLimit] IS NULL OR [UsageLimit] > 0) AND [PerUserLimit] > 0 AND ([DepartureFrom] IS NULL OR [DepartureUntil] IS NULL OR [DepartureUntil] > [DepartureFrom])");
+                        });
+                });
+
             modelBuilder.Entity("Travela.Api.Models.Company", b =>
                 {
                     b.Property<int>("Id")
@@ -356,8 +450,16 @@ namespace Travela.API.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("CampaignName")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
                     b.Property<string>("CheckoutUrl")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CouponCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -366,6 +468,10 @@ namespace Travela.API.Migrations
                         .IsRequired()
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<bool>("IsTest")
                         .HasColumnType("bit");
@@ -385,6 +491,10 @@ namespace Travela.API.Migrations
 
                     b.Property<DateTime?>("NextRefundAttemptAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<decimal>("OriginalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("datetime2");
@@ -484,6 +594,8 @@ namespace Travela.API.Migrations
                         {
                             t.HasCheckConstraint("CK_PaymentOrders_Amount", "[Amount] > 0 AND [RefundAmount] >= 0 AND [RefundAmount] <= [Amount]");
 
+                            t.HasCheckConstraint("CK_PaymentOrders_Discount", "[DiscountAmount] >= 0 AND [OriginalAmount] = [Amount] + [DiscountAmount]");
+
                             t.HasCheckConstraint("CK_PaymentOrders_Paid", "[PaymentStatus] <> N'Paid' OR ([PaidAt] IS NOT NULL AND [ProviderReference] IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_PaymentOrders_Refund", "([RefundStatus] = N'None' AND [RefundAmount] = 0) OR ([PaymentStatus] = N'Paid' AND [RefundAmount] = [Amount] AND ([RefundStatus] IN (N'Pending', N'Failed') OR ([RefundStatus] = N'Succeeded' AND [RefundedAt] IS NOT NULL AND [RefundReference] IS NOT NULL)))");
@@ -536,6 +648,13 @@ namespace Travela.API.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int?>("CampaignId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CampaignName")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
                     b.Property<DateTime?>("CheckoutLeaseUntil")
                         .HasColumnType("datetime2");
 
@@ -547,6 +666,10 @@ namespace Travela.API.Migrations
                     b.Property<string>("CheckoutUrl")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("CouponCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -554,6 +677,10 @@ namespace Travela.API.Migrations
                         .IsRequired()
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("HoldExpiresAt")
                         .HasColumnType("datetime2");
@@ -570,6 +697,10 @@ namespace Travela.API.Migrations
 
                     b.Property<DateTime?>("NextReconciliationAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<decimal>("OriginalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("PassengerId")
                         .HasColumnType("int");
@@ -622,7 +753,12 @@ namespace Travela.API.Migrations
                         .IsUnique()
                         .HasFilter("[ProviderToken] IS NOT NULL");
 
-                    b.ToTable("PurchaseGroups");
+                    b.HasIndex("CampaignId", "PassengerId", "PaymentStatus", "HoldExpiresAt");
+
+                    b.ToTable("PurchaseGroups", t =>
+                        {
+                            t.HasCheckConstraint("CK_PurchaseGroups_Discount", "[DiscountAmount] >= 0 AND [OriginalAmount] = [Amount] + [DiscountAmount]");
+                        });
                 });
 
             modelBuilder.Entity("Travela.Api.Models.Reservation", b =>
@@ -1253,6 +1389,20 @@ namespace Travela.API.Migrations
                     b.Navigation("Company");
                 });
 
+            modelBuilder.Entity("Travela.Api.Models.Campaign", b =>
+                {
+                    b.HasOne("Travela.Api.Models.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Travela.Api.Models.Route", null)
+                        .WithMany()
+                        .HasForeignKey("RouteId")
+                        .OnDelete(DeleteBehavior.NoAction);
+                });
+
             modelBuilder.Entity("Travela.Api.Models.NotificationAttempt", b =>
                 {
                     b.HasOne("Travela.Api.Models.TravelNotification", "Notification")
@@ -1304,6 +1454,11 @@ namespace Travela.API.Migrations
 
             modelBuilder.Entity("Travela.Api.Models.PurchaseGroup", b =>
                 {
+                    b.HasOne("Travela.Api.Models.Campaign", null)
+                        .WithMany()
+                        .HasForeignKey("CampaignId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("Travela.Models.User", null)
                         .WithMany()
                         .HasForeignKey("PassengerId")

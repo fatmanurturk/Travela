@@ -26,6 +26,7 @@ namespace Travela.Data
         public DbSet<Reservation> Reservations { get; set; }
         public DbSet<PaymentOrder> PaymentOrders { get; set; }
         public DbSet<PurchaseGroup> PurchaseGroups { get; set; }
+        public DbSet<Campaign> Campaigns { get; set; }
         public DbSet<ProviderRefundAttempt> ProviderRefundAttempts { get; set; }
         public DbSet<PaymentEvent> PaymentEvents { get; set; }
         public DbSet<LocalPaymentRecord> LocalPaymentRecords { get; set; }
@@ -37,6 +38,32 @@ namespace Travela.Data
       protected override void OnModelCreating(ModelBuilder modelBuilder)
 {
     base.OnModelCreating(modelBuilder);
+    modelBuilder.Entity<Campaign>(e =>
+    {
+        e.Property(c => c.Name).HasMaxLength(120); e.Property(c => c.Description).HasMaxLength(1000);
+        e.Property(c => c.Code).HasMaxLength(32); e.Property(c => c.DiscountType).HasMaxLength(20);
+        e.Property(c => c.Value).HasPrecision(18, 2); e.Property(c => c.MinimumSubtotal).HasPrecision(18, 2);
+        e.Property(c => c.MaximumDiscount).HasPrecision(18, 2); e.Property(c => c.Version).IsRowVersion();
+        e.HasIndex(c => new { c.CompanyId, c.Code }).IsUnique().HasFilter("[Code] IS NOT NULL");
+        e.HasIndex(c => new { c.CompanyId, c.IsActive, c.StartsAt, c.EndsAt });
+        e.HasOne<Company>().WithMany().HasForeignKey(c => c.CompanyId).OnDelete(DeleteBehavior.NoAction);
+        e.HasOne<Travela.Api.Models.Route>().WithMany().HasForeignKey(c => c.RouteId).OnDelete(DeleteBehavior.NoAction);
+        e.ToTable(t => t.HasCheckConstraint("CK_Campaigns_Rules", "[EndsAt] > [StartsAt] AND [Value] > 0 AND ([DiscountType] = N'Fixed' OR ([DiscountType] = N'Percentage' AND [Value] <= 99)) AND [MinimumSubtotal] >= 0 AND ([MaximumDiscount] IS NULL OR [MaximumDiscount] > 0) AND ([UsageLimit] IS NULL OR [UsageLimit] > 0) AND [PerUserLimit] > 0 AND ([DepartureFrom] IS NULL OR [DepartureUntil] IS NULL OR [DepartureUntil] > [DepartureFrom])"));
+    });
+    modelBuilder.Entity<PurchaseGroup>(e =>
+    {
+        e.Property(g => g.OriginalAmount).HasPrecision(18, 2); e.Property(g => g.DiscountAmount).HasPrecision(18, 2);
+        e.Property(g => g.CampaignName).HasMaxLength(120); e.Property(g => g.CouponCode).HasMaxLength(32);
+        e.HasOne<Campaign>().WithMany().HasForeignKey(g => g.CampaignId).OnDelete(DeleteBehavior.NoAction);
+        e.HasIndex(g => new { g.CampaignId, g.PassengerId, g.PaymentStatus, g.HoldExpiresAt });
+        e.ToTable(t => t.HasCheckConstraint("CK_PurchaseGroups_Discount", "[DiscountAmount] >= 0 AND [OriginalAmount] = [Amount] + [DiscountAmount]"));
+    });
+    modelBuilder.Entity<PaymentOrder>(e =>
+    {
+        e.Property(p => p.OriginalAmount).HasPrecision(18, 2); e.Property(p => p.DiscountAmount).HasPrecision(18, 2);
+        e.Property(p => p.CampaignName).HasMaxLength(120); e.Property(p => p.CouponCode).HasMaxLength(32);
+        e.ToTable(t => t.HasCheckConstraint("CK_PaymentOrders_Discount", "[DiscountAmount] >= 0 AND [OriginalAmount] = [Amount] + [DiscountAmount]"));
+    });
     modelBuilder.Entity<PurchaseGroup>(e =>
     {
         e.Property(g => g.Amount).HasPrecision(18, 2); e.Property(g => g.Currency).HasMaxLength(3);

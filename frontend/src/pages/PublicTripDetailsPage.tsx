@@ -105,6 +105,7 @@ function TripDetails({ id }: { id: string | undefined }) {
               <div className="trip-detail-price"><span>Kişi başı</span><strong>{currencyFormatter.format(trip.price)}</strong></div>
 
               <Link to="/#sefer-ara" className="site-button secondary">Başka sefer ara</Link>
+              <Link to={`/campaigns?tripId=${trip.id}`} className="site-button secondary">Bu seferin kampanyaları</Link>
             </section>
             <JourneyStops journey={trip} />
             <section className="seat-booking" aria-labelledby="seat-heading">
@@ -124,7 +125,7 @@ function TripDetails({ id }: { id: string | undefined }) {
                   <p>{trip.departureCity} → {trip.arrivalCity}</p>
                   <p>{dateTimeFormatter.format(new Date(trip.departureTime))}</p>
                   <p><strong>Koltuklar: {selectedSeats.join(", ")}</strong></p>
-                  <p>Bilet fiyatı: <strong>{currencyFormatter.format(trip.price * selectedSeats.length)}</strong></p>
+                  <p>İndirim öncesi: <strong>{currencyFormatter.format(trip.price * selectedSeats.length)}</strong></p>
                 </> : <p>Devam etmek için boş bir koltuk seçiniz.</p>}
                 <p className="booking-notice">Biletiniz ödeme tamamlandığında oluşur. Koltuğunuz ödeme adımında 10 dakika ayrılır.</p>
                 <PassengerCheckoutForm tripId={trip.id} seats={selectedSeats} disabled={!trip.canReserve || saving} onBusy={setSaving} onError={setBookingError} onConflict={() => setRevision(value => value + 1)} onRemove={seat => setSelectedSeats(current => current.filter(number => number !== seat))} />

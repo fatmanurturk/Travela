@@ -73,7 +73,7 @@ public sealed class SmsTransport(HttpClient http, IOptions<SmsOptions> options, 
 
 public sealed class NotificationDelivery(TravelaDbContext db, EmailTransport email, SmsTransport sms, TimeProvider clock)
 {
-    public async Task Process(CancellationToken ct)
+    public async Task<int> Process(CancellationToken ct)
     {
         db.ChangeTracker.Clear();
         var now = clock.GetUtcNow().UtcDateTime;
@@ -115,6 +115,7 @@ public sealed class NotificationDelivery(TravelaDbContext db, EmailTransport ema
             message.CompletedAt = next is "Pending" or "Sending" or "Accepted" ? null : clock.GetUtcNow().UtcDateTime;
             attempt.Status = next; attempt.Error = error; await db.SaveChangesAsync(ct);
         }
+        return ids.Count;
     }
     private async Task<bool> StillWanted(TravelNotification n, CancellationToken ct)
     {
@@ -126,17 +127,37 @@ public sealed class NotificationDelivery(TravelaDbContext db, EmailTransport ema
     }
 }
 
-public sealed class TravelNotificationWorker(IServiceScopeFactory scopes, ILogger<TravelNotificationWorker> log) : BackgroundService
+public sealed class TravelNotificationWorker(IServiceScopeFactory scopes, ILogger<TravelNotificationWorker> log,
+    IOptions<TravelNotificationWorkerOptions> options, TimeProvider clock) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        var settings = options.Value;
+        long? lastReminderScan = null;
+        try
         {
-            try { using var scope = scopes.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<TravelaDbContext>();
-                await TravelNotifications.Reminders(db, DateTime.UtcNow, stoppingToken); db.ChangeTracker.Clear();
-                await scope.ServiceProvider.GetRequiredService<NotificationDelivery>().Process(stoppingToken); }
-            catch (Exception e) when (e is not OperationCanceledException) { log.LogWarning("Yolculuk bildirim kuyruğu işlenemedi ({ErrorType}).", e.GetType().Name); }
-            await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                var delay = settings.ErrorIntervalSeconds;
+                try
+                {
+                    using var scope = scopes.CreateScope();
+                    if (lastReminderScan == null || clock.GetElapsedTime(lastReminderScan.Value) >= TimeSpan.FromSeconds(settings.ReminderIntervalSeconds))
+                    {
+                        var db = scope.ServiceProvider.GetRequiredService<TravelaDbContext>();
+                        await TravelNotifications.Reminders(db, clock.GetUtcNow().UtcDateTime, stoppingToken);
+                        db.ChangeTracker.Clear();
+                        lastReminderScan = clock.GetTimestamp();
+                    }
+                    var count = await scope.ServiceProvider.GetRequiredService<NotificationDelivery>().Process(stoppingToken);
+                    delay = count == 0 ? settings.IdleIntervalSeconds : settings.PollIntervalSeconds;
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+                catch (Exception e)
+                { log.LogWarning("Yolculuk bildirim kuyruğu işlenemedi ({ErrorType}).", e.GetType().Name); }
+                await Task.Delay(TimeSpan.FromSeconds(delay), stoppingToken);
+            }
         }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
     }
 }

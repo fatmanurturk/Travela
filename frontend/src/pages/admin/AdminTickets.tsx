@@ -10,6 +10,7 @@ type Ticket = {
   companyId: number; companyName: string; passengerId: number; accountName: string; passengerName: string;
   passengerEmail: string | null; passengerPhone: string | null; passengerSnapshotSource: string | null; passengerCapturedAt: string | null;
   departureCity: string; arrivalCity: string; departureTime: string; seatNumber: number; amount: number;
+  originalAmount?: number; discountAmount?: number; campaignName?: string | null; couponCode?: string | null;
   paymentStatus: string; refundStatus: string; ticketStatus: string; isTest: boolean | null; needsAttention: boolean; createdAt: string;
 };
 type History = { id: number; type: string; createdAt: string; paymentStatus: string; refundStatus: string; refundAmount: number; actorName: string | null; actorUserId: number | null; reason: string | null };
@@ -92,7 +93,7 @@ export default function AdminTickets() {
         <td><strong>{item.pnr ?? item.reservationNumber}</strong><small>{item.kind === "Legacy" ? "Eski ücretsiz kayıt" : item.kind === "Hold" ? "Ödeme işlemi" : "Bilet"}{item.isTest ? " · TEST" : ""}</small></td>
         <td>{item.passengerName}<small>{item.companyName}</small>{item.needsAttention && <strong>İnceleme gerekiyor</strong>}</td>
         <td>{item.departureCity} → {item.arrivalCity}<small>Sefer #{item.tripId} · Koltuk {item.seatNumber}</small><small>{date(item.departureTime)}</small></td>
-        <td>{money.format(item.amount)}<small>{item.ticketStatus === "Cancelled" ? "İptal edildi" : "Aktif"}</small></td>
+        <td>{money.format(item.amount)}{!!item.discountAmount && <small>{item.campaignName}: −{money.format(item.discountAmount)}{item.couponCode && ` · ${item.couponCode}`}</small>}<small>{item.ticketStatus === "Cancelled" ? "İptal edildi" : "Aktif"}</small></td>
         <td>{paymentLabel(item.paymentStatus)}<small>{refundLabel(item.refundStatus)}</small></td>
         <td><button type="button" className="link-button" onClick={() => setParams({ detail: String(item.id) })}>İncele</button></td>
       </tr>)}</tbody></table></div> : <p>Bu filtrelerle eşleşen kayıt bulunamadı.</p>)}
@@ -143,6 +144,7 @@ function TicketDetail({ id, request, changed, close }: { id: number; request: Re
         <div><dt>Bilette kayıtlı yolcu</dt><dd>{data.ticket.passengerName}</dd></div><div><dt>Güncel hesap sahibi</dt><dd>{data.ticket.accountName} · #{data.ticket.passengerId}</dd></div>
         <div><dt>Bilet iletişim e-postası</dt><dd>{data.ticket.passengerEmail ?? "Kaydedilmemiş"}</dd></div><div><dt>Bilet iletişim telefonu</dt><dd>{data.ticket.passengerPhone ?? "Kaydedilmemiş"}</dd></div>
         <div><dt>Firma</dt><dd>{data.ticket.companyName}</dd></div><div><dt>Tutar</dt><dd>{money.format(data.ticket.amount)}{data.ticket.isTest ? " · TEST" : ""}</dd></div>
+        {!!data.ticket.discountAmount && <><div><dt>İndirim öncesi</dt><dd>{money.format(data.ticket.originalAmount ?? data.ticket.amount + data.ticket.discountAmount)}</dd></div><div><dt>Kampanya</dt><dd>{data.ticket.campaignName} · −{money.format(data.ticket.discountAmount)}{data.ticket.couponCode && ` · ${data.ticket.couponCode}`}</dd></div></>}
         <div><dt>Ödeme</dt><dd>{paymentLabel(data.ticket.paymentStatus)}</dd></div><div><dt>İade</dt><dd>{refundLabel(data.ticket.refundStatus)}</dd></div>
         {payment && <><div><dt>Sağlayıcı / Tahsilat referansı</dt><dd>{payment.provider} · {payment.providerReference ?? "—"}</dd></div><div><dt>İade referansı</dt><dd>{payment.refundReference ?? "—"}</dd></div>
           <div><dt>Ödeme zamanı</dt><dd>{date(payment.paidAt)}</dd></div><div><dt>İade talebi / Tamamlanması</dt><dd>{date(payment.refundRequestedAt)} / {date(payment.refundedAt)}</dd></div>

@@ -8,6 +8,7 @@ type IconName =
   | "companies"
   | "users"
   | "buses"
+  | "routes"
   | "trips"
   | "tickets"
   | "reports"
@@ -41,6 +42,7 @@ function MenuIcon({ name }: { name: IconName }) {
         <path d="M4 11h16M8 18v3M16 18v3M8 7h2M14 7h2" />
       </>
     ),
+    routes: (<><circle cx="6" cy="5" r="2" /><circle cx="18" cy="19" r="2" /><path d="M6 7v6a3 3 0 0 0 3 3h6a3 3 0 0 0 0-6h-3M18 16v1" /></>),
     trips: (
       <>
         <rect x="3" y="5" width="18" height="16" rx="2" />
@@ -92,9 +94,11 @@ const menuItems: {
   { path: "/admin/companies", label: "Firma Yönetimi", icon: "companies" },
   { path: "/admin/users", label: "Kullanıcı Yönetimi", icon: "users" },
   { path: "/admin/buses", label: "Otobüs Yönetimi", icon: "buses" },
+  { path: "/admin/routes", label: "Güzergâh Yönetimi", icon: "routes" },
   { path: "/admin/trips", label: "Sefer Yönetimi", icon: "trips" },
   { path: "/admin/terminals", label: "Terminal Yönetimi", icon: "trips" },
   { path: "/admin/notifications", label: "Bildirim Teslimatları", icon: "reports" },
+  { path: "/admin/campaigns", label: "Kupon ve Kampanyalar", icon: "tickets" },
   { path: "/admin/tickets", label: "Bilet ve Rezervasyonlar", icon: "tickets" },
   { path: "/admin/reports", label: "Raporlar", icon: "reports" },
 ];

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiUrl } from "../api";
 import { currentRole } from "../reservations";
+import CouponCheckout from "./CouponCheckout";
+import type { CampaignPrice } from "../campaigns";
 
 type Passenger = { fullName: string; email: string; phone: string };
 const empty: Passenger = { fullName: "", email: "", phone: "" };
@@ -9,15 +11,16 @@ export default function PassengerCheckoutForm({ tripId, seats, disabled, onBusy,
   const [passengers, setPassengers] = useState<Record<number, Passenger>>({}); const [profile, setProfile] = useState<Passenger | null>(null);
   const [options, setOptions] = useState<{ provider: string; requiresBuyer: boolean } | null>(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [revision, setRevision] = useState(0);
   const [buyer, setBuyer] = useState({ name: "", surname: "", identityNumber: "", address: "", city: "", country: "Türkiye", zipCode: "", phone: "" });
+  const [couponCode, setCouponCode] = useState(""); const [price, setPrice] = useState<CampaignPrice | null>(null);
   const key = useRef({ fingerprint: "", value: crypto.randomUUID() }); const token = sessionStorage.getItem("travela_token"); const navigate = useNavigate();
   useEffect(() => { const abort = new AbortController(); fetch(apiUrl("/api/purchases/options"), { signal: abort.signal }).then(async response => { if (!response.ok) throw new Error("Ödeme seçenekleri alınamadı."); return response.json(); }).then(data => { if (!abort.signal.aborted) { setOptions(data); setError(""); } }).catch(cause => { if (!abort.signal.aborted) setError(cause.message); }); return () => abort.abort(); }, [revision]);
   useEffect(() => { if (!token || currentRole() !== "Passenger") return; const abort = new AbortController(); fetch(apiUrl("/api/profile"), { headers: { Authorization: `Bearer ${token}` }, signal: abort.signal }).then(async response => response.ok ? response.json() : null).then(data => { if (data && !abort.signal.aborted) setProfile({ fullName: data.fullName, email: data.email, phone: data.phoneNumber ?? "" }); }).catch(() => {}); return () => abort.abort(); }, [token]);
   if (!token) return <button type="button" className="site-button primary" disabled={!seats.length || disabled} onClick={() => navigate(`/login?returnTo=${encodeURIComponent(`/trips/${tripId}`)}`)}>Giriş yap ve devam et</button>;
   if (currentRole() !== "Passenger") return <p>Bilet almak için yolcu hesabınızla giriş yapın.</p>;
   return <form className="passenger-checkout-form" onSubmit={async event => {
-    event.preventDefault(); if (busy || disabled || !options || !seats.length) return; setBusy(true); onBusy(true); onError("");
-    const payload = { tripId, passengers: [...seats].sort((a,b) => a-b).map(seatNumber => ({ seatNumber, ...(passengers[seatNumber] ?? empty) })), ...(options.requiresBuyer ? { buyer } : {}) };
-    const fingerprint = JSON.stringify(payload); if (key.current.fingerprint !== fingerprint) key.current = { fingerprint, value: crypto.randomUUID() };
+    event.preventDefault(); if (busy || disabled || !options || !seats.length || !price) return; setBusy(true); onBusy(true); onError("");
+    const payload = { tripId, couponCode: couponCode || null, expectedAmount: price.amount, passengers: [...seats].sort((a,b) => a-b).map(seatNumber => ({ seatNumber, ...(passengers[seatNumber] ?? empty) })), ...(options.requiresBuyer ? { buyer } : {}) };
+    const fingerprint = JSON.stringify({ ...payload, expectedAmount: undefined }); if (key.current.fingerprint !== fingerprint) key.current = { fingerprint, value: crypto.randomUUID() };
     try {
       const response = await fetch(apiUrl("/api/purchases"), { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...payload, requestKey: key.current.value }) });
       const data = await response.json().catch(() => null);
@@ -36,8 +39,9 @@ export default function PassengerCheckoutForm({ tripId, seats, disabled, onBusy,
       <button type="button" className="secondary-button" onClick={() => onRemove(seat)}>Koltuğu çıkar · {seat}</button>
     </fieldset>)}
     {options?.requiresBuyer && <fieldset disabled={busy}><legend>Ödemeyi yapan kişi</legend><p>Bu bilgiler iyzico sandbox ödeme formu için gereklidir. Kart bilgileri yalnızca iyzico sayfasına girilir.</p>{(Object.keys(buyer) as (keyof typeof buyer)[]).map(field => <label key={field}>{({name:"Ad",surname:"Soyad",identityNumber:"Kimlik numarası (11 hane)",address:"Fatura adresi",city:"Şehir",country:"Ülke",zipCode:"Posta kodu",phone:"Telefon (+ülke kodu)"})[field]}<input aria-label={`Alıcı ${field}`} required maxLength={field === "address" ? 500 : field === "identityNumber" ? 11 : field === "phone" ? 16 : 100} pattern={field === "identityNumber" ? "[0-9]{11}" : field === "phone" ? "\\+[1-9][0-9]{7,14}" : undefined} value={buyer[field]} onChange={event => setBuyer(current => ({ ...current, [field]: event.target.value }))} /></label>)}</fieldset>}
+    <CouponCheckout tripId={tripId} count={seats.length} code={couponCode} disabled={busy || disabled} onCode={setCouponCode} onQuote={setPrice} />
     {!!seats.length && <label><input type="checkbox" required disabled={busy} />Yolcu bilgilerini kontrol ettim; bu kişiler adına bilet alıyorum.</label>}
     <p>Koltuklardan biri alınamazsa hiçbir koltuk ayrılmaz. Ödeme tek sipariş içindir; iptal ve iade her bilet için ayrı yapılır.</p>
-    <button type="submit" className="site-button primary" disabled={!seats.length || disabled || busy || !options}>{busy ? "Sipariş hazırlanıyor..." : "Ödemeye geç"}</button>
+    <button type="submit" className="site-button primary" disabled={!seats.length || disabled || busy || !options || !price}>{busy ? "Sipariş hazırlanıyor..." : "Ödemeye geç"}</button>
   </form>;
 }

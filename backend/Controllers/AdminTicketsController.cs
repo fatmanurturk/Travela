@@ -41,6 +41,10 @@ public sealed class AdminTicketRow
     public DateTime DepartureTime { get; set; }
     public int SeatNumber { get; set; }
     public decimal Amount { get; set; }
+    public decimal OriginalAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public string? CampaignName { get; set; }
+    public string? CouponCode { get; set; }
     public string Currency { get; set; } = "TRY";
     public string TicketStatus { get; set; } = "";
     public string PaymentStatus { get; set; } = "Unpaid";
@@ -185,6 +189,9 @@ public sealed class AdminTicketsController(TravelaDbContext db, TimeProvider clo
         PassengerSnapshotSource = r.PassengerSnapshotSource, PassengerCapturedAt = r.PassengerCapturedAt,
         DepartureCity = r.Trip.Route.DepartureCity, ArrivalCity = r.Trip.Route.ArrivalCity, DepartureTime = r.Trip.DepartureTime,
         SeatNumber = r.SeatNumber, Amount = r.Payment == null ? r.Price : r.Payment.Amount,
+        OriginalAmount = r.Payment == null ? r.Price : r.Payment.OriginalAmount,
+        DiscountAmount = r.Payment == null ? 0 : r.Payment.DiscountAmount,
+        CampaignName = r.Payment == null ? null : r.Payment.CampaignName, CouponCode = r.Payment == null ? null : r.Payment.CouponCode,
         Currency = r.Payment == null ? "TRY" : r.Payment.Currency, TicketStatus = r.Status,
         PaymentStatus = r.Payment == null ? "Unpaid" : r.Payment.PaymentStatus, RefundStatus = r.Payment == null ? "None" : r.Payment.RefundStatus,
         IsTest = r.Payment == null ? null : r.Payment.IsTest,

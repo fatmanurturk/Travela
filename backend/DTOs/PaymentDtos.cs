@@ -27,6 +27,10 @@ public class PurchaseDto : JourneyDto
     public DateTime CancelDeadline { get; set; }
     public DateTime? HoldExpiresAt { get; set; }
     public decimal Amount { get; set; }
+    public decimal OriginalAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public string? CampaignName { get; set; }
+    public string? CouponCode { get; set; }
     public string Currency { get; set; } = "TRY";
     public bool IsTest { get; set; }
     public string Provider { get; set; } = "LocalTest";

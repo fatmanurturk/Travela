@@ -74,6 +74,11 @@ public sealed class TicketPdfRenderer
         if (!string.IsNullOrWhiteSpace(ticket.ArrivalTerminalName)) Row("Varış terminali", ticket.ArrivalTerminalName + "\n" + ticket.ArrivalTerminalAddress);
         if (!string.IsNullOrWhiteSpace(ticket.BoardingInstructions)) Row("Biniş açıklaması", ticket.BoardingInstructions);
         Row("Koltuk", ticket.SeatNumber.ToString(Turkish));
+        if (ticket.DiscountAmount > 0)
+        {
+            Row("İndirim öncesi", ticket.OriginalAmount.ToString("N2", Turkish) + " " + ticket.Currency);
+            Row("Kampanya indirimi", "-" + ticket.DiscountAmount.ToString("N2", Turkish) + " " + ticket.Currency + "\n" + ticket.CampaignName + (ticket.CouponCode == null ? "" : " · " + ticket.CouponCode));
+        }
         Row("Satın alma tutarı", ticket.Amount.ToString("N2", Turkish) + " " + ticket.Currency);
         Row("Bilet durumu", cancelled ? "İptal Edildi" : "Aktif");
         Row("Ödeme durumu", "Ödeme doğrulandı");

@@ -13,6 +13,7 @@ const TerminalManagement = lazy(() => import("./pages/admin/TerminalManagement")
 const NotificationManagement = lazy(() => import("./pages/admin/NotificationManagement"));
 const BusManagement = lazy(() => import("./pages/admin/BusManagement"));
 import TripManagement from "./pages/admin/TripManagement";
+const RouteManagement = lazy(() => import("./pages/company/RouteManagement"));
 import CompanyLayout from "./components/company/CompanyLayout";
 import CompanyOverview from "./pages/company/CompanyOverview";
 import CompanyReservations from "./pages/company/CompanyReservations";
@@ -23,6 +24,8 @@ import SearchResultsPage from "./pages/SearchResultsPage";
 import PublicTripDetailsPage from "./pages/PublicTripDetailsPage";
 import CheckoutPage from "./pages/CheckoutPage";
 const GroupCheckoutPage = lazy(() => import("./pages/GroupCheckoutPage"));
+const CampaignManagement = lazy(() => import("./pages/admin/CampaignManagement"));
+const CampaignsPage = lazy(() => import("./pages/CampaignsPage"));
 import TicketDetailsPage from "./pages/TicketDetailsPage";
 import MyReservationsPage from "./pages/MyReservationsPage";
 import Register from "./pages/Register";
@@ -36,6 +39,7 @@ function App() {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/search" element={<SearchResultsPage />} />
+      <Route path="/campaigns" element={<Suspense fallback={<p role="status">Kampanyalar yükleniyor...</p>}><CampaignsPage /></Suspense>} />
       <Route path="/trips/:id" element={<PublicTripDetailsPage />} />
       <Route path="/tickets" element={<ProtectedRoute allowedRole="Passenger"><MyReservationsPage /></ProtectedRoute>} />
       <Route path="/tickets/:pnr" element={<ProtectedRoute allowedRole="Passenger"><TicketDetailsPage /></ProtectedRoute>} />
@@ -62,8 +66,10 @@ function App() {
         <Route index element={<CompanyOverview />} />
         <Route path="buses" element={<Suspense fallback={<p role="status">Otobüsler yükleniyor...</p>}><BusManagement /></Suspense>} />
         <Route path="trips" element={<TripManagement />} />
+        <Route path="routes" element={<Suspense fallback={<p role="status">Güzergâhlar yükleniyor...</p>}><RouteManagement /></Suspense>} />
         <Route path="reservations" element={<CompanyReservations />} />
         <Route path="reports" element={<CompanyReports />} />
+        <Route path="campaigns" element={<Suspense fallback={<p role="status">Kampanyalar yükleniyor...</p>}><CampaignManagement /></Suspense>} />
         <Route path="notifications" element={<Suspense fallback={<p role="status">Bildirimler yükleniyor...</p>}><NotificationManagement /></Suspense>} />
         <Route path="profile" element={<CompanyProfile />} />
       </Route>
@@ -89,11 +95,13 @@ function App() {
         <Route path="companies" element={<CompanyManagement />} />
         <Route path="companies/:id" element={<CompanyDetails />} />
         <Route path="users" element={<UserManagement />} />
+        <Route path="campaigns" element={<Suspense fallback={<p role="status">Kampanyalar yükleniyor...</p>}><CampaignManagement /></Suspense>} />
         <Route path="tickets" element={<Suspense fallback={<p role="status">Bilet yönetimi yükleniyor...</p>}><AdminTickets /></Suspense>} />
         <Route path="terminals" element={<Suspense fallback={<p role="status">Terminaller yükleniyor...</p>}><TerminalManagement /></Suspense>} />
         <Route path="notifications" element={<Suspense fallback={<p role="status">Bildirimler yükleniyor...</p>}><NotificationManagement /></Suspense>} />
         <Route path="buses" element={<Suspense fallback={<p role="status">Otobüsler yükleniyor...</p>}><BusManagement /></Suspense>} />
         <Route path="trips" element={<TripManagement />} />
+        <Route path="routes" element={<Suspense fallback={<p role="status">Güzergâhlar yükleniyor...</p>}><RouteManagement /></Suspense>} />
       </Route>
     </Routes>
   );

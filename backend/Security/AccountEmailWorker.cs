@@ -5,31 +5,40 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Travela.Data;
+using Travela.Api.Notifications;
 
 namespace Travela.Api.Security;
 
-public sealed class AccountEmailWorker(IServiceScopeFactory scopes, ILogger<AccountEmailWorker> log) : BackgroundService
+public sealed class AccountEmailWorker(IServiceScopeFactory scopes, ILogger<AccountEmailWorker> log, IOptions<QueueWorkerOptions> options) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        var settings = options.Value;
+        try
         {
-            try
+            while (!stoppingToken.IsCancellationRequested)
             {
-                using var scope = scopes.CreateScope();
-                await scope.ServiceProvider.GetRequiredService<AccountEmailDelivery>().Process(stoppingToken);
+                var delay = settings.ErrorIntervalSeconds;
+                try
+                {
+                    using var scope = scopes.CreateScope();
+                    var count = await scope.ServiceProvider.GetRequiredService<AccountEmailDelivery>().Process(stoppingToken);
+                    delay = count == 0 ? settings.IdleIntervalSeconds : settings.PollIntervalSeconds;
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+                catch (Exception e)
+                { log.LogWarning("Hesap e-posta kuyruğu işlenemedi ({ErrorType}).", e.GetType().Name); }
+                await Task.Delay(TimeSpan.FromSeconds(delay), stoppingToken);
             }
-            catch (Exception e) when (e is not OperationCanceledException)
-            { log.LogWarning("Hesap e-posta kuyruğu işlenemedi ({ErrorType}).", e.GetType().Name); }
-            await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
         }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
     }
 }
 
 public sealed class AccountEmailDelivery(TravelaDbContext db, AccountEmailService links, IOptions<AccountEmailOptions> options,
     IHostEnvironment env, TimeProvider clock, ILogger<AccountEmailDelivery> log)
 {
-    public async Task Process(CancellationToken ct)
+    public async Task<int> Process(CancellationToken ct)
     {
         var now = clock.GetUtcNow().UtcDateTime;
         await db.AccountEmailMessages.Where(m => m.Status == "Pending" && m.Attempts >= 8 && (m.LeaseUntil == null || m.LeaseUntil <= now))
@@ -72,5 +81,6 @@ public sealed class AccountEmailDelivery(TravelaDbContext db, AccountEmailServic
                     .SetProperty(m => m.ProtectedBody, completed ? "" : message.ProtectedBody)
                     .SetProperty(m => m.NextAttemptAt, clock.GetUtcNow().UtcDateTime.AddSeconds(Math.Min(3600, 15 * Math.Pow(2, message.Attempts)))), ct);
         }
+        return ids.Count;
     }
 }

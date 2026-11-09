@@ -40,6 +40,10 @@ public class ReservationDto
 
 public class CompanyReservationDto : ReservationDto
 {
+    public decimal OriginalAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public string? CampaignName { get; set; }
+    public string? CouponCode { get; set; }
     public string PassengerName { get; set; } = "";
     public string? LastError { get; set; }
     public bool NeedsAttention { get; set; }

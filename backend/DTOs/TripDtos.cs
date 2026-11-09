@@ -98,20 +98,22 @@ namespace Travela.DTOs
 
     public class CreateRouteDto
     {
-        [Required]
-        [MaxLength(100)]
+        [Required(ErrorMessage = "Kalkış şehri zorunludur.")]
+        [MaxLength(100, ErrorMessage = "Kalkış şehri en fazla 100 karakter olabilir.")]
         public string DepartureCity { get; set; } = string.Empty;
 
-        [Required]
-        [MaxLength(100)]
+        [Required(ErrorMessage = "Varış şehri zorunludur.")]
+        [MaxLength(100, ErrorMessage = "Varış şehri en fazla 100 karakter olabilir.")]
         public string ArrivalCity { get; set; } = string.Empty;
 
-        [Range(0, 100000)]
+        [Range(1, 100000, ErrorMessage = "Mesafe 1 ile 100000 km arasında olmalıdır.")]
         public int? DistanceKm { get; set; }
 
-        [Required]
-        [Range(1, 100000)]
-        public int EstimatedDurationMinutes { get; set; }
+        [Range(1, 100000, ErrorMessage = "Tahmini süre 1 ile 100000 dakika arasında olmalıdır.")]
+        public int? EstimatedDurationMinutes { get; set; }
+
+        public bool IsActive { get; set; } = true;
+        public bool ConfirmDeactivation { get; set; }
     }
 
     public class RouteDto

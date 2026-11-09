@@ -111,6 +111,9 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
             .Skip((int)Math.Min((long)(pageNumber - 1) * pageSize, int.MaxValue)).Take(pageSize)
             .Select(r => new CompanyReservationDto
             {
+                OriginalAmount = r.Payment == null ? r.Price : r.Payment.OriginalAmount,
+                DiscountAmount = r.Payment == null ? 0 : r.Payment.DiscountAmount,
+                CampaignName = r.Payment == null ? null : r.Payment.CampaignName, CouponCode = r.Payment == null ? null : r.Payment.CouponCode,
                 ReservationNumber = r.ReservationNumber, TripId = r.TripId, SeatNumber = r.SeatNumber, Price = r.Price,
                 PassengerName = r.PassengerNameSnapshot ?? "Yolcu bilgisi kaydedilmemiş", CompanyName = r.Trip.Company.Name, TicketJourneyJson = r.TicketJourneyJson,
                 LastError = r.Payment == null || r.Payment.LastError == null ? null : r.Payment.LastError.Replace("Yerel test adaptörü iade hatası.", "İade işlemi tamamlanamadı."),

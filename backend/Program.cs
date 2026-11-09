@@ -96,6 +96,13 @@ builder.Services.AddDataProtection().SetApplicationName("Travela.AccountEmail");
 builder.Services.AddOptions<AccountEmailOptions>().Bind(builder.Configuration.GetSection("AccountEmail"))
     .Validate(options => options.Valid(builder.Environment), "Hesap e-postası veya ön yüz adresi yapılandırması geçersiz.").ValidateOnStart();
 builder.Services.AddScoped<AccountEmailService>();
+builder.Services.AddOptions<Travela.Api.Notifications.QueueWorkerOptions>()
+    .Bind(builder.Configuration.GetSection("AccountEmail:Worker"))
+    .Validate(options => options.Valid, "AccountEmail:Worker intervals are invalid.").ValidateOnStart();
+builder.Services.AddOptions<Travela.Api.Notifications.TravelNotificationWorkerOptions>()
+    .Bind(builder.Configuration.GetSection("Notifications:Worker"))
+    .Validate(options => options.Valid && options.ReminderIntervalSeconds is >= 1 and <= 3600,
+        "Notifications:Worker intervals are invalid.").ValidateOnStart();
 builder.Services.AddScoped<EmailTransport>();
 builder.Services.AddOptions<Travela.Api.Notifications.SmsOptions>().Bind(builder.Configuration.GetSection("TravelSms"))
     .Validate(options => options.Valid(builder.Environment), "SMS yapılandırması geçersiz.").ValidateOnStart();
