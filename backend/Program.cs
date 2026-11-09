@@ -15,6 +15,16 @@ using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+try
+{
+    builder.Services.AddPaymentProviders(builder.Configuration, builder.Environment);
+}
+catch (PaymentConfigurationException error)
+{
+    Console.Error.WriteLine("[PAYMENTS_STARTUP_REJECTED] " + error.Message);
+    Environment.ExitCode = 1;
+    return;
+}
 var jwtKey = builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException("JWT Key bulunamadı.");
 
@@ -88,9 +98,6 @@ builder.Services.AddControllers(options => options.Filters.AddService<TripLifecy
 if (builder.Configuration["Trips:LifecycleEnabled"] != "false") builder.Services.AddHostedService<TripLifecycleWorker>();
 builder.Services.AddSingleton<TicketPdfRenderer>();
 builder.Services.AddScoped<CompanyReportingService>();
-// This integration is sandbox-only. An environment switch must never turn test charges into live sales.
-if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
-    throw new InvalidOperationException("LocalTest ve IyzicoSandbox yalnızca geliştirme/test ortamında çalışır; canlı satış sağlayıcısı yapılandırılmadı.");
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddDataProtection().SetApplicationName("Travela.AccountEmail");
 builder.Services.AddOptions<AccountEmailOptions>().Bind(builder.Configuration.GetSection("AccountEmail"))
@@ -125,16 +132,6 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 builder.Services.AddScoped<Travela.Api.Security.SessionTokenService>();
-builder.Services.AddSingleton<LocalWebhookKey>();
-builder.Services.AddScoped<LocalTestPaymentProvider>();
-var paymentProvider = builder.Configuration["Payments:Provider"] ?? "LocalTest";
-if (paymentProvider is not ("LocalTest" or "IyzicoSandbox")) throw new InvalidOperationException("Ödeme sağlayıcısı geçersiz.");
-builder.Services.AddOptions<IyzicoOptions>().Bind(builder.Configuration.GetSection("Iyzico"))
-    .Validate(options => paymentProvider != "IyzicoSandbox" || options.Valid, "iyzico sandbox anahtarları ve HTTPS callback adresi gereklidir.").ValidateOnStart();
-builder.Services.AddHttpClient<IyzicoSandboxProvider>(http => http.Timeout = TimeSpan.FromSeconds(20))
-    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
-builder.Services.AddScoped<PaymentProviderRegistry>();
-builder.Services.AddScoped<IPaymentProvider>(sp => sp.GetRequiredService<PaymentProviderRegistry>().Get(paymentProvider));
 builder.Services.AddScoped<PaymentService>();
 if (builder.Configuration["Payments:RecoveryEnabled"] != "false") builder.Services.AddHostedService<PaymentRecoveryWorker>();
 

@@ -9,6 +9,20 @@ using Microsoft.Extensions.Options;
 using Travela.Api.Payments;
 using Travela.Data;
 
+if (args.Contains("--startup-hosts"))
+{
+    try
+    {
+        await StartupHostChecks.Run();
+    }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
 // Every HTTP request ends at StubHandler. No web host, database connection,
 // external API, secrets store, or persistent Data Protection key ring is used.
 var passed = 0;
@@ -171,6 +185,7 @@ finally
     CultureInfo.CurrentCulture = culture;
 }
 Console.WriteLine($"PASS: {passed} iyzico sağlayıcı kontrolü; dış ağ ve veritabanı kullanılmadı.");
+StartupConfigurationChecks.Run();
 
 void Check(bool condition, string name)
 {
