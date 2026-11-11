@@ -5,7 +5,7 @@ import type { Gender, SeatOccupancy, SunExposure } from "../seatCompatibility";
 import "./SeatMap.css";
 
 export default function SeatMap({ seats, layout, occupied = [], selected = null, mode = "select", disabled = false, onChoose, occupancies = [], genders = {}, selectionGender = "", sun, onIncompatible }: {
-  seats: SeatPosition[]; layout: string; occupied?: number[]; selected?: number | number[] | null; mode?: "select" | "block" | "readonly" | "edit"; disabled?: boolean; onChoose?: (number: number) => void;
+  seats: SeatPosition[]; layout: string; occupied?: number[]; selected?: number | number[] | null; mode?: "select" | "block" | "readonly" | "edit"; disabled?: boolean; onChoose?: (number: number, anchor: HTMLButtonElement) => void;
   occupancies?: SeatOccupancy[]; genders?: Record<number, Gender | "">; selectionGender?: Gender | ""; sun?: SunExposure; onIncompatible?: (message: string) => void;
 }) {
   const known = ["2+1", "2+2", "Custom"].includes(layout);
@@ -38,7 +38,7 @@ export default function SeatMap({ seats, layout, occupied = [], selected = null,
           : seat.isBlocked ? "blocked" : chosen ? selectedClass : conflict ? "incompatible" : "available";
         return <button type="button" key={seat.number} style={known ? { gridColumn: seat.row + 1, gridRow: seat.column } : undefined} title={label} aria-label={label} aria-pressed={mode === "block" ? seat.isBlocked : chosen}
           className={"physical-seat " + seatClass} aria-haspopup={mode === "select" ? "dialog" : undefined}
-          disabled={disabled || mode === "readonly" || taken || (mode === "select" && seat.isBlocked)} onClick={() => { if (conflict && !chosen) onIncompatible?.(conflict); else onChoose?.(seat.number); }}>
+          disabled={disabled || mode === "readonly" || taken || (mode === "select" && seat.isBlocked)} onClick={event => { if (conflict && !chosen) onIncompatible?.(conflict); else onChoose?.(seat.number, event.currentTarget); }}>
           <span className="seat-number">{seat.number}</span><small>{status}</small>
           {mode === "select" && chosen && !taken && !seat.isBlocked &&
             <span className="seat-selected-mark" aria-hidden="true">✓</span>}

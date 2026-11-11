@@ -56,7 +56,7 @@ for (const width of [390, 768, 1024, 1366, 1440, 1920]) for (const [layout, capa
   await expect(lastAvailable).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByLabel(`Ad soyad · Koltuk ${capacity - 1}`)).toHaveCount(0);
 });
-test("Komşuluk kuralı modalda açıklanır; uyumsuz cinsiyet seçilemez", async ({ page }) => {
+test("Komşuluk kuralı popover içinde korunur; uyumsuz cinsiyet seçilemez", async ({ page }) => {
   await setup(page);
   const seat = page.getByRole("button", { name: /^Koltuk 2,/ });
   await seat.click();
@@ -72,7 +72,7 @@ test("Komşuluk kuralı modalda açıklanır; uyumsuz cinsiyet seçilemez", asyn
   await chooseSeat(page, 3, "Kadın");
   await page.getByRole("button", { name: /^Koltuk 4,/ }).click();
   await expect(dialog.getByRole("button", { name: "Erkek", exact: true })).toBeDisabled();
-  await dialog.getByRole("button", { name: "Vazgeç", exact: true }).click();
+  await page.keyboard.press("Escape");
   await releaseSeat(page, 3);
   await chooseSeat(page, 4, "Erkek");
 });
@@ -112,19 +112,30 @@ for (const width of [390, 1440]) for (const gender of ["Kadın", "Erkek"]) {
     const seat = page.getByRole("button", { name: /^Koltuk 3,/ });
     await expect(seat).toHaveCSS("background-color", "rgb(255, 255, 255)");
     await seat.click();
-    const dialog = page.getByRole("dialog", { name: "Koltuk 3 – Yolcu Cinsiyeti" });
+    const dialog = page.getByRole("dialog", { name: "Koltuk 3", exact: true });
     await expect(dialog).toBeVisible();
-    await expect(dialog).toContainText("Bu koltukta seyahat edecek yolcunun cinsiyetini seçiniz.");
+    await expect(dialog).toContainText("Yolcu cinsiyetini seçiniz");
+    await expect(dialog.getByRole("button")).toHaveCount(2);
+    await expect(page.locator("dialog, .seat-gender-dialog")).toHaveCount(0);
     await expect(seat).toHaveAttribute("aria-pressed", "false");
     await expect(page.getByLabel("Ad soyad · Koltuk 3")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Ödemeye geç", exact: true })).toBeDisabled();
     const bounds = await dialog.boundingBox();
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
-    expect(Math.abs(bounds.x + bounds.width / 2 - width / 2)).toBeLessThan(2);
-    expect(Math.abs(bounds.y + bounds.height / 2 - 450)).toBeLessThan(2);
+    expect(bounds.width).toBeLessThanOrEqual(260);
+    expect(bounds.height).toBeLessThan(160);
+    expect(bounds.y).toBeGreaterThanOrEqual(12);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(888);
+    const seatBounds = await seat.boundingBox();
+    const gap = Math.min(Math.abs(bounds.y + bounds.height - seatBounds.y),
+      Math.abs(bounds.y - seatBounds.y - seatBounds.height),
+      Math.abs(bounds.x + bounds.width - seatBounds.x),
+      Math.abs(bounds.x - seatBounds.x - seatBounds.width));
+    expect(gap).toBeCloseTo(8, 0);
+    expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
     if (gender === "Kadın") {
-      await page.screenshot({ path: `../tmp/ticket-qa/seat-gender-modal-${width}.png` });
+      await page.screenshot({ path: `../tmp/ticket-qa/seat-gender-popover-${width}.png` });
     }
     await dialog.getByRole("button", { name: gender, exact: true }).click();
     await expect(dialog).not.toBeVisible();
@@ -143,25 +154,24 @@ for (const width of [390, 1440]) for (const gender of ["Kadın", "Erkek"]) {
   });
 }
 
-test("Vazgeç, kapatma, Escape ve arka plan tıklaması geçici seçimi iptal eder", async ({ page }) => {
+test("Escape, tekrar koltuğa tıklama ve dışarı tıklama geçici seçimi iptal eder", async ({ page }) => {
   await setup(page);
   const seat = page.getByRole("button", { name: /^Koltuk 3,/ });
-  for (const method of ["button", "close", "escape", "backdrop"]) {
+  for (const method of ["seat", "escape", "outside"]) {
     await seat.click();
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("button", { name: "Kadın", exact: true }))
       .toHaveAttribute("aria-pressed", "false");
-    if (method === "button") await dialog.getByRole("button", { name: "Vazgeç", exact: true }).click();
-    if (method === "close") await dialog.getByRole("button", { name: "Cinsiyet seçimini iptal et" }).click();
+    if (method === "seat") await seat.click();
     if (method === "escape") await page.keyboard.press("Escape");
-    if (method === "backdrop") await page.mouse.click(5, 5);
+    if (method === "outside") await page.mouse.click(5, 5);
     await expect(dialog).not.toBeVisible();
     await expect(seat).toHaveAttribute("aria-pressed", "false");
     await expect(page.getByLabel("Ad soyad · Koltuk 3")).toHaveCount(0);
   }
 });
 
-test("Klavye odağı modal içinde tutulur ve kapanınca koltuğa döner", async ({ page }) => {
+test("Klavye odağı seçenekler arasında dolaşır ve kapanınca koltuğa döner", async ({ page }) => {
   await setup(page);
   const seat = page.getByRole("button", { name: /^Koltuk 3,/ });
   await seat.focus();
@@ -170,7 +180,7 @@ test("Klavye odağı modal içinde tutulur ve kapanınca koltuğa döner", async
   await expect(dialog.getByRole("button", { name: "Kadın", exact: true })).toBeFocused();
   for (let index = 0; index < 6; index++) {
     await page.keyboard.press("Tab");
-    expect(await page.evaluate(() => document.querySelector("dialog").contains(document.activeElement))).toBe(true);
+    expect(await page.evaluate(() => document.querySelector(".seat-gender-popover").contains(document.activeElement))).toBe(true);
   }
   await page.keyboard.press("Escape");
   await expect(seat).toBeFocused();
@@ -180,6 +190,52 @@ test("Klavye odağı modal içinde tutulur ve kapanınca koltuğa döner", async
   await page.keyboard.press("Enter");
   await expect(seat).toHaveClass(/selected male/);
   await expect(seat).toBeFocused();
+});
+
+test("Popover mobilde yön değiştirir, kaydırmayı ve yeniden boyutlandırmayı takip eder", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 700 });
+  await setup(page);
+  const seat = page.getByRole("button", { name: /^Koltuk 3,/ });
+  await seat.evaluate(element => {
+    document.body.style.minHeight = "2500px";
+    window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - 120);
+  });
+  await seat.click();
+  const popover = page.getByRole("dialog");
+  const seatBounds = await seat.boundingBox();
+  expect((await popover.boundingBox()).y).toBeCloseTo(seatBounds.y + seatBounds.height + 8, 0);
+  await page.evaluate(() => window.scrollBy(0, -100));
+  await expect.poll(async () => {
+    const s = await seat.boundingBox();
+    const p = await popover.boundingBox();
+    return Math.abs(p.y + p.height + 8 - s.y);
+  }).toBeLessThan(1);
+  await page.setViewportSize({ width: 320, height: 600 });
+  await expect.poll(async () => {
+    const p = await popover.boundingBox();
+    return p.x >= 12 && p.x + p.width <= 308 && p.y >= 12 && p.y + p.height <= 588;
+  }).toBe(true);
+  await page.keyboard.press("Escape");
+  const last = page.getByRole("button", { name: /^Koltuk 39,/ });
+  await last.click();
+  const bounds = await popover.boundingBox();
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(308);
+  await popover.getByRole("button", { name: "Kadın", exact: true }).click();
+  await expect(last).toHaveClass(/selected female/);
+});
+
+test("Başka koltuğa tıklama popoverı taşır ve cinsiyetsiz seçimi kaydetmez", async ({ page }) => {
+  await setup(page);
+  const first = page.getByRole("button", { name: /^Koltuk 3,/ });
+  await first.click();
+  const second = page.getByRole("button", { name: /^Koltuk 7,/ });
+  await second.click();
+  await expect(page.getByRole("dialog", { name: "Koltuk 7", exact: true })).toBeVisible();
+  await expect(first).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".physical-seat.selected")).toHaveCount(0);
+  await page.getByRole("dialog").getByRole("button", { name: "Erkek", exact: true }).click();
+  await expect(second).toHaveClass(/selected male/);
+  await expect(page.getByLabel("Ad soyad · Koltuk 3")).toHaveCount(0);
 });
 
 test("Dolu, kapalı ve tutulmuş koltuklar açılmaz; bilinmeyen komşu cinsiyeti atlanamaz", async ({ page }) => {

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useParams } from "react-router-dom";
 import { apiUrl } from "../api";
 import SiteHeader from "../components/SiteHeader";
@@ -56,7 +57,8 @@ function TripDetails({ id }: { id: string | undefined }) {
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [genders, setGenders] = useState<Record<number, Gender | "">>({});
   const [pendingSeat, setPendingSeat] = useState<number | null>(null);
-  const genderDialog = useRef<HTMLDialogElement>(null);
+  const genderPopover = useRef<HTMLDivElement>(null);
+  const seatAnchor = useRef<HTMLButtonElement | null>(null);
   const removeSeat = (seat: number) => {
     setSelectedSeats(current => current.filter(number => number !== seat));
     setGenders(current => {
@@ -74,21 +76,21 @@ function TripDetails({ id }: { id: string | undefined }) {
   const [saving, setSaving] = useState(false);
   const [bookingError, setBookingError] = useState("");
   const [revision, setRevision] = useState(0);
-  const genderOptions = ([['Female', 'Kadın', '♀'], ['Male', 'Erkek', '♂']] as const).map(([value, label, icon]) => ({
-    value, label, icon,
+  const genderOptions = ([['Female', 'Kadın'], ['Male', 'Erkek']] as const).map(([value, label]) => ({
+    value, label,
     conflict: pendingSeat === null ? "" : seatConflict(
       trip?.seats ?? [], pendingSeat, value, trip?.seatOccupancies ?? [], genders
     ),
   }));
-  const closeGenderDialog = () => {
-    genderDialog.current?.close();
+  const closeGenderPopover = () => {
+    seatAnchor.current?.focus({ preventScroll: true });
     setPendingSeat(null);
   };
   const cancelGenderSelection = () => {
     if (pendingSeat !== null) removeSeat(pendingSeat);
-    closeGenderDialog();
+    closeGenderPopover();
   };
-  const openGenderDialog = (seatNumber: number) => {
+  const openGenderPopover = (seatNumber: number, anchor: HTMLButtonElement) => {
     if (!trip?.canReserve || saving) return;
     const seat = trip.seats?.find(item => item.number === seatNumber);
     if (!seat || seat.isBlocked || trip.occupiedSeats.includes(seatNumber) ||
@@ -97,6 +99,11 @@ function TripDetails({ id }: { id: string | undefined }) {
       setBookingError("En fazla 10 koltuk seçebilirsiniz.");
       return;
     }
+    if (pendingSeat === seatNumber) {
+      cancelGenderSelection();
+      return;
+    }
+    seatAnchor.current = anchor;
     setBookingError("");
     setPendingSeat(seatNumber);
   };
@@ -113,31 +120,80 @@ function TripDetails({ id }: { id: string | undefined }) {
     if (conflict) return;
     if (!selectedSeats.includes(pendingSeat) && selectedSeats.length >= 10) {
       setBookingError("En fazla 10 koltuk seçebilirsiniz.");
-      closeGenderDialog();
+      closeGenderPopover();
       return;
     }
     setGenders(current => ({ ...current, [pendingSeat]: gender }));
     setSelectedSeats(current => current.includes(pendingSeat) ? current : [...current, pendingSeat]);
     setBookingError("");
-    closeGenderDialog();
+    closeGenderPopover();
   };
   const refresh = () => {
-    closeGenderDialog();
+    closeGenderPopover();
     setLoading(true); setError(""); setSelectedSeats([]); setGenders({}); setRevision(v => v + 1);
   };
 
-  useEffect(() => {
-    const dialog = genderDialog.current;
-    if (pendingSeat === null || !dialog) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    dialog.showModal();
-    const currentChoice = dialog.querySelector<HTMLButtonElement>('[data-gender][aria-pressed="true"]:not(:disabled)');
-    const firstChoice = dialog.querySelector<HTMLButtonElement>('[data-gender]:not(:disabled)');
-    (currentChoice ?? firstChoice)?.focus();
+  useLayoutEffect(() => {
+    const popover = genderPopover.current;
+    const anchor = seatAnchor.current;
+    if (pendingSeat === null || !popover || !anchor) return;
+    const position = () => {
+      const viewport = window.visualViewport;
+      const left = (viewport?.offsetLeft ?? 0) + 12;
+      const top = (viewport?.offsetTop ?? 0) + 12;
+      const right = left + (viewport?.width ?? document.documentElement.clientWidth) - 24;
+      const bottom = top + (viewport?.height ?? window.innerHeight) - 24;
+      popover.style.width = `${Math.min(250, right - left)}px`;
+      popover.style.maxHeight = `${bottom - top}px`;
+      const seat = anchor.getBoundingClientRect();
+      const { width, height } = popover.getBoundingClientRect();
+      const centerX = seat.left + (seat.width - width) / 2;
+      const centerY = seat.top + (seat.height - height) / 2;
+      const candidates = [
+        { x: centerX, y: seat.top - height - 8, space: seat.top - top - 8, size: height },
+        { x: centerX, y: seat.bottom + 8, space: bottom - seat.bottom - 8, size: height },
+        { x: seat.right + 8, y: centerY, space: right - seat.right - 8, size: width },
+        { x: seat.left - width - 8, y: centerY, space: seat.left - left - 8, size: width },
+      ];
+      const placement = candidates.find(candidate => candidate.space >= candidate.size)
+        ?? candidates.reduce((best, candidate) => candidate.space > best.space ? candidate : best);
+      popover.style.left = `${Math.max(left, Math.min(placement.x, right - width))}px`;
+      popover.style.top = `${Math.max(top, Math.min(placement.y, bottom - height))}px`;
+    };
+    position();
+    const currentChoice = popover.querySelector<HTMLButtonElement>('[data-gender][aria-pressed="true"]:not(:disabled)');
+    const firstChoice = popover.querySelector<HTMLButtonElement>('[data-gender]:not(:disabled)');
+    (currentChoice ?? firstChoice)?.focus({ preventScroll: true });
+    const dismiss = () => { removeSeat(pendingSeat); setPendingSeat(null); };
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !popover.contains(event.target) && !anchor.contains(event.target)) dismiss();
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      dismiss();
+      anchor.focus({ preventScroll: true });
+    };
+    const observer = new ResizeObserver(position);
+    observer.observe(popover);
+    observer.observe(anchor);
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    viewportListeners(true);
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    function viewportListeners(add: boolean) {
+      const method = add ? "addEventListener" : "removeEventListener";
+      window.visualViewport?.[method]("resize", position);
+      window.visualViewport?.[method]("scroll", position);
+    }
     return () => {
-      if (dialog.open) dialog.close();
-      document.body.style.overflow = previousOverflow;
+      observer.disconnect();
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+      viewportListeners(false);
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
     };
   }, [pendingSeat]);
 
@@ -202,7 +258,7 @@ function TripDetails({ id }: { id: string | undefined }) {
                   seats={trip.seats ?? []} layout={trip.seatLayout ?? "Unspecified"}
                   occupied={trip.occupiedSeats} occupancies={trip.seatOccupancies} genders={genders}
                   sun={trip.sunExposure} onIncompatible={setBookingError} selected={selectedSeats}
-                  disabled={!trip.canReserve || saving} onChoose={openGenderDialog}
+                  disabled={!trip.canReserve || saving} onChoose={openGenderPopover}
                 />}
                 {!trip.seatPlanAvailable && <p>{trip.sunExposure?.message ?? "Güneş yönü bilgisi hesaplanamadı."}</p>}
                 <button type="button" className="site-button secondary" disabled={saving} onClick={refresh}>Koltuk planını yenile</button>
@@ -227,10 +283,9 @@ function TripDetails({ id }: { id: string | undefined }) {
           </>
         ) : null}
       </main>
-      <dialog
-        ref={genderDialog} className="reservation-confirm seat-gender-dialog"
-        aria-labelledby="seat-gender-heading" aria-describedby="seat-gender-description" aria-modal="true"
-        onCancel={event => { event.preventDefault(); cancelGenderSelection(); }}
+      {pendingSeat !== null && createPortal(<div
+        ref={genderPopover} className="seat-gender-popover" role="dialog"
+        aria-labelledby="seat-gender-heading" aria-describedby="seat-gender-description"
         onKeyDown={event => {
           if (event.key !== "Tab") return;
           const buttons = event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
@@ -244,45 +299,29 @@ function TripDetails({ id }: { id: string | undefined }) {
             first?.focus();
           }
         }}
-        onClick={event => {
-          if (event.target !== event.currentTarget) return;
-          const bounds = event.currentTarget.getBoundingClientRect();
-          if (event.clientX < bounds.left || event.clientX > bounds.right ||
-            event.clientY < bounds.top || event.clientY > bounds.bottom) cancelGenderSelection();
-        }}
       >
-        {pendingSeat !== null && <>
-          <div className="seat-gender-header">
-            <span className="seat-gender-number" aria-hidden="true">{pendingSeat}</span>
-            <button type="button" className="seat-gender-close" aria-label="Cinsiyet seçimini iptal et"
-              onClick={cancelGenderSelection}>×</button>
-          </div>
-          <h2 id="seat-gender-heading">Koltuk {pendingSeat} – Yolcu Cinsiyeti</h2>
-          <p id="seat-gender-description">Bu koltukta seyahat edecek yolcunun cinsiyetini seçiniz.</p>
-          <div className="seat-gender-options">
-            {genderOptions.map(option => <button
-              key={option.value} type="button" data-gender={option.value}
-              className={"seat-gender-option " + option.value.toLowerCase()}
-              aria-label={option.label} aria-pressed={genders[pendingSeat] === option.value}
-              aria-describedby={option.conflict ? "seat-gender-restriction" : undefined}
-              disabled={!!option.conflict || saving || !trip?.canReserve}
-              onClick={() => chooseGender(option.value)}
-            >
-              <span aria-hidden="true">{option.icon}</span>
-              <strong>{option.label}</strong>
-              {genders[pendingSeat] === option.value && <small aria-hidden="true">✓ Mevcut seçim</small>}
-            </button>)}
-          </div>
-          {genderOptions.some(option => option.conflict) && <p id="seat-gender-restriction"
-            className="seat-gender-restriction">{genderOptions.find(option => option.conflict)?.conflict}</p>}
-          {selectedSeats.includes(pendingSeat) && <p className="seat-gender-cancel-note">
-            İptal ederseniz bu koltuk ve geçici yolcu bilgileri kaldırılır.
-          </p>}
-          <button type="button" className="site-button secondary seat-gender-cancel" onClick={cancelGenderSelection}>
-            {selectedSeats.includes(pendingSeat) ? "Koltuğu bırak" : "Vazgeç"}
-          </button>
-        </>}
-      </dialog>
+        <h2 id="seat-gender-heading">Koltuk {pendingSeat}</h2>
+        <p id="seat-gender-description">Yolcu cinsiyetini seçiniz</p>
+        <div className="seat-gender-options">
+          {genderOptions.map(option => <button
+            key={option.value} type="button" data-gender={option.value}
+            className={"seat-gender-option " + option.value.toLowerCase()}
+            aria-label={option.label} aria-pressed={genders[pendingSeat] === option.value}
+            aria-describedby={option.conflict ? "seat-gender-restriction" : undefined}
+            title={option.conflict || undefined}
+            disabled={!!option.conflict || saving || !trip?.canReserve}
+            onClick={() => chooseGender(option.value)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+              <circle cx="12" cy="8" r="3.5" />
+              <path d="M5 21v-2a7 7 0 0 1 14 0v2" strokeLinecap="round" />
+            </svg>
+            <span>{option.label}</span>
+          </button>)}
+        </div>
+        {genderOptions.some(option => option.conflict) && <p id="seat-gender-restriction"
+          className="seat-gender-restriction">{genderOptions.find(option => option.conflict)?.conflict}</p>}
+      </div>, document.body)}
     </div>
   );
 }

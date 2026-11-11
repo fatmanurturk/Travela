@@ -68,73 +68,53 @@
   color: #526781;
   font-size: 13px;
 }
-.reservation-confirm.seat-gender-dialog {
-  width: min(480px, calc(100% - 32px));
-  padding: clamp(20px, 5vw, 32px);
+.seat-gender-popover {
+  position: fixed;
+  z-index: 1000;
+  box-sizing: border-box;
+  width: 250px;
+  max-width: calc(100vw - 24px);
+  padding: 14px;
+  overflow-y: auto;
   border: 1px solid #dce5f0;
-  border-radius: 24px;
-  box-shadow: 0 24px 80px #102a4d40;
-}
-.reservation-confirm.seat-gender-dialog::backdrop {
-  background: #102a4d80;
-  backdrop-filter: blur(4px);
-}
-.seat-gender-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.seat-gender-number {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 14px;
-  background: #eff6ff;
-  color: #2563eb;
-  font-size: 21px;
-  font-weight: 750;
-}
-.seat-gender-close {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 1px solid #dce5f0;
-  border-radius: 50%;
+  border-radius: 12px;
   background: white;
-  color: #526781;
-  font-size: 26px;
+  color: #173352;
+  box-shadow: 0 8px 28px #102a4d26, 0 2px 6px #102a4d0d;
+  font-family: inherit;
 }
-.seat-gender-dialog h2 {
-  margin: 20px 0 10px;
-  font-size: clamp(20px, 4.5vw, 24px);
-  line-height: 1.35;
-}
-.seat-gender-dialog > p {
-  color: #526781;
+.seat-gender-popover h2 {
+  margin: 0;
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.4;
+  font-weight: 700;
+}
+.seat-gender-popover > p {
+  margin: 4px 0 12px;
+  color: #526781;
+  font-size: 12px;
+  line-height: 1.5;
 }
 .seat-gender-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin: 24px 0 18px;
+  gap: 8px;
 }
 .seat-gender-option {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
-  min-height: 136px;
-  padding: 16px 10px;
-  border: 2px solid;
-  border-radius: 18px;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid;
+  border-radius: 8px;
   font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 .seat-gender-option.female {
   background: #fff1f6;
@@ -146,46 +126,35 @@
   border-color: #b3d3f2;
   color: #255d91;
 }
-.seat-gender-option > span {
-  font-size: 36px;
-  line-height: 1;
-}
-.seat-gender-option strong {
-  font-size: 17px;
-}
-.seat-gender-option small {
-  font-size: 11px;
+.seat-gender-option svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 .seat-gender-option:not(:disabled):hover {
   border-color: currentColor;
-  box-shadow: 0 4px 14px #17335215;
 }
 .seat-gender-option[aria-pressed="true"] {
-  outline: 2px solid #168354;
-  outline-offset: 3px;
+  box-shadow: inset 0 0 0 1px #168354;
 }
 .seat-gender-option:disabled {
   opacity: .5;
   cursor: not-allowed;
 }
-.seat-gender-dialog .seat-gender-restriction {
-  padding: 12px;
-  border: 1px solid #e9d8ac;
-  border-radius: 10px;
-  background: #fffbef;
-  color: #6b551f;
-  font-size: 12px;
+/* Keep the rule available to assistive technology and the disabled option tooltip. */
+.seat-gender-popover .seat-gender-restriction {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
-.seat-gender-dialog .seat-gender-cancel-note {
-  font-size: 12px;
-}
-.seat-gender-cancel {
-  width: 100%;
-  justify-content: center;
-}
-.seat-gender-dialog button:focus-visible {
-  outline: 3px solid #f59e0b;
-  outline-offset: 4px;
+.seat-gender-popover button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
 @container (max-width: 680px) { .layout-known .physical-seat small { display: none; } }
 @media (max-width: 767px) {
