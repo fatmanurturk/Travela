@@ -14,10 +14,12 @@ using Travela.Api.Payments;
 using Travela.Data;
 using Travela.DTOs;
 using Travela.Models;
+using Travela.Tests;
 
 var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
 Directory.SetCurrentDirectory(root);
 if (args.Contains("--seat-unit")) { SeatRulesChecks.Unit(); return; }
+if (args.Contains("--test-db-unit")) { SqlTestDatabaseChecks.Run(); return; }
 using var source = new TravelaDbContextFactory().CreateDbContext([]);
 if (args.Contains("--migrate-seat-rules")) { await SeatRulesMigration.Apply(source); return; }
 if (args.Contains("--migrate-journey")) { await JourneyMigration.Apply(source); return; }
@@ -36,10 +38,13 @@ if (args.Contains("--verify-existing"))
     Console.WriteLine($"Eski ücretsiz kayıt: {await source.Reservations.CountAsync(r => r.Kind == "Legacy")}; bilet: {await source.Reservations.CountAsync(r => r.Kind == "Ticket")}. Kayıt değiştirilmedi.");
     return;
 }
-var database = "TravelaPaymentTests_" + Guid.NewGuid().ToString("N");
-var cs = new SqlConnectionStringBuilder(source.Database.GetConnectionString()) { InitialCatalog = database };
+var testDatabase = SqlTestDatabase.Create(
+    Environment.GetEnvironmentVariable("TRAVELA_TEST_SQL_CONNECTION") ?? source.Database.GetConnectionString(),
+    "TravelaPaymentTests_");
+var cs = new SqlConnectionStringBuilder(testDatabase.ConnectionString);
 var options = new DbContextOptionsBuilder<TravelaDbContext>().UseSqlServer(cs.ConnectionString).Options;
 await using var db = new TravelaDbContext(options);
+await testDatabase.VerifyServerAsync();
 Process? server = null;
 var log = new System.Text.StringBuilder();
 var passed = 0;
@@ -263,8 +268,8 @@ try
 finally
 {
     if (server is { HasExited: false }) { server.Kill(true); await server.WaitForExitAsync(); }
-    server?.Dispose(); SqlConnection.ClearAllPools();
-    if (cs.InitialCatalog == database && database.StartsWith("TravelaPaymentTests_", StringComparison.Ordinal)) await db.Database.EnsureDeletedAsync();
+    server?.Dispose();
+    await testDatabase.DeleteAsync(db);
 }
 void Check(bool ok, string message) { if (!ok) throw new Exception("BAŞARISIZ: " + message); passed++; Console.WriteLine("OK: " + message); }
 static User User(string name, string role = "Passenger") { var u = new User { FullName = name, Email = name + "@travela.test", Role = role }; u.PasswordHash = new PasswordHasher<User>().HashPassword(u, "TestPass123!"); return u; }

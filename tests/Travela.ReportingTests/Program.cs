@@ -15,6 +15,7 @@ using Travela.Api.Reporting;
 using Travela.Data;
 using Travela.DTOs;
 using Travela.Models;
+using Travela.Tests;
 
 var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
 Directory.SetCurrentDirectory(root);
@@ -34,9 +35,12 @@ if (args.Contains("--snapshot-existing") || args.Contains("--verify-existing"))
  }
  Console.WriteLine("Migration uygulandı ve mevcut kayıt sayıları korundu: "+JsonSerializer.Serialize(counts));return;
 }
-var database = "TravelaReportingTests_" + Guid.NewGuid().ToString("N");
-var cs = new SqlConnectionStringBuilder(source.Database.GetConnectionString()) { InitialCatalog = database };
+var testDatabase = SqlTestDatabase.Create(
+    Environment.GetEnvironmentVariable("TRAVELA_TEST_SQL_CONNECTION") ?? source.Database.GetConnectionString(),
+    "TravelaReportingTests_");
+var cs = new SqlConnectionStringBuilder(testDatabase.ConnectionString);
 await using var db = new TravelaDbContext(new DbContextOptionsBuilder<TravelaDbContext>().UseSqlServer(cs.ConnectionString).Options);
+await testDatabase.VerifyServerAsync();
 Process? server = null; var log = new StringBuilder(); var passed = 0;
 try
 {
@@ -259,17 +263,41 @@ try
  Console.WriteLine($"SONUÇ: {passed} raporlama SQL/HTTP kontrolü başarılı.");
 
  Trip Trip(Company company,Travela.Api.Models.Route r,int capacity,string plate)=>new(){Company=company,Bus=new(){Company=company,SeatCapacity=capacity,PlateNumber=plate,NormalizedPlateNumber=plate.Replace(" ","")},Route=r,DepartureTime=new(2026,11,10,9,0,0,DateTimeKind.Utc),ArrivalTime=new(2026,11,10,11,0,0,DateTimeKind.Utc),Price=500,AvailableSeats=capacity};
- PaymentOrder Order(Trip t,int seat,decimal amount,string status,bool test,DateTime paid,string refund="None"){
-  var cancelled=refund!="None"||status=="Failed";var ticket=status=="Paid";
-  var reservation=new Reservation{Trip=t,Passenger=passenger,SeatNumber=seat,Price=amount,CreatedAt=paid.AddMinutes(-1),Kind=ticket?"Ticket":"Hold",Pnr=ticket?Guid.NewGuid().ToString("N"):null,IssuedAt=ticket?paid:null,HoldExpiresAt=ticket?null:instant.AddMinutes(5),Status=cancelled?"Cancelled":"Active",CancelledAt=cancelled?start.AddHours(5):null};
-  var order=new PaymentOrder{Reservation=reservation,PassengerId=passenger.Id,RequestKey=Guid.NewGuid(),Amount=amount,PaymentStatus=status,IsTest=test,Provider=test?"LocalTest":"FixtureVerified",CreatedAt=paid.AddMinutes(-1),PaidAt=ticket?paid:null,ProviderReference=ticket?Guid.NewGuid().ToString("N"):null,RefundStatus=refund,RefundAmount=refund!="None"?amount:0,RefundRequestedAt=refund!="None"?start.AddHours(5):null,RefundStatusChangedAt=refund!="None"?start.AddHours(6):null,RefundedAt=refund=="Succeeded"?start.AddHours(6):null,RefundReference=refund=="Succeeded"?Guid.NewGuid().ToString("N"):null,LastError=refund=="Failed"?"Sentetik test iadesi başarısız":null};db.Add(order);return order;
+ PaymentOrder Order(Trip t, int seat, decimal amount, string status, bool test, DateTime paid, string refund = "None")
+ {
+  var cancelled = refund != "None" || status == "Failed";
+  var ticket = status == "Paid";
+  var reservation = new Reservation
+  {
+   Trip = t, Passenger = passenger, SeatNumber = seat, Price = amount,
+   CreatedAt = paid.AddMinutes(-1), Kind = ticket ? "Ticket" : "Hold",
+   Pnr = ticket ? Guid.NewGuid().ToString("N") : null,
+   IssuedAt = ticket ? paid : null, HoldExpiresAt = ticket ? null : instant.AddMinutes(5),
+   Status = cancelled ? "Cancelled" : "Active", CancelledAt = cancelled ? start.AddHours(5) : null
+  };
+  var order = new PaymentOrder
+  {
+   Reservation = reservation, PassengerId = passenger.Id, RequestKey = Guid.NewGuid(),
+   Amount = amount, OriginalAmount = amount, PaymentStatus = status, IsTest = test,
+   Provider = test ? "LocalTest" : "FixtureVerified", CreatedAt = paid.AddMinutes(-1),
+   PaidAt = ticket ? paid : null, ProviderReference = ticket ? Guid.NewGuid().ToString("N") : null,
+   RefundStatus = refund, RefundAmount = refund != "None" ? amount : 0,
+   RefundRequestedAt = refund != "None" ? start.AddHours(5) : null,
+   RefundStatusChangedAt = refund != "None" ? start.AddHours(6) : null,
+   RefundedAt = refund == "Succeeded" ? start.AddHours(6) : null,
+   RefundReference = refund == "Succeeded" ? Guid.NewGuid().ToString("N") : null,
+   LastError = refund == "Failed" ? "Sentetik test iadesi başarısız" : null
+  };
+  db.Add(order);
+  return order;
  }
  async Task<string> Login(User user){var result=await http.PostAsJsonAsync("/api/auth/login",new{email=user.Email,password="TestPass123!"});result.EnsureSuccessStatusCode();return(await result.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!;}
  async Task<HttpResponseMessage> Send(string path,string? auth){using var request=new HttpRequestMessage(HttpMethod.Get,path);if(auth!=null)request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",auth);return await http.SendAsync(request);}
 }
 finally{
- if(server is {HasExited:false}){server.Kill(true);await server.WaitForExitAsync();}server?.Dispose();SqlConnection.ClearAllPools();
- if(cs.InitialCatalog==database&&database.StartsWith("TravelaReportingTests_",StringComparison.Ordinal))await db.Database.EnsureDeletedAsync();
+ if(server is {HasExited:false}){server.Kill(true);await server.WaitForExitAsync();}
+ server?.Dispose();
+ await testDatabase.DeleteAsync(db);
 }
 void Check(bool ok,string message){if(!ok)throw new Exception("BAŞARISIZ: "+message);passed++;Console.WriteLine("OK: "+message);}
 static User User(string name,string role="Passenger"){var user=new User{FullName="Yolcu "+name,Email=name+"@report.travela.test",Role=role};user.PasswordHash=new PasswordHasher<User>().HashPassword(user,"TestPass123!");return user;}

@@ -13,6 +13,7 @@ using Microsoft.IdentityModel.Tokens;
 using Travela.Api.Models;
 using Travela.Data;
 using Travela.Models;
+using Travela.Tests;
 using RouteModel = Travela.Api.Models.Route;
 
 var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
@@ -28,9 +29,12 @@ if (args.Contains("--verify-live") || args.Contains("--diagnose-live"))
     await LiveRouteChecks.Run(root, source, args.Contains("--diagnose-live"));
     return;
 }
-var database = "TravelaRouteTests_" + Guid.NewGuid().ToString("N");
-var connection = new SqlConnectionStringBuilder(source.Database.GetConnectionString()) { InitialCatalog = database };
+var testDatabase = SqlTestDatabase.Create(
+    Environment.GetEnvironmentVariable("TRAVELA_TEST_SQL_CONNECTION") ?? source.Database.GetConnectionString(),
+    "TravelaRouteTests_");
+var connection = new SqlConnectionStringBuilder(testDatabase.ConnectionString);
 await using var db = new TravelaDbContext(new DbContextOptionsBuilder<TravelaDbContext>().UseSqlServer(connection.ConnectionString).Options);
+await testDatabase.VerifyServerAsync();
 Process? server = null;
 var log = new StringBuilder();
 var passed = 0;
@@ -177,7 +181,7 @@ try
 finally
 {
     if (server is { HasExited: false }) { server.Kill(true); await server.WaitForExitAsync(); }
-    server?.Dispose(); SqlConnection.ClearAllPools();
-    if (connection.InitialCatalog == database && database.StartsWith("TravelaRouteTests_", StringComparison.Ordinal)) await db.Database.EnsureDeletedAsync();
+    server?.Dispose();
+    await testDatabase.DeleteAsync(db);
 }
 void Check(bool ok, string message) { if (!ok) throw new Exception("BAŞARISIZ: " + message); passed++; Console.WriteLine("OK: " + message); }

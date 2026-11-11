@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Travela.Api.Legal;
 using Travela.Api.Models;
 using Travela.Api.Payments;
+using Travela.Api.Trips;
 using Travela.Data;
 using Travela.DTOs;
 using Travela.Models;
@@ -85,7 +86,8 @@ internal static class LegalConsentChecks
         {
             Company = company, Bus = bus, Route = route,
             DepartureTime = DateTime.UtcNow.AddDays(20), ArrivalTime = DateTime.UtcNow.AddDays(20).AddHours(6),
-            Price = 500, AvailableSeats = 40, SeatLayout = "2+2", SeatCapacitySnapshot = 40, SellableSeatCount = 40
+            Price = 500, AvailableSeats = 40, SeatLayout = "2+2", SeatCapacitySnapshot = 40, SellableSeatCount = 40,
+            SeatPlanJson = SeatPlans.Write(SeatPlans.Create("2+2", 40))
         };
         db.Add(trip);
         var other = new User { FullName = "Diğer Test Yolcusu", Email = Guid.NewGuid().ToString("N") + "@consent.example" };
@@ -99,7 +101,14 @@ internal static class LegalConsentChecks
             requestKey,
             userId = other.Id,
             companyId = -1,
-            passengers = new[] { new { seatNumber = 1, fullName = "Test Yolcusu", email = "traveler@consent.example", phone = "+905321234567" } },
+            passengers = new[]
+            {
+                new
+                {
+                    seatNumber = 1, fullName = "Test Yolcusu", email = "traveler@consent.example",
+                    phone = "+905321234567", gender = "Female"
+                }
+            },
             legalAcceptances = acceptances
         };
         var missingGroupConsent = await send("POST", "/api/purchases", buyer, Group(null));
@@ -112,7 +121,8 @@ internal static class LegalConsentChecks
         var singleRequestKey = Guid.NewGuid();
         object Single(List<LegalAcceptanceDto>? acceptances) => new
         {
-            tripId = trip.Id, seatNumber = 2, requestKey = singleRequestKey, legalAcceptances = acceptances
+            tripId = trip.Id, seatNumber = 2, gender = "Female",
+            requestKey = singleRequestKey, legalAcceptances = acceptances
         };
         check((await send("POST", "/api/tickets/checkout", buyer, Single(null))).StatusCode == HttpStatusCode.BadRequest,
             "Eski tek bilet endpoint'i onay kuralını atlayamaz");
@@ -144,7 +154,8 @@ internal static class LegalConsentChecks
         var legacyReservation = new Reservation
         {
             Trip = trip, PassengerId = buyer.Id, SeatNumber = 3, Price = 500,
-            Kind = "Hold", HoldExpiresAt = DateTime.UtcNow.AddMinutes(5), PassengerNameSnapshot = "Eski Yolcu"
+            Kind = "Hold", HoldExpiresAt = DateTime.UtcNow.AddMinutes(5),
+            PassengerNameSnapshot = "Eski Yolcu", PassengerGender = "Female"
         };
         var legacyOrder = new PaymentOrder
         {
