@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { chooseSeat, releaseSeat } from "./helpers/seat-selection.mjs";
 import { buildSeats } from "../../src/seatPlans.ts";
 import { LEGAL_VERSION } from "../../src/legal.ts";
 
@@ -78,21 +79,20 @@ test("Koltuk onayı sözleşme olmadan sipariş oluşturmaz; seçim değişirse 
     return r.fulfill({ status: 409, json: { message: "Test: istek alındı." } });
   });
   await page.goto("/trips/12");
-  await page.getByRole("button", { name: /^Koltuk 2,/ }).click();
+  await chooseSeat(page, 2);
   await page.getByLabel("Ad soyad · Koltuk 2").fill("Onay Test Yolcusu");
   await page.getByLabel("E-posta · Koltuk 2").fill("consent@example.test");
   await page.getByLabel("Telefon · Koltuk 2").fill("+905321234567");
-  await page.locator('input[name="gender-2"][value="Female"]').check();
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
   const submit = page.getByRole("button", { name: "Ödemeye geç", exact: true });
   await expect(submit).toBeDisabled();
   expect(sent).toBeUndefined();
   await page.getByRole("checkbox", { name: salesLabel }).check();
   await expect(submit).toBeEnabled();
-  await page.getByRole("button", { name: /^Koltuk 3,/ }).click();
+  await chooseSeat(page, 3);
   await expect(page.getByRole("checkbox", { name: salesLabel })).not.toBeChecked();
   await expect(submit).toBeDisabled();
-  await page.getByRole("button", { name: /^Koltuk 3,/ }).click();
+  await releaseSeat(page, 3);
   await page.getByRole("checkbox", { name: salesLabel }).check();
   await submit.click();
   await expect.poll(() => sent?.legalAcceptances).toEqual([

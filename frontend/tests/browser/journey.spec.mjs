@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { buildSeats } from "../../src/seatPlans.ts";
+import { chooseSeat } from "./helpers/seat-selection.mjs";
 
 async function session(page, role) {
   await page.addInitScript(role => {
@@ -22,7 +23,7 @@ for (const width of [390, 1440]) test(`Yolcu gerçek plandan seçer ve terminal 
   await expect(plan.getByRole("button", { name: /^Koltuk 1,/ })).toBeDisabled();
   await expect(plan.getByRole("button", { name: /^Koltuk 3,/ })).toBeDisabled();
   await expect(plan.getByRole("button", { name: /^Koltuk 8,/ })).toBeDisabled();
-  await plan.getByRole("button", { name: /^Koltuk 6,/ }).click();
+  await chooseSeat(page, 6);
   await expect(plan.getByRole("button", { name: /^Koltuk 6,/ })).toHaveAttribute("aria-pressed", "true");
   const locations = page.getByRole("region", { name: "Terminal ve biniş bilgileri" });
   await expect(locations).toContainText("Esenler Otogarı"); await expect(locations).toContainText("Peron 12");
@@ -30,7 +31,6 @@ for (const width of [390, 1440]) test(`Yolcu gerçek plandan seçer ve terminal 
   const size = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth })); expect(size.width).toBeLessThanOrEqual(size.viewport + 1);
   await page.screenshot({ path: `../tmp/ticket-qa/journey-${width}.png`, fullPage: true });
   await page.getByRole("button", { name: "Hesap bilgilerimi kullan · Koltuk 6" }).click();
-  await page.locator('input[name="gender-6"][value="Female"]').check();
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
   await page.getByRole("checkbox", { name: /Mesafeli satış sözleşmesini ve ön bilgilendirme/ }).check();
   await page.getByRole("button", { name: "Ödemeye geç", exact: true }).click();

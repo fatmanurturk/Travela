@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { buildSeats } from "../../src/seatPlans.ts";
+import { chooseSeat } from "./helpers/seat-selection.mjs";
 const id = "12345678-1234-1234-1234-123456789012";
 async function setup(page, provider = "LocalTest", width = 1440) {
   await page.setViewportSize({ width, height: 1000 });
@@ -17,13 +18,22 @@ const group = { id, amount: 666.66, currency: "TRY", provider: "LocalTest", isTe
 for (const width of [390,1440]) test(`İki yolcu kendi bilgileriyle ortak siparişe geçer: ${width}px`, async ({ page }) => {
   await setup(page, "LocalTest", width); let sent;
   await page.route("**/api/purchases", async r => { sent = r.request().postDataJSON(); await r.fulfill({ json: group }); }); await page.route(`**/api/purchases/${id}`, r => r.fulfill({ json: group }));
-  await page.goto("/trips/12"); await page.getByRole("button", { name: /^Koltuk 2,/ }).click(); await page.getByRole("button", { name: /^Koltuk 3,/ }).click();
-  for (const [seat,name] of [[2,"Başka Yolcu"],[3,"İkinci Yolcu"]]) { await page.getByLabel(`Ad soyad · Koltuk ${seat}`).fill(name); await page.getByLabel(`E-posta · Koltuk ${seat}`).fill(`traveler${seat}@example.com`); await page.getByLabel(`Telefon · Koltuk ${seat}`).fill("+905321234567"); await page.getByRole("group", { name: `Cinsiyet seçiniz · Koltuk ${seat}` }).getByLabel("Kadın", { exact: true }).check(); }
+  await page.goto("/trips/12");
+  await chooseSeat(page, 2, "Kadın");
+  await chooseSeat(page, 3, "Erkek");
+  for (const [seat, name] of [[2, "Başka Yolcu"], [3, "İkinci Yolcu"]]) {
+    await page.getByLabel(`Ad soyad · Koltuk ${seat}`).fill(name);
+    await page.getByLabel(`E-posta · Koltuk ${seat}`).fill(`traveler${seat}@example.com`);
+    await page.getByLabel(`Telefon · Koltuk ${seat}`).fill("+905321234567");
+  }
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
   await page.getByRole("checkbox", { name: /Mesafeli satış sözleşmesini ve ön bilgilendirme/ }).check();
   await page.getByRole("button", { name: "Ödemeye geç", exact: true }).click();
   await expect(page).toHaveURL(`/purchase/${id}`);
   expect(sent.passengers).toHaveLength(2); expect(sent.passengers[0].fullName).toBe("Başka Yolcu"); expect(sent.buyer).toBeUndefined();
+  expect(sent.passengers.map(({ seatNumber, gender }) => ({ seatNumber, gender }))).toEqual([
+    { seatNumber: 2, gender: "Female" }, { seatNumber: 3, gender: "Male" },
+  ]);
   await expect(page.getByRole("heading", { name: /2 yolcu/ })).toContainText("666,66"); await expect(page.getByText("İkinci Yolcu", { exact: true })).toBeVisible();
   const size = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth })); expect(size.width).toBeLessThanOrEqual(size.viewport + 1);
   await page.screenshot({ path: `../tmp/ticket-qa/group-purchase-${width}.png`, fullPage: true });
@@ -31,8 +41,9 @@ for (const width of [390,1440]) test(`İki yolcu kendi bilgileriyle ortak sipari
 test("iyzico sandbox akışı alıcı bilgilerini toplar ve yalnızca sağlayıcıya yönlendirir", async ({ page }) => {
   await setup(page, "IyzicoSandbox"); let sent; const sandboxGroup = { ...group, provider: "IyzicoSandbox", checkoutUrl: "https://sandbox-cpp.iyzipay.com/?token=test-sandbox" };
   await page.route("**/api/purchases", async r => { sent = r.request().postDataJSON(); await r.fulfill({ json: sandboxGroup }); }); await page.route(`**/api/purchases/${id}`, r => r.fulfill({ json: sandboxGroup }));
-  await page.goto("/trips/12"); await page.getByRole("button", { name: /^Koltuk 2,/ }).click(); await page.getByRole("button", { name: "Hesap bilgilerimi kullan · Koltuk 2" }).click();
-  await page.locator('input[name="gender-2"][value="Female"]').check();
+  await page.goto("/trips/12");
+  await chooseSeat(page, 2);
+  await page.getByRole("button", { name: "Hesap bilgilerimi kullan · Koltuk 2" }).click();
   for (const [field,value] of Object.entries({ name:"Alıcı", surname:"Test", identityNumber:"11111111111", address:"Sandbox adresi", city:"İzmir", country:"Türkiye", zipCode:"35000", phone:"+905321234567" })) await page.getByLabel(`Alıcı ${field}`, { exact: true }).fill(value);
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
   await page.getByRole("checkbox", { name: /Mesafeli satış sözleşmesini ve ön bilgilendirme/ }).check();

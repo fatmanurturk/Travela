@@ -21,17 +21,27 @@ export default function SeatMap({ seats, layout, occupied = [], selected = null,
       {known && <span className="seat-corridor" style={{ gridColumn: '2 / -2', gridRow: 3 }} aria-hidden="true">← Hareket yönü · Koridor</span>}
       {known && (sun?.side === "Left" || sun?.side === "Right") && <span className={"bus-sun sun-" + sun.side.toLowerCase()} title={"Güneş: otobüsün " + (sun.side === "Left" ? "sol" : "sağ") + " tarafı"}>☀</span>}
       {seats.map(seat => {
-        const taken = occupied.includes(seat.number);
         const occupancy = occupancies.find(s => s.seatNumber === seat.number);
+        const taken = occupied.includes(seat.number) || !!occupancy;
         const chosen = Array.isArray(selected) ? selected.includes(seat.number) : selected === seat.number;
+        const chosenGender = chosen && !taken && !seat.isBlocked ? genders[seat.number] : "";
         const conflict = mode === "select" ? seatConflict(seats, seat.number, chosen ? genders[seat.number] : selectionGender, occupancies, genders) : "";
         const status = taken ? occupancy?.kind === "Hold" ? "Geçici" : occupancy?.gender === "Female" ? "Kadın" : occupancy?.gender === "Male" ? "Erkek" : "Dolu" : seat.isBlocked ? "Kapalı" : chosen ? "Seçili" : conflict ? "Uyumsuz" : "Boş";
         const position = [seat.isWindow ? "pencere" : "", seat.isAisle ? "koridor yanı" : ""].filter(Boolean).join(", ");
-        const label = "Koltuk " + seat.number + ", " + status + (position ? ", " + position : "") + (conflict ? ". " + conflict : "");
+        const genderLabel = chosenGender === "Female" ? ", Kadın" : chosenGender === "Male" ? ", Erkek" : "";
+        const label = "Koltuk " + seat.number + ", " + status + genderLabel +
+          (position ? ", " + position : "") + (conflict ? ". " + conflict : "");
+        const selectedClass = "selected" + (chosenGender === "Female" ? " female" : chosenGender === "Male" ? " male" : "");
+        const seatClass = taken
+          ? "occupied " + (occupancy?.kind === "Hold" ? "held" :
+            occupancy?.gender === "Female" ? "female" : occupancy?.gender === "Male" ? "male" : "")
+          : seat.isBlocked ? "blocked" : chosen ? selectedClass : conflict ? "incompatible" : "available";
         return <button type="button" key={seat.number} style={known ? { gridColumn: seat.row + 1, gridRow: seat.column } : undefined} title={label} aria-label={label} aria-pressed={mode === "block" ? seat.isBlocked : chosen}
-          className={"physical-seat " + (taken ? "occupied " + (occupancy?.kind === "Hold" ? "held" : occupancy?.gender === "Female" ? "female" : occupancy?.gender === "Male" ? "male" : "") : seat.isBlocked ? "blocked" : chosen ? "selected" : conflict ? "incompatible" : "available")}
+          className={"physical-seat " + seatClass} aria-haspopup={mode === "select" ? "dialog" : undefined}
           disabled={disabled || mode === "readonly" || taken || (mode === "select" && seat.isBlocked)} onClick={() => { if (conflict && !chosen) onIncompatible?.(conflict); else onChoose?.(seat.number); }}>
           <span className="seat-number">{seat.number}</span><small>{status}</small>
+          {mode === "select" && chosen && !taken && !seat.isBlocked &&
+            <span className="seat-selected-mark" aria-hidden="true">✓</span>}
         </button>;
       })}
     </div></div><div className="physical-seat-legend"><span className="legend-available">□ Boş</span><span className="legend-male">♂ Dolu – Erkek</span><span className="legend-female">♀ Dolu – Kadın</span><span className="legend-selected">✓ Seçili</span><span className="legend-blocked">▧ Kapalı / Geçici</span>{mode === "block" && <span>Kapatmak veya açmak için koltuğa tıklayın.</span>}</div>

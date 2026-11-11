@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { chooseSeat } from "./helpers/seat-selection.mjs";
 
 async function setup(page) {
   await page.addInitScript(() => { sessionStorage.setItem("travela_token", "plan-manager"); sessionStorage.setItem("travela_user", JSON.stringify({ role: "Company", fullName: "Firma Test" })); });
@@ -48,7 +49,7 @@ for (const [layout, width] of [["2+2", 1440], ["2+1", 390]]) test(`${layout} 46 
   expect(state.saved.seats).toHaveLength(46); expect(state.saved.layout).toBe(layout); expect(state.saved.expectedPlanVersion).toBe("v1"); expect(state.saved.applyToTripIds).toEqual([21]); expect(state.saved.confirmed).toBe(true);
   await panel.getByRole("link", { name: /Sefer #21 koltuklarını görüntüle/ }).click();
   await expect(page.getByRole("group", { name: "Numaralı koltuk planı" }).getByRole("button")).toHaveCount(46);
-  await page.getByRole("button", { name: /^Koltuk 1,/ }).click(); await expect(page.getByRole("button", { name: /^Koltuk 1,/ })).toHaveAttribute("aria-pressed", "true");
+  await chooseSeat(page, 1);
 });
 
 test("Firma fiziksel konumu düzenler; çakışma ve düzenleme onayı geçersiz kılar", async ({ page }) => {

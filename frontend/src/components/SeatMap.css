@@ -1,4 +1,4 @@
-﻿.physical-seat-map { max-width: 100%; min-width: 0; margin: 20px 0; }
+.physical-seat-map { max-width: 100%; min-width: 0; margin: 20px 0; }
 .physical-seat-map > p { color: #526781; font-size: 13px; }
 .bus-scroll { container-type: inline-size; box-sizing: border-box; width: 100%; max-width: calc(128px + var(--seat-rows) * 62px); padding: 24px 3px; margin-inline: auto; }
 .physical-seat-grid {
@@ -26,6 +26,30 @@
 .physical-seat.occupied.male { background: #dceeff; border-color: #7dafe0; color: #254f7b; }
 .physical-seat.occupied.female { background: #fce2ec; border-color: #d89ab3; color: #7d3553; }
 .physical-seat.selected { background: #dcfce7; border-color: #22a66b; color: #12643d; box-shadow: 0 0 0 2px #22a66b33; }
+.physical-seat.selected.female {
+  background: #fce2ec;
+  color: #7d3553;
+}
+.physical-seat.selected.male {
+  background: #dceeff;
+  color: #254f7b;
+}
+.seat-selected-mark {
+  position: absolute;
+  top: -4px;
+  right: -3px;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #168354;
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+}
 .physical-seat.available:hover { border-color: #2563eb; background: #eff6ff; }
 .physical-seat:focus-visible, .bus-scroll:focus-visible { outline: 3px solid #f59e0b; outline-offset: 3px; }
 .physical-seat:disabled { cursor: default; }
@@ -36,7 +60,133 @@
 .sun-exposure { margin: 20px 0 8px; border: 1px solid #ecdba7; border-radius: 12px; background: #fffbef; padding: 14px; color: #6b551f; font-size: 13px; }
 .sun-exposure p { margin: 8px 0; font-size: 12px; line-height: 1.6; }
 .physical-seat-grid.layout-legacy { grid-template-columns: repeat(4, minmax(0, 48px)); grid-template-rows: auto; justify-content: center; }.layout-legacy .seat-front { grid-column: 1 / -1; grid-row: auto; }.layout-legacy .physical-seat { height: 48px; }
-.gender-options { display: flex; gap: 12px; }.gender-options label { display: flex; align-items: center; gap: 8px; flex: 1; border: 1px solid #cbd8eb; border-radius: 9px; padding: 10px; background: white; cursor: pointer; }.gender-options label:has(input:checked) { border-color: #2563eb; background: #eff6ff; }.gender-options input { width: auto; margin: 0; }.passenger-gender { border: 0; padding: 8px 0; min-width: 0; }.seat-compatibility-error { color: #9f1239; font-size: 13px; }
+.seat-compatibility-error {
+  color: #9f1239;
+  font-size: 13px;
+}
+.passenger-gender-summary {
+  color: #526781;
+  font-size: 13px;
+}
+.reservation-confirm.seat-gender-dialog {
+  width: min(480px, calc(100% - 32px));
+  padding: clamp(20px, 5vw, 32px);
+  border: 1px solid #dce5f0;
+  border-radius: 24px;
+  box-shadow: 0 24px 80px #102a4d40;
+}
+.reservation-confirm.seat-gender-dialog::backdrop {
+  background: #102a4d80;
+  backdrop-filter: blur(4px);
+}
+.seat-gender-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.seat-gender-number {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 21px;
+  font-weight: 750;
+}
+.seat-gender-close {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid #dce5f0;
+  border-radius: 50%;
+  background: white;
+  color: #526781;
+  font-size: 26px;
+}
+.seat-gender-dialog h2 {
+  margin: 20px 0 10px;
+  font-size: clamp(20px, 4.5vw, 24px);
+  line-height: 1.35;
+}
+.seat-gender-dialog > p {
+  color: #526781;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.seat-gender-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 24px 0 18px;
+}
+.seat-gender-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 136px;
+  padding: 16px 10px;
+  border: 2px solid;
+  border-radius: 18px;
+  font: inherit;
+}
+.seat-gender-option.female {
+  background: #fff1f6;
+  border-color: #edbdd0;
+  color: #8e365a;
+}
+.seat-gender-option.male {
+  background: #eff7ff;
+  border-color: #b3d3f2;
+  color: #255d91;
+}
+.seat-gender-option > span {
+  font-size: 36px;
+  line-height: 1;
+}
+.seat-gender-option strong {
+  font-size: 17px;
+}
+.seat-gender-option small {
+  font-size: 11px;
+}
+.seat-gender-option:not(:disabled):hover {
+  border-color: currentColor;
+  box-shadow: 0 4px 14px #17335215;
+}
+.seat-gender-option[aria-pressed="true"] {
+  outline: 2px solid #168354;
+  outline-offset: 3px;
+}
+.seat-gender-option:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+.seat-gender-dialog .seat-gender-restriction {
+  padding: 12px;
+  border: 1px solid #e9d8ac;
+  border-radius: 10px;
+  background: #fffbef;
+  color: #6b551f;
+  font-size: 12px;
+}
+.seat-gender-dialog .seat-gender-cancel-note {
+  font-size: 12px;
+}
+.seat-gender-cancel {
+  width: 100%;
+  justify-content: center;
+}
+.seat-gender-dialog button:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 4px;
+}
 @container (max-width: 680px) { .layout-known .physical-seat small { display: none; } }
 @media (max-width: 767px) {
   /* Keep touch targets readable on phones; only the plan scrolls, never the page. */
@@ -48,5 +198,3 @@
   .physical-seat-legend { gap: 6px; }
   .physical-seat-legend > span { padding: 4px 6px; }
 }
-.passenger-checkout-form .gender-options label { display: flex; align-items: center; gap: 8px; }
-.passenger-checkout-form .gender-options input[type="radio"] { width: auto; padding: 0; margin: 0; }

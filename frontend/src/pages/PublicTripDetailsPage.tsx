@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiUrl } from "../api";
 import SiteHeader from "../components/SiteHeader";
@@ -55,15 +55,91 @@ function TripDetails({ id }: { id: string | undefined }) {
   const [error, setError] = useState("");
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [genders, setGenders] = useState<Record<number, Gender | "">>({});
-  const [selectionGender, setSelectionGender] = useState<Gender | "">("");
-  const removeSeat = (seat: number) => { setSelectedSeats(current => current.filter(number => number !== seat)); setGenders(current => { const next = { ...current }; delete next[seat]; return next; }); };
-  const seatErrors = Object.fromEntries(selectedSeats.map(seat => [seat, trip?.occupiedSeats.includes(seat) ? "Koltuk başka biri tarafından alınmış veya geçici olarak rezerve edilmiş. Koltuğu çıkarınız." : seatConflict(trip?.seats ?? [], seat, genders[seat], trip?.seatOccupancies ?? [], genders)]));
+  const [pendingSeat, setPendingSeat] = useState<number | null>(null);
+  const genderDialog = useRef<HTMLDialogElement>(null);
+  const removeSeat = (seat: number) => {
+    setSelectedSeats(current => current.filter(number => number !== seat));
+    setGenders(current => {
+      const next = { ...current };
+      delete next[seat];
+      return next;
+    });
+  };
+  const seatErrors = Object.fromEntries(selectedSeats.map(seat => {
+    const occupied = trip?.occupiedSeats.includes(seat) || trip?.seatOccupancies?.some(item => item.seatNumber === seat);
+    return [seat, occupied
+      ? "Koltuk başka biri tarafından alınmış veya geçici olarak rezerve edilmiş. Koltuğu çıkarınız."
+      : seatConflict(trip?.seats ?? [], seat, genders[seat], trip?.seatOccupancies ?? [], genders)];
+  }));
   const [saving, setSaving] = useState(false);
   const [bookingError, setBookingError] = useState("");
   const [revision, setRevision] = useState(0);
+  const genderOptions = ([['Female', 'Kadın', '♀'], ['Male', 'Erkek', '♂']] as const).map(([value, label, icon]) => ({
+    value, label, icon,
+    conflict: pendingSeat === null ? "" : seatConflict(
+      trip?.seats ?? [], pendingSeat, value, trip?.seatOccupancies ?? [], genders
+    ),
+  }));
+  const closeGenderDialog = () => {
+    genderDialog.current?.close();
+    setPendingSeat(null);
+  };
+  const cancelGenderSelection = () => {
+    if (pendingSeat !== null) removeSeat(pendingSeat);
+    closeGenderDialog();
+  };
+  const openGenderDialog = (seatNumber: number) => {
+    if (!trip?.canReserve || saving) return;
+    const seat = trip.seats?.find(item => item.number === seatNumber);
+    if (!seat || seat.isBlocked || trip.occupiedSeats.includes(seatNumber) ||
+      trip.seatOccupancies?.some(item => item.seatNumber === seatNumber)) return;
+    if (!selectedSeats.includes(seatNumber) && selectedSeats.length >= 10) {
+      setBookingError("En fazla 10 koltuk seçebilirsiniz.");
+      return;
+    }
+    setBookingError("");
+    setPendingSeat(seatNumber);
+  };
+  const chooseGender = (gender: Gender) => {
+    if (pendingSeat === null || !trip?.canReserve || saving) return;
+    const seat = trip.seats?.find(item => item.number === pendingSeat);
+    if (!seat || seat.isBlocked || trip.occupiedSeats.includes(pendingSeat) ||
+      trip.seatOccupancies?.some(item => item.seatNumber === pendingSeat)) {
+      setBookingError("Koltuk artık seçilemiyor. Lütfen koltuk planını yenileyiniz.");
+      cancelGenderSelection();
+      return;
+    }
+    const conflict = seatConflict(trip.seats ?? [], pendingSeat, gender, trip.seatOccupancies ?? [], genders);
+    if (conflict) return;
+    if (!selectedSeats.includes(pendingSeat) && selectedSeats.length >= 10) {
+      setBookingError("En fazla 10 koltuk seçebilirsiniz.");
+      closeGenderDialog();
+      return;
+    }
+    setGenders(current => ({ ...current, [pendingSeat]: gender }));
+    setSelectedSeats(current => current.includes(pendingSeat) ? current : [...current, pendingSeat]);
+    setBookingError("");
+    closeGenderDialog();
+  };
   const refresh = () => {
+    closeGenderDialog();
     setLoading(true); setError(""); setSelectedSeats([]); setGenders({}); setRevision(v => v + 1);
   };
+
+  useEffect(() => {
+    const dialog = genderDialog.current;
+    if (pendingSeat === null || !dialog) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialog.showModal();
+    const currentChoice = dialog.querySelector<HTMLButtonElement>('[data-gender][aria-pressed="true"]:not(:disabled)');
+    const firstChoice = dialog.querySelector<HTMLButtonElement>('[data-gender]:not(:disabled)');
+    (currentChoice ?? firstChoice)?.focus();
+    return () => {
+      if (dialog.open) dialog.close();
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [pendingSeat]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -118,12 +194,16 @@ function TripDetails({ id }: { id: string | undefined }) {
               <div>
                 <h2 id="seat-heading">Koltuğunuzu seçin</h2>
                 <p>{trip.seatCapacity} koltuk · Sefer durumu: {tripStatusLabel(trip.status)}</p>
-                <label>Yeni seçilecek yolcunun cinsiyeti <select aria-label="Yeni yolcunun cinsiyeti" value={selectionGender} disabled={saving} onChange={event => setSelectionGender(event.target.value as Gender | "")}><option value="">Yolcu formunda seçeceğim</option><option value="Female">Kadın</option><option value="Male">Erkek</option></select></label>
-                <p>Her koltuğun yolcu formunda cinsiyeti ayrı ayrı seçebilirsiniz. Yan yana eş koltuklar aynı cinsiyette olmalıdır.</p>
+                <p>Boş bir koltuğa tıklayıp yolcu cinsiyetini seçin. Değiştirmek veya koltuğu bırakmak için
+                  seçili koltuğa tekrar tıklayın. Yan yana eş koltuklar aynı cinsiyette olmalıdır.</p>
                 {!trip.canReserve && <p role="status">{trip.departureHasPassed ? "Bu seferin kalkış zamanı geçtiği için bilet alınamaz." : tripStatusLabel(trip.status) === "İptal edildi" ? "Bu sefer iptal edildiği için bilet alınamaz." : !trip.seatPlanAvailable ? "Koltuk bilgileri kontrol ediliyor. Lütfen daha sonra deneyin." : trip.availableSeats === 0 ? "Bu seferde boş koltuk kalmadı." : "Bu sefer bilet satışına kapalı."}</p>}
                 {!trip.seatPlanAvailable && <p role="status">Koltuk planı bulunamıyor veya doğrulanmamış. Firma ya da yönetici fiziksel koltuk planını tanımlamalıdır.</p>}
-                {trip.seatPlanAvailable && <SeatMap seats={trip.seats ?? []} layout={trip.seatLayout ?? "Unspecified"} occupied={trip.occupiedSeats} occupancies={trip.seatOccupancies} genders={genders} selectionGender={selectionGender} sun={trip.sunExposure} onIncompatible={setBookingError} selected={selectedSeats} disabled={!trip.canReserve || saving}
-                  onChoose={seat => { if (selectedSeats.includes(seat)) removeSeat(seat); else if (selectedSeats.length < 10) { setSelectedSeats(current => [...current, seat]); setGenders(current => ({ ...current, [seat]: selectionGender })); } else { setBookingError("En fazla 10 koltuk seçebilirsiniz."); return; } setBookingError(selectionGender ? "" : "Uygunluk kontrolü için her yolcunun cinsiyetini seçiniz."); }} />}
+                {trip.seatPlanAvailable && <SeatMap
+                  seats={trip.seats ?? []} layout={trip.seatLayout ?? "Unspecified"}
+                  occupied={trip.occupiedSeats} occupancies={trip.seatOccupancies} genders={genders}
+                  sun={trip.sunExposure} onIncompatible={setBookingError} selected={selectedSeats}
+                  disabled={!trip.canReserve || saving} onChoose={openGenderDialog}
+                />}
                 {!trip.seatPlanAvailable && <p>{trip.sunExposure?.message ?? "Güneş yönü bilgisi hesaplanamadı."}</p>}
                 <button type="button" className="site-button secondary" disabled={saving} onClick={refresh}>Koltuk planını yenile</button>
               </div>
@@ -137,12 +217,72 @@ function TripDetails({ id }: { id: string | undefined }) {
                   <p>İndirim öncesi: <strong>{currencyFormatter.format(trip.price * selectedSeats.length)}</strong></p>
                 </> : <p>Devam etmek için boş bir koltuk seçiniz.</p>}
                 <p className="booking-notice">Biletiniz ödeme tamamlandığında oluşur. Koltuğunuz ödeme adımında 10 dakika ayrılır.</p>
-                <PassengerCheckoutForm tripId={trip.id} seats={selectedSeats} genders={genders} seatErrors={seatErrors} onGender={(seat, gender) => setGenders(current => ({ ...current, [seat]: gender }))} disabled={!trip.canReserve || saving} onBusy={setSaving} onError={setBookingError} onConflict={() => setRevision(value => value + 1)} onRemove={removeSeat} />
+                <PassengerCheckoutForm
+                  tripId={trip.id} seats={selectedSeats} genders={genders} seatErrors={seatErrors}
+                  disabled={!trip.canReserve || saving} onBusy={setSaving} onError={setBookingError}
+                  onConflict={() => setRevision(value => value + 1)} onRemove={removeSeat}
+                />
               </aside>
             </section>
           </>
         ) : null}
       </main>
+      <dialog
+        ref={genderDialog} className="reservation-confirm seat-gender-dialog"
+        aria-labelledby="seat-gender-heading" aria-describedby="seat-gender-description" aria-modal="true"
+        onCancel={event => { event.preventDefault(); cancelGenderSelection(); }}
+        onKeyDown={event => {
+          if (event.key !== "Tab") return;
+          const buttons = event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
+          const first = buttons[0];
+          const last = buttons[buttons.length - 1];
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last?.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+          }
+        }}
+        onClick={event => {
+          if (event.target !== event.currentTarget) return;
+          const bounds = event.currentTarget.getBoundingClientRect();
+          if (event.clientX < bounds.left || event.clientX > bounds.right ||
+            event.clientY < bounds.top || event.clientY > bounds.bottom) cancelGenderSelection();
+        }}
+      >
+        {pendingSeat !== null && <>
+          <div className="seat-gender-header">
+            <span className="seat-gender-number" aria-hidden="true">{pendingSeat}</span>
+            <button type="button" className="seat-gender-close" aria-label="Cinsiyet seçimini iptal et"
+              onClick={cancelGenderSelection}>×</button>
+          </div>
+          <h2 id="seat-gender-heading">Koltuk {pendingSeat} – Yolcu Cinsiyeti</h2>
+          <p id="seat-gender-description">Bu koltukta seyahat edecek yolcunun cinsiyetini seçiniz.</p>
+          <div className="seat-gender-options">
+            {genderOptions.map(option => <button
+              key={option.value} type="button" data-gender={option.value}
+              className={"seat-gender-option " + option.value.toLowerCase()}
+              aria-label={option.label} aria-pressed={genders[pendingSeat] === option.value}
+              aria-describedby={option.conflict ? "seat-gender-restriction" : undefined}
+              disabled={!!option.conflict || saving || !trip?.canReserve}
+              onClick={() => chooseGender(option.value)}
+            >
+              <span aria-hidden="true">{option.icon}</span>
+              <strong>{option.label}</strong>
+              {genders[pendingSeat] === option.value && <small aria-hidden="true">✓ Mevcut seçim</small>}
+            </button>)}
+          </div>
+          {genderOptions.some(option => option.conflict) && <p id="seat-gender-restriction"
+            className="seat-gender-restriction">{genderOptions.find(option => option.conflict)?.conflict}</p>}
+          {selectedSeats.includes(pendingSeat) && <p className="seat-gender-cancel-note">
+            İptal ederseniz bu koltuk ve geçici yolcu bilgileri kaldırılır.
+          </p>}
+          <button type="button" className="site-button secondary seat-gender-cancel" onClick={cancelGenderSelection}>
+            {selectedSeats.includes(pendingSeat) ? "Koltuğu bırak" : "Vazgeç"}
+          </button>
+        </>}
+      </dialog>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { buildSeats } from "../../src/seatPlans.ts";
+import { chooseSeat, releaseSeat } from "./helpers/seat-selection.mjs";
 
 async function setup(page, layout = "2+2", capacity = 40) {
   await page.addInitScript(() => { sessionStorage.setItem("travela_token", "seat-test"); sessionStorage.setItem("travela_user", JSON.stringify({ role: "Passenger", fullName: "Hesap Yolcusu" })); });
@@ -48,39 +49,167 @@ for (const width of [390, 768, 1024, 1366, 1440, 1920]) for (const [layout, capa
   await expect(page.locator('.bus-sun.sun-left')).toBeVisible();
   await page.screenshot({ path: `../tmp/ticket-qa/seat-rules-${layout}-${width}.png`, fullPage: true });
   const lastAvailable = page.getByRole("button", { name: new RegExp(`^Koltuk ${capacity - 1},`) });
-  await lastAvailable.click(); await expect(lastAvailable).toHaveAttribute("aria-pressed", "true");
+  await chooseSeat(page, capacity - 1);
+  await expect(lastAvailable).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByLabel(`Ad soyad · Koltuk ${capacity - 1}`)).toBeVisible();
-  await lastAvailable.click(); await expect(lastAvailable).toHaveAttribute("aria-pressed", "false");
+  await releaseSeat(page, capacity - 1);
+  await expect(lastAvailable).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByLabel(`Ad soyad · Koltuk ${capacity - 1}`)).toHaveCount(0);
 });
-test("Cinsiyet değişince uygunluk anında değişir ve uyumsuz koltuk açıklanır", async ({ page }) => {
+test("Komşuluk kuralı modalda açıklanır; uyumsuz cinsiyet seçilemez", async ({ page }) => {
   await setup(page);
-  await page.getByLabel("Yeni yolcunun cinsiyeti").selectOption("Male");
-  await expect(page.getByRole("button", { name: /^Koltuk 2,/ })).toHaveClass(/incompatible/);
-  await page.getByRole("button", { name: /^Koltuk 2,/ }).click();
-  await expect(page.getByRole("alert")).toContainText("yalnızca kadın");
-  await expect(page.getByRole("button", { name: /^Koltuk 2,/ })).toHaveAttribute("aria-pressed", "false");
-  await page.getByLabel("Yeni yolcunun cinsiyeti").selectOption("Female");
-  await page.getByRole("button", { name: /^Koltuk 2,/ }).click();
-  await expect(page.getByRole("group", { name: "Cinsiyet seçiniz · Koltuk 2" }).getByLabel("Kadın", { exact: true })).toBeChecked();
-  await page.getByRole("group", { name: "Cinsiyet seçiniz · Koltuk 2" }).getByLabel("Erkek", { exact: true }).check();
-  await expect(page.locator(".seat-compatibility-error")).toContainText("yalnızca kadın");
-  await expect(page.getByRole("button", { name: "Ödemeye geç", exact: true })).toBeDisabled();
+  const seat = page.getByRole("button", { name: /^Koltuk 2,/ });
+  await seat.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("yalnızca kadın");
+  await expect(dialog.getByRole("button", { name: "Erkek", exact: true })).toBeDisabled();
+  await expect(seat).toHaveAttribute("aria-pressed", "false");
+  await dialog.getByRole("button", { name: "Kadın", exact: true }).click();
+  await expect(seat).toHaveClass(/selected female/);
+  await seat.click();
+  await expect(dialog.getByRole("button", { name: "Erkek", exact: true })).toBeDisabled();
+  await dialog.getByRole("button", { name: "Kadın", exact: true }).click();
+  await chooseSeat(page, 3, "Kadın");
+  await page.getByRole("button", { name: /^Koltuk 4,/ }).click();
+  await expect(dialog.getByRole("button", { name: "Erkek", exact: true })).toBeDisabled();
+  await dialog.getByRole("button", { name: "Vazgeç", exact: true }).click();
+  await releaseSeat(page, 3);
+  await chooseSeat(page, 4, "Erkek");
 });
-test("Hesap doldurma cinsiyet türetmez; her koltuğun seçimi ayrı ve kaldırılması kalıcıdır", async ({ page }) => {
-  await setup(page); await page.getByRole("button", { name: /^Koltuk 3,/ }).click();
+
+test("Bağımsız cinsiyetler, tekrar tıklayarak düzenleme ve geçici bilgilerin temizlenmesi", async ({ page }) => {
+  await setup(page);
+  const first = await chooseSeat(page, 3, "Kadın");
   await page.getByRole("button", { name: "Hesap bilgilerimi kullan · Koltuk 3" }).click();
   await expect(page.getByLabel("Ad soyad · Koltuk 3")).toHaveValue("Hesap Yolcusu");
-  const first = page.getByRole("group", { name: "Cinsiyet seçiniz · Koltuk 3" });
-  await expect(first.getByLabel("Kadın", { exact: true })).not.toBeChecked();
-  await first.getByLabel("Kadın", { exact: true }).check();
-  await page.getByRole("button", { name: /^Koltuk 4,/ }).click();
-  await page.getByRole("group", { name: "Cinsiyet seçiniz · Koltuk 4" }).getByLabel("Erkek", { exact: true }).check();
-  await expect(page.locator(".seat-compatibility-error")).toHaveCount(2);
-  await page.getByRole("button", { name: "Koltuğu çıkar · 4", exact: true }).click();
-  await expect(page.locator(".seat-compatibility-error")).toHaveCount(0);
+  const second = await chooseSeat(page, 7, "Erkek");
+  await expect(first).toHaveClass(/selected female/);
+  await expect(second).toHaveClass(/selected male/);
+  await expect(page.locator('.booking-summary input[type="radio"]')).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "Yeni yolcunun cinsiyeti" })).toHaveCount(0);
+  await chooseSeat(page, 3, "Erkek");
+  await expect(first).toHaveClass(/selected male/);
+  await expect(page.getByLabel("Ad soyad · Koltuk 3")).toHaveValue("Hesap Yolcusu");
+  await expect(page.locator(".physical-seat.selected")).toHaveCount(2);
   await page.getByRole("button", { name: "Koltuğu çıkar · 3", exact: true }).click();
-  await page.getByRole("button", { name: /^Koltuk 3,/ }).click();
+  await first.click();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Erkek", exact: true }))
+    .toHaveAttribute("aria-pressed", "false");
+  await page.getByRole("dialog").getByRole("button", { name: "Kadın", exact: true }).click();
   await expect(page.getByLabel("Ad soyad · Koltuk 3")).toHaveValue("");
-  await expect(page.getByRole("group", { name: "Cinsiyet seçiniz · Koltuk 3" }).getByLabel("Kadın", { exact: true })).not.toBeChecked();
+  await expect(first).toHaveClass(/selected female/);
+  await first.click();
+  await page.keyboard.press("Escape");
+  await expect(first).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByLabel("Ad soyad · Koltuk 3")).toHaveCount(0);
+  await expect(second).toHaveClass(/selected male/);
+});
+
+for (const width of [390, 1440]) for (const gender of ["Kadın", "Erkek"]) {
+  test(`Cinsiyet tamamlanmadan seçim yok; ${gender} rengi ve yeşil çerçeve ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await setup(page);
+    const seat = page.getByRole("button", { name: /^Koltuk 3,/ });
+    await expect(seat).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await seat.click();
+    const dialog = page.getByRole("dialog", { name: "Koltuk 3 – Yolcu Cinsiyeti" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("Bu koltukta seyahat edecek yolcunun cinsiyetini seçiniz.");
+    await expect(seat).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByLabel("Ad soyad · Koltuk 3")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Ödemeye geç", exact: true })).toBeDisabled();
+    const bounds = await dialog.boundingBox();
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    expect(Math.abs(bounds.x + bounds.width / 2 - width / 2)).toBeLessThan(2);
+    expect(Math.abs(bounds.y + bounds.height / 2 - 450)).toBeLessThan(2);
+    if (gender === "Kadın") {
+      await page.screenshot({ path: `../tmp/ticket-qa/seat-gender-modal-${width}.png` });
+    }
+    await dialog.getByRole("button", { name: gender, exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect(seat).toHaveAttribute("aria-pressed", "true");
+    await expect(seat).toHaveCSS("background-color",
+      gender === "Kadın" ? "rgb(252, 226, 236)" : "rgb(220, 238, 255)");
+    await expect(seat).toHaveCSS("border-top-color", "rgb(34, 166, 107)");
+    await expect(seat.locator(".seat-number")).toHaveText("3");
+    await expect(seat.locator(".seat-selected-mark")).toHaveText("✓");
+    await expect(seat).toHaveAccessibleName(new RegExp("Seçili, " + gender));
+    await expect(page.getByLabel("Yolcu cinsiyeti · Koltuk 3")).toContainText(gender);
+    await expect(page.locator('.booking-summary input[type="radio"], .booking-summary select[name*="gender"]'))
+      .toHaveCount(0);
+    await seat.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `../tmp/ticket-qa/seat-gender-${gender}-${width}.png` });
+  });
+}
+
+test("Vazgeç, kapatma, Escape ve arka plan tıklaması geçici seçimi iptal eder", async ({ page }) => {
+  await setup(page);
+  const seat = page.getByRole("button", { name: /^Koltuk 3,/ });
+  for (const method of ["button", "close", "escape", "backdrop"]) {
+    await seat.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("button", { name: "Kadın", exact: true }))
+      .toHaveAttribute("aria-pressed", "false");
+    if (method === "button") await dialog.getByRole("button", { name: "Vazgeç", exact: true }).click();
+    if (method === "close") await dialog.getByRole("button", { name: "Cinsiyet seçimini iptal et" }).click();
+    if (method === "escape") await page.keyboard.press("Escape");
+    if (method === "backdrop") await page.mouse.click(5, 5);
+    await expect(dialog).not.toBeVisible();
+    await expect(seat).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByLabel("Ad soyad · Koltuk 3")).toHaveCount(0);
+  }
+});
+
+test("Klavye odağı modal içinde tutulur ve kapanınca koltuğa döner", async ({ page }) => {
+  await setup(page);
+  const seat = page.getByRole("button", { name: /^Koltuk 3,/ });
+  await seat.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("button", { name: "Kadın", exact: true })).toBeFocused();
+  for (let index = 0; index < 6; index++) {
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => document.querySelector("dialog").contains(document.activeElement))).toBe(true);
+  }
+  await page.keyboard.press("Escape");
+  await expect(seat).toBeFocused();
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
+  await page.keyboard.press("Enter");
+  await dialog.getByRole("button", { name: "Erkek", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(seat).toHaveClass(/selected male/);
+  await expect(seat).toBeFocused();
+});
+
+test("Dolu, kapalı ve tutulmuş koltuklar açılmaz; bilinmeyen komşu cinsiyeti atlanamaz", async ({ page }) => {
+  const data = await setup(page);
+  for (const number of [1, 5, 9, 40]) {
+    await expect(page.getByRole("button", { name: new RegExp(`^Koltuk ${number},`) })).toBeDisabled();
+  }
+  // Occupancy metadata alone must also protect a held seat.
+  data.occupiedSeats = [1, 5];
+  data.seatOccupancies[0].gender = null;
+  await page.getByRole("button", { name: "Koltuk planını yenile" }).click();
+  await expect(page.getByRole("button", { name: /^Koltuk 9,/ })).toBeDisabled();
+  await page.getByRole("button", { name: /^Koltuk 2,/ }).click();
+  await expect(page.getByRole("alert")).toContainText("cinsiyet bilgisi doğrulanamadığı");
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+});
+
+test("10 koltuk sınırı korunur; sınırdayken mevcut cinsiyet düzenlenebilir", async ({ page }) => {
+  await setup(page, "2+1");
+  for (const seat of [3, 6, 7, 8, 10, 11, 12, 13, 14, 15]) await chooseSeat(page, seat);
+  await expect(page.locator(".physical-seat.selected")).toHaveCount(10);
+  await page.getByRole("button", { name: /^Koltuk 16,/ }).click();
+  await expect(page.getByRole("alert")).toContainText("En fazla 10 koltuk");
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  const edited = await chooseSeat(page, 15, "Erkek");
+  await expect(edited).toHaveClass(/selected male/);
+  await expect(page.locator(".physical-seat.selected")).toHaveCount(10);
+  await page.getByRole("button", { name: "Koltuk planını yenile" }).click();
+  await expect(page.locator(".physical-seat.selected")).toHaveCount(0);
+  await page.getByRole("button", { name: /^Koltuk 15,/ }).click();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Erkek", exact: true }))
+    .toHaveAttribute("aria-pressed", "false");
 });

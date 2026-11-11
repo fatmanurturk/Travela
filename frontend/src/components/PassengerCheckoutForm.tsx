@@ -10,7 +10,19 @@ import type { Gender } from "../seatCompatibility";
 
 type Passenger = { fullName: string; email: string; phone: string };
 const empty: Passenger = { fullName: "", email: "", phone: "" };
-export default function PassengerCheckoutForm({ tripId, seats, disabled, onBusy, onError, onConflict, onRemove, genders = {}, onGender, seatErrors = {} }: { tripId: number; seats: number[]; disabled: boolean; onBusy: (busy: boolean) => void; onError: (message: string) => void; onConflict: () => void; onRemove: (seat: number) => void; genders?: Record<number, Gender | "">; onGender?: (seat: number, gender: Gender) => void; seatErrors?: Record<number, string> }) {
+export default function PassengerCheckoutForm({
+  tripId, seats, disabled, onBusy, onError, onConflict, onRemove, genders = {}, seatErrors = {},
+}: {
+  tripId: number;
+  seats: number[];
+  disabled: boolean;
+  onBusy: (busy: boolean) => void;
+  onError: (message: string) => void;
+  onConflict: () => void;
+  onRemove: (seat: number) => void;
+  genders?: Record<number, Gender | "">;
+  seatErrors?: Record<number, string>;
+}) {
   const [passengers, setPassengers] = useState<Record<number, Passenger>>({}); const [profile, setProfile] = useState<Passenger | null>(null);
   const [options, setOptions] = useState<{ provider: string; requiresBuyer: boolean } | null>(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [revision, setRevision] = useState(0);
   const [buyer, setBuyer] = useState({ name: "", surname: "", identityNumber: "", address: "", city: "", country: "Türkiye", zipCode: "", phone: "" });
@@ -61,8 +73,10 @@ export default function PassengerCheckoutForm({ tripId, seats, disabled, onBusy,
       <label>Ad soyad<input aria-label={`Ad soyad · Koltuk ${seat}`} required minLength={2} maxLength={120} autoComplete="off" value={passengers[seat]?.fullName ?? ""} onChange={event => setPassengers(current => ({ ...current, [seat]: { ...(current[seat] ?? empty), fullName: event.target.value } }))} /></label>
       <label>E-posta<input aria-label={`E-posta · Koltuk ${seat}`} required type="email" maxLength={320} autoComplete="off" value={passengers[seat]?.email ?? ""} onChange={event => setPassengers(current => ({ ...current, [seat]: { ...(current[seat] ?? empty), email: event.target.value } }))} /></label>
       <label>Telefon<input aria-label={`Telefon · Koltuk ${seat}`} required type="tel" pattern="\+[1-9][0-9]{7,14}" placeholder="+905xxxxxxxxx" autoComplete="off" value={passengers[seat]?.phone ?? ""} onChange={event => setPassengers(current => ({ ...current, [seat]: { ...(current[seat] ?? empty), phone: event.target.value } }))} /></label>
-      <fieldset className="passenger-gender"><legend>Cinsiyet seçiniz · Koltuk {seat}</legend><div className="gender-options">{([['Female', 'Kadın'], ['Male', 'Erkek']] as const).map(([value, label]) => <label key={value}><input type="radio" name={`gender-${seat}`} required value={value} checked={genders[seat] === value} onChange={() => onGender?.(seat, value)} />{label}</label>)}</div></fieldset>
-      <small>Hesap bilgileriniz cinsiyet seçiminizi değiştirmez; her yolcu için seçim yapınız.</small>
+      <p className="passenger-gender-summary" aria-label={`Yolcu cinsiyeti · Koltuk ${seat}`}>
+        Yolcu cinsiyeti: <strong>{genders[seat] === "Female" ? "Kadın" : genders[seat] === "Male" ? "Erkek" : "Seçilmedi"}</strong>
+      </p>
+      <small>Cinsiyetini değiştirmek için krokideki koltuğa tıklayın.</small>
       {seatErrors[seat] && <p className="seat-compatibility-error" role="alert">{seatErrors[seat]}</p>}
       <button type="button" className="secondary-button" onClick={() => onRemove(seat)}>Koltuğu çıkar · {seat}</button>
     </fieldset>)}
