@@ -11,6 +11,7 @@ namespace Travela.Api.Models
         public int? DistanceKm { get; set; }
 
         public int? EstimatedDurationMinutes { get; set; }
+        public string? GeometryJson { get; set; }
 
         public bool IsActive { get; set; } = true;
 

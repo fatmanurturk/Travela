@@ -6,6 +6,7 @@ import { formatRouteDate, parseRouteDetail, parseRouteList, routeHttpError, tota
 import type { RouteDetail as Detail, RouteRecord } from "../../routeManagementData";
 import "../Admin.css";
 import "./RouteManagement.css";
+import RouteGeometryEditor from "../../components/RouteGeometryEditor";
 
 type RouteForm = { departureCity: string; arrivalCity: string; distanceKm: string; hours: string; minutes: string; isActive: boolean };
 type SortKey = "id" | "departureCity" | "arrivalCity" | "distanceKm" | "estimatedDurationMinutes" | "tripCount" | "isActive";
@@ -188,6 +189,7 @@ export default function RouteManagement() {
       <div className="section-heading"><h2 id="route-detail-title">Güzergâh {detail ? `#${detail.route.id} ` : ""}Detayları</h2><button className="secondary-button" onClick={() => { detailRequest.current++; setDetail(null); setDetailLoading(false); }}>Kapat</button></div>
       {detailLoading ? <p role="status">Güzergâh detayları yükleniyor...</p> : detail && <>
         <dl className="route-detail-grid">{[["Güzergâh ID", `#${detail.route.id}`], ["Kalkış şehri", detail.route.departureCity], ["Varış şehri", detail.route.arrivalCity], ["Mesafe", detail.route.distanceKm == null ? "Belirtilmedi" : `${detail.route.distanceKm} km`], ["Tahmini yolculuk süresi", duration(detail.route.estimatedDurationMinutes)], ["Durum", detail.route.isActive ? "Aktif" : "Pasif"], ["Bağlı sefer sayısı", detail.route.tripCount]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+        {isAdmin && <RouteGeometryEditor key={detail.route.id} id={detail.route.id} />}
         <h3>{isAdmin ? "Güzergâha bağlı seferler" : "Firmanızın bu güzergâhtaki seferleri"}</h3>
         {detail.trips.length === 0 ? <p className="empty-state">{isAdmin ? "Bu güzergâha bağlı sefer bulunmuyor." : "Firmanızın bu güzergâhta seferi bulunmuyor."}</p> : <div className="table-wrap" tabIndex={0} role="region" aria-label="Güzergâha bağlı seferler"><table className="data-table"><thead><tr><th>Sefer ID</th><th>Kalkış Tarihi</th><th>Varış Tarihi</th><th>Otobüs</th><th>Fiyat</th><th>Sefer Durumu</th></tr></thead><tbody>{detail.trips.map(trip => <tr key={trip.id}><td>#{trip.id}</td><td>{formatRouteDate(trip.departureTime)}</td><td>{formatRouteDate(trip.arrivalTime)}</td><td>{trip.busPlateNumber}</td><td>{trip.price.toLocaleString("tr-TR", { style: "currency", currency: "TRY" })}</td><td>{statusLabel(trip.status)}</td></tr>)}</tbody></table></div>}
         <div className="pagination-row"><span>Sayfa {detail.pageNumber} / {detail.totalPages}</span><div><button disabled={detail.pageNumber <= 1} onClick={() => void openDetail(detail.route.id, detail.pageNumber - 1)}>Önceki seferler</button><button disabled={detail.pageNumber >= detail.totalPages} onClick={() => void openDetail(detail.route.id, detail.pageNumber + 1)}>Sonraki seferler</button></div></div>

@@ -16,7 +16,7 @@ namespace Travela.Api.Controllers
     [ApiController]
     [Route("api/buses")]
     [Authorize]
-    public class BusController : ControllerBase
+    public partial class BusController : ControllerBase
     {
         private readonly TravelaDbContext _context;
 
@@ -24,6 +24,10 @@ namespace Travela.Api.Controllers
         {
             _context = context;
         }
+
+        [HttpPut("{id:int}/seat-plan")]
+        [Authorize(Policy = "bus.update")]
+        public Task<IActionResult> DefineSeatPlan(int id, PhysicalSeatPlanDto dto, CancellationToken ct) => SavePhysicalPlan(id, dto, ct);
 
         [HttpGet]
         [Authorize(Policy = "bus.view")]
@@ -342,7 +346,8 @@ namespace Travela.Api.Controllers
                 IsActive = dto.IsActive,
                 CreatedAt = DateTime.UtcNow
             };
-            try { bus.SeatLayout = dto.SeatLayout; bus.SeatPlanJson = SeatPlans.Write(SeatPlans.Create(dto.SeatLayout, dto.SeatCapacity, dto.BlockedSeats)); }
+            if (dto.SeatLayout != "Unspecified" && !dto.SeatPlanConfirmed) return BadRequest(new { message = "Fiziksel koltuk planını gerçek araçla karşılaştırıp doğrulayınız veya düzeni doğrulanmamış bırakınız." });
+            try { bus.SeatLayout = dto.SeatLayout; bus.SeatPlanJson = dto.SeatLayout == "Unspecified" ? null : SeatPlans.Write(SeatPlans.Create(dto.SeatLayout, dto.SeatCapacity, dto.BlockedSeats)); }
             catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
 
             _context.Buses.Add(bus);
@@ -471,8 +476,14 @@ namespace Travela.Api.Controllers
             try
             {
                 var layout = dto.SeatLayout ?? bus.SeatLayout;
-                var closed = dto.BlockedSeats ?? SeatPlans.Read(bus.SeatPlanJson, bus.SeatLayout, bus.SeatCapacity).Where(s => s.IsBlocked).Select(s => s.Number).ToList();
-                bus.SeatPlanJson = SeatPlans.Write(SeatPlans.Create(layout, dto.SeatCapacity, closed)); bus.SeatLayout = layout;
+                var previous = SeatPlans.Read(bus.SeatPlanJson, bus.SeatLayout, bus.SeatCapacity);
+                var closed = dto.BlockedSeats ?? previous.Where(s => s.IsBlocked).Select(s => s.Number).ToList();
+                var changed = layout != bus.SeatLayout || dto.SeatCapacity != bus.SeatCapacity || !closed.Order().SequenceEqual(previous.Where(s => s.IsBlocked).Select(s => s.Number).Order()) || (layout != "Unspecified" && VerifiedSeats(bus.SeatPlanJson, layout, bus.SeatCapacity) == null);
+                if (changed && layout != "Unspecified" && !dto.SeatPlanConfirmed) return BadRequest(new { message = "Koltuk planı değişikliğini gerçek araçla karşılaştırıp doğrulayınız. Koltuk Planı Yönetimi ekranını kullanabilirsiniz." });
+                if (closed.Distinct().Count() != closed.Count || closed.Any(n => n < 1 || n > dto.SeatCapacity)) return BadRequest(new { message = "Satışa kapalı koltuk numaraları geçersiz." });
+                var original = layout == bus.SeatLayout && dto.SeatCapacity == bus.SeatCapacity
+                    ? SeatPlans.Read(bus.SeatPlanJson, layout, dto.SeatCapacity) : SeatPlans.Create(layout, dto.SeatCapacity);
+                bus.SeatPlanJson = SeatPlans.Write(original.Select(s => s with { IsBlocked = closed.Contains(s.Number) })); bus.SeatLayout = layout;
             }
             catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
             bus.PlateNumber = plateNumber;

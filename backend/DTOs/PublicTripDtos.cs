@@ -8,6 +8,8 @@ namespace Travela.DTOs
         public string? SeatPlanJson { get; set; }
         public List<Travela.Api.Trips.SeatPosition> Seats { get; set; } = [];
         public List<int> OccupiedSeats { get; set; } = new();
+        public List<Travela.Api.Trips.SeatOccupancy> SeatOccupancies { get; set; } = [];
+        public Travela.Api.Trips.SunExposureResult SunExposure { get; set; } = Travela.Api.Trips.SunExposure.Unknown();
         public bool CanReserve { get; set; }
         public bool SeatPlanAvailable { get; set; }
         public bool DepartureHasPassed { get; set; }

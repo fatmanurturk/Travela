@@ -54,7 +54,7 @@ internal static class JourneyChecks
         var arrivalId = (await Json(await Send("POST", "/api/terminals", adminToken, arrivalDto))).GetProperty("terminal").GetProperty("id").GetInt32();
         check((await Send("GET", "/api/terminals?city=" + Uri.EscapeDataString("İstanbul"))).IsSuccessStatusCode &&
             (await Send("POST", "/api/terminals", adminToken, departureDto)).StatusCode == HttpStatusCode.Conflict, "Terminal listesi şehirden okunur ve tekrar kayıt engellenir");
-        var busPayload = new { companyId = company.Id, plateNumber = "34 JRN 777", seatCapacity = 9, seatLayout = "2+1", blockedSeats = new[] { 3, 8 }, isActive = true };
+        var busPayload = new { companyId = company.Id, plateNumber = "34 JRN 777", seatCapacity = 9, seatLayout = "2+1", seatPlanConfirmed = true, blockedSeats = new[] { 3, 8 }, isActive = true };
         var busId = (await Json(await Send("POST", "/api/buses", companyToken, busPayload))).GetProperty("busId").GetInt32();
         var busDetail = await Json(await Send("GET", "/api/buses/" + busId, companyToken));
         check(busDetail.GetProperty("seatLayout").GetString() == "2+1", "Firma otobüs eklerken 2+1 düzenini ve kapalı koltukları kaydedebilir");
@@ -76,7 +76,7 @@ internal static class JourneyChecks
         check(plan.DepartureTerminalName == departureDto.name && plan.DepartureMapUrl?.StartsWith("https://www.google.com/maps/") == true && plan.BoardingInstructions?.Contains("Peron 12") == true,
             "Sefer detayında terminal, açık adres, güvenli harita bağlantısı ve biniş açıklaması bulunur");
         Task<HttpResponseMessage> StartSeat(int seat) => Send("POST", "/api/tickets/checkout", ownerToken,
-            new { tripId, seatNumber = seat, requestKey = Guid.NewGuid(), legalAcceptances = GroupPurchaseChecks.SalesConsent() });
+            new { tripId, seatNumber = seat, gender = "Female", requestKey = Guid.NewGuid(), legalAcceptances = GroupPurchaseChecks.SalesConsent() });
         check((await StartSeat(3)).StatusCode == HttpStatusCode.Conflict && (await StartSeat(10)).StatusCode == HttpStatusCode.BadRequest,
             "API manipülasyonuyla kapalı veya kapasite dışı koltuk alınamaz");
         var hold = (await Json(await StartSeat(1))).GetProperty("id").GetGuid();
@@ -90,7 +90,7 @@ internal static class JourneyChecks
         var paid = await Json(await Send("POST", $"/api/tickets/local/{paidId}/complete", ownerToken, new { outcome = "Succeeded" }));
         var pnr = paid.GetProperty("pnr").GetString()!;
         check(paid.GetProperty("departureTerminalName").GetString() == departureDto.name, "Bilet satın alma yanıtı kayıtlı biniş bilgilerini taşır");
-        await Json(await Send("PUT", "/api/buses/" + busId, companyToken, new { busPayload.companyId, busPayload.plateNumber, seatCapacity = 9, seatLayout = "2+2", blockedSeats = new[] { 5 }, isActive = true }));
+        await Json(await Send("PUT", "/api/buses/" + busId, companyToken, new { busPayload.companyId, busPayload.plateNumber, seatCapacity = 9, seatLayout = "2+2", seatPlanConfirmed = true, blockedSeats = new[] { 5 }, isActive = true }));
         plan = (await (await Send("GET", "/api/trips/public/" + tripId)).Content.ReadFromJsonAsync<PublicTripDetailDto>())!;
         check(plan.SeatLayout == "2+1" && plan.Seats[1].IsBlocked && plan.SellableSeatCount == 6, "Otobüs düzeni değişse de mevcut sefer ve biletin planı korunur");
         await Json(await Send("PUT", "/api/terminals/" + departureId, adminToken, new { name = "Yeni Terminal Adı", departureDto.city, address = "Yeni Terminal Adresi", isActive = true }));

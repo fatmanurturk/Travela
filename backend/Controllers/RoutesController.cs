@@ -29,6 +29,30 @@ public class RoutesController(TravelaDbContext context) : ControllerBase
     public async Task<IActionResult> GetCities() => await GetCurrentUserAsync() is null
         ? Forbidden() : Ok(TurkishCities.All);
 
+    [HttpGet("{id:int}/geometry")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetGeometry(int id)
+    {
+        if (await GetCurrentUserAsync() is not { Role: "Admin" }) return Forbidden();
+        var route = await context.Routes.AsNoTracking().SingleOrDefaultAsync(r => r.Id == id);
+        return route == null ? NotFound(new { message = "Güzergâh bulunamadı." }) : Ok(new { route.GeometryJson });
+    }
+
+    [HttpPut("{id:int}/geometry")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> PutGeometry(int id, RouteGeometryDto dto)
+    {
+        if (await GetCurrentUserAsync() is not { Role: "Admin" }) return Forbidden();
+        if (!dto.Confirmed || !Travela.Api.Trips.SunExposure.ValidGeometry(dto.Points) ||
+            !Uri.TryCreate(dto.Source, UriKind.Absolute, out var source) || source.Scheme != "https")
+            return BadRequest(new { message = "Doğrulanmış yol geometrisi, HTTPS kaynak bağlantısı ve doğrulama onayı gereklidir. En az 3 nokta olmalı; ardışık noktalar en fazla 20 km aralıklı olmalıdır." });
+        var route = await context.Routes.SingleOrDefaultAsync(r => r.Id == id);
+        if (route == null) return NotFound(new { message = "Güzergâh bulunamadı." });
+        route.GeometryJson = System.Text.Json.JsonSerializer.Serialize(new Travela.Api.Trips.VerifiedRouteGeometry(dto.Points!, dto.Source, DateTime.UtcNow), new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        await context.SaveChangesAsync();
+        return Ok(new { message = "Doğrulanmış yol geometrisi kaydedildi. Güneş yönü bu güzergâhın sefer saatlerine göre hesaplanacak." });
+    }
+
     // Preserve the active-only array contract used by trip creation and other existing screens.
     [HttpGet]
     public async Task<IActionResult> GetRoutes([FromQuery] bool includeInactive = false)

@@ -31,7 +31,7 @@ public class TicketsController(TravelaDbContext db, PaymentService payments, Loc
     public Task<IActionResult> Start(StartPurchaseDto dto, CancellationToken ct) => Run(async () =>
     {
         var order = await payments.Start(UserId, dto.TripId, dto.SeatNumber, dto.RequestKey, ct,
-            dto.LegalAcceptances, HttpContext.Connection.RemoteIpAddress?.ToString());
+            dto.LegalAcceptances, HttpContext.Connection.RemoteIpAddress?.ToString(), dto.Gender);
         return Ok(await Detail(order.Id, ct));
     }, ct);
     [HttpPost("orders/{id:guid}/legal-acceptance")]

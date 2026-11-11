@@ -43,6 +43,7 @@ export default function CheckoutPage() {
       <section className="booking-summary" aria-label="Bilette kayıtlı yolcu"><h2>Yolcu bilgileri</h2><dl className="reservation-facts">
         <div><dt>Ad soyad</dt><dd>{item.passengerName}</dd></div>{item.passengerEmail && <div><dt>İletişim e-postası</dt><dd>{item.passengerEmail}</dd></div>}
         {item.passengerPhone && <div><dt>İletişim telefonu</dt><dd>{item.passengerPhone}</dd></div>}
+        <div><dt>Cinsiyet</dt><dd>{item.passengerGender === "Female" ? "Kadın" : item.passengerGender === "Male" ? "Erkek" : "Eski kayıtta belirtilmemiş"}</dd></div>
       </dl><p>Bu siparişin yolcu bilgileri ödeme adımı açılırken kaydedilmiştir. Profil güncellemeleri bu bilgileri değiştirmez.</p></section>
       {!item.purchaseGroupId && item.paymentStatus === "Pending" && (
         <PendingLegalAcceptance

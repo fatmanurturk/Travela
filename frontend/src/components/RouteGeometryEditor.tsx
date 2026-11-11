@@ -1,0 +1,13 @@
+import { useEffect, useState } from "react";
+import { apiUrl } from "../api";
+
+export default function RouteGeometryEditor({ id }: { id: number }) {
+  const [json, setJson] = useState(""); const [source, setSource] = useState(""); const [confirmed, setConfirmed] = useState(false); const [busy, setBusy] = useState(false); const [message, setMessage] = useState("");
+  useEffect(() => { const abort = new AbortController(); fetch(apiUrl(`/api/routes/${id}/geometry`), { headers: { Authorization: `Bearer ${sessionStorage.getItem("travela_token")}` }, signal: abort.signal }).then(async r => { if (!r.ok) throw new Error("Yol geometrisi alınamadı."); return r.json(); }).then(data => { if (data.geometryJson) { const geometry = JSON.parse(data.geometryJson); setJson(JSON.stringify(geometry.points, null, 2)); setSource(geometry.source); } }).catch(e => { if (!abort.signal.aborted) setMessage(e.message); }); return () => abort.abort(); }, [id]);
+  return <details><summary>Güneş hesabı için doğrulanmış yol geometrisi</summary><p>Kalkıştan varışa doğru sıralanmış gerçek yol koordinatlarını giriniz. Şehir merkezlerini birleştiren düz çizgi yeterli değildir. En az 3 nokta, en fazla 20 km nokta aralığı gereklidir.</p>
+    <label>Güvenilir harita / rota kaynağı<input type="url" value={source} onChange={e => { setSource(e.target.value); setConfirmed(false); }} placeholder="https://…" /></label>
+    <label>Yol koordinatları (JSON)<textarea rows={7} style={{ width: "100%" }} value={json} onChange={e => { setJson(e.target.value); setConfirmed(false); }} placeholder='[{"latitude":41.01,"longitude":28.98}, …]' /></label>
+    <label><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />Koordinatların bu güzergâhın gerçek yol geometrisi, kalkış ve varış noktalarıyla eşleştiğini doğruladım.</label>
+    <button type="button" disabled={!confirmed || busy} onClick={async () => { setBusy(true); setMessage(""); try { const points: unknown = JSON.parse(json); const response = await fetch(apiUrl(`/api/routes/${id}/geometry`), { method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionStorage.getItem("travela_token")}` }, body: JSON.stringify({ points, source, confirmed }) }); const data = await response.json(); if (!response.ok) throw new Error(data.message ?? "Yol geometrisi kaydedilemedi."); setMessage(data.message); } catch (e) { setMessage(e instanceof SyntaxError ? "Koordinat JSON biçimi geçersiz." : e instanceof Error ? e.message : "Yol geometrisi kaydedilemedi."); } finally { setBusy(false); } }}>Yol geometrisini kaydet</button>{message && <p role="status">{message}</p>}
+  </details>;
+}

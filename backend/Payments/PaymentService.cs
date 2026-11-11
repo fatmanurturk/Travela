@@ -24,7 +24,7 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
 
     public async Task<PaymentOrder> Start(
         int userId, int tripId, int seat, Guid requestKey, CancellationToken ct,
-        IReadOnlyList<LegalAcceptanceDto>? legalAcceptances = null, string? clientIp = null)
+        IReadOnlyList<LegalAcceptanceDto>? legalAcceptances = null, string? clientIp = null, string? gender = null)
     {
         LegalDocuments.Validate(legalAcceptances, LegalDocuments.Sales);
         var consentIp = LegalDocuments.RequireIp(clientIp);
@@ -37,22 +37,25 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
             var existing = await db.PaymentOrders.Include(p => p.Reservation).SingleOrDefaultAsync(p => p.PassengerId == userId && p.RequestKey == requestKey, ct);
             if (existing != null)
             {
-                if (existing.Reservation.TripId != tripId || existing.Reservation.SeatNumber != seat)
+                if (existing.Reservation.TripId != tripId || existing.Reservation.SeatNumber != seat || (gender != null && existing.Reservation.PassengerGender != gender))
                     throw new PaymentFlowException("İşlem anahtarı farklı bir sipariş için kullanılmış.");
                 await tx.CommitAsync(ct);
                 await tx.DisposeAsync();
                 return await EnsureCheckout(existing, ct);
             }
             await ExpireLocked(trip, ct);
+            if (!SeatCompatibility.IsGender(gender)) throw new PaymentFlowException("Cinsiyet seçiniz.", 400);
             if (!Scheduled(trip) || trip.DepartureTime <= Now || !trip.Company.IsActive || !trip.Bus.IsActive || !trip.Route.IsActive || trip.Bus.CompanyId != trip.CompanyId ||
                 (trip.DepartureTerminal != null && !trip.DepartureTerminal.IsActive) || (trip.ArrivalTerminal != null && !trip.ArrivalTerminal.IsActive))
                 throw new PaymentFlowException("Bu sefer bilet satışına açık değil.");
             var capacity = trip.SeatCapacitySnapshot ?? trip.Bus.SeatCapacity;
             List<SeatPosition> seats;
-            try { seats = SeatPlans.Read(trip.SeatPlanJson, trip.SeatLayout, capacity); }
+            try { seats = SeatPlans.ReadVerified(trip.SeatPlanJson, trip.SeatLayout, capacity); }
             catch (ArgumentException) { throw new PaymentFlowException("Seferin koltuk planı doğrulanamadı. Lütfen firma ile iletişime geçin."); }
             if (seat > capacity) throw new PaymentFlowException("Koltuk numarası kapasite dışında.", 400);
             if (seats.Any(s => s.Number == seat && s.IsBlocked)) throw new PaymentFlowException("Bu koltuk satışa kapalı.", 409);
+            var compatibility = SeatCompatibility.Validate(seats, [new(seat, gender)], await ActiveSeats(tripId, ct), Now);
+            if (compatibility != null) throw new PaymentFlowException(compatibility);
             var used = await db.Reservations.CountAsync(r => r.TripId == tripId && r.Status == "Active", ct);
             if (trip.AvailableSeats != (trip.SellableSeatCount ?? trip.Bus.SeatCapacity) - used) throw new PaymentFlowException("Eski kontenjan bilgileri doğrulanmadan satış yapılamaz.");
             if (trip.AvailableSeats <= 0 || await db.Reservations.AnyAsync(r => r.TripId == tripId && r.SeatNumber == seat && r.Status == "Active", ct))
@@ -61,7 +64,7 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
                 ?? throw new PaymentFlowException("Aktif bir yolcu hesabı gereklidir.", 401);
             var hold = new Reservation { TripId = tripId, PassengerId = userId, SeatNumber = seat, Price = trip.Price,
                 PassengerNameSnapshot = passenger.FullName, PassengerEmailSnapshot = passenger.Email, PassengerPhoneSnapshot = passenger.PhoneNumber,
-                PassengerCapturedAt = Now, PassengerSnapshotSource = "Checkout",
+                PassengerCapturedAt = Now, PassengerSnapshotSource = "Checkout", PassengerGender = gender,
                 Kind = "Hold", HoldExpiresAt = new[] { Now.AddMinutes(10), trip.DepartureTime }.Min() };
             var order = new PaymentOrder { PassengerId = userId, Reservation = hold, RequestKey = requestKey, Amount = trip.Price, OriginalAmount = trip.Price, Provider = provider.Name, IsTest = provider.IsTest };
             db.PaymentOrders.Add(order); trip.AvailableSeats--;
@@ -82,6 +85,7 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
         if (order.CheckoutUrl == null && order.PaymentStatus == "Pending" &&
             await HasLegalAcceptance(order.PassengerId, order.Id, false, ct))
         {
+            await ValidateSingleCheckout(order, ct);
             var url = await ProviderFor(order.Provider).OpenCheckout(order.Id, order.Amount, order.Currency, ct);
             order.CheckoutUrl = url;
             await db.SaveChangesAsync(ct);
@@ -111,6 +115,7 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
                 return;
             if (order.CheckoutUrl == null && await db.Reservations.AnyAsync(r => r.Id == order.ReservationId && r.Kind == "Hold" && r.Status == "Active" && r.HoldExpiresAt > Now, ct))
             {
+                await ValidateSingleCheckout(order, ct);
                 var url = await source.OpenCheckout(order.Id, order.Amount, order.Currency, ct);
                 await db.PaymentOrders.Where(p => p.Id == id).ExecuteUpdateAsync(s => s.SetProperty(p => p.CheckoutUrl, url), ct);
             }
@@ -150,7 +155,8 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
             order.PaymentStatus = "Paid"; order.PaidAt = Now; order.ProviderReference = result.Reference;
             PaymentHistory.Record(db, order, "PaymentConfirmed", Now);
             if (r.Kind == "Hold" && r.Status == "Active" && r.HoldExpiresAt > Now && trip.DepartureTime > Now && Scheduled(trip) && trip.Company.IsActive && trip.Bus.IsActive && trip.Route.IsActive &&
-                (trip.DepartureTerminal == null || trip.DepartureTerminal.IsActive) && (trip.ArrivalTerminal == null || trip.ArrivalTerminal.IsActive))
+                (trip.DepartureTerminal == null || trip.DepartureTerminal.IsActive) && (trip.ArrivalTerminal == null || trip.ArrivalTerminal.IsActive) &&
+                await SeatsStillValid(trip, [r], ct))
             {
                 r.Kind = "Ticket"; r.Pnr = Guid.NewGuid().ToString("N").ToUpperInvariant(); r.IssuedAt = Now;
                 PaymentHistory.Record(db, order, "TicketIssued", Now);

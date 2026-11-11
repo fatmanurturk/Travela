@@ -1,5 +1,12 @@
 namespace Travela.DTOs;
 
+public class RouteGeometryDto
+{
+    [System.ComponentModel.DataAnnotations.MaxLength(20000)] public List<Travela.Api.Trips.RoutePoint>? Points { get; set; }
+    [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.MaxLength(500)] public string Source { get; set; } = "";
+    public bool Confirmed { get; set; }
+}
+
 public class RouteManagementDto : RouteDto
 {
     public bool IsActive { get; set; }

@@ -69,6 +69,17 @@ public partial class TripsController
         catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
         if (stable.Count > 0 && (layout != trip.SeatLayout || stable.Any(r => !plan.Any(s => s.Number == r.SeatNumber && !s.IsBlocked))))
             return Conflict(new { message = "Yeni araç mevcut yolcuların koltuk numaralarını ve yerleşimini korumalıdır. Uyumlu bir araç seçin." });
+        if (stable.Count > 0)
+        {
+            List<SeatPosition> previous;
+            try { previous = SeatPlans.ReadVerified(trip.SeatPlanJson, trip.SeatLayout, trip.SeatCapacitySnapshot ?? trip.Bus.SeatCapacity); }
+            catch (ArgumentException) { return Conflict(new { message = "Mevcut yolcuların fiziksel koltuk planı doğrulanmadan araç değiştirilemez." }); }
+            if (stable.Any(r =>
+            {
+                var beforeSeat = previous.Single(s => s.Number == r.SeatNumber); var afterSeat = plan.Single(s => s.Number == r.SeatNumber);
+                return beforeSeat.Row != afterSeat.Row || beforeSeat.Column != afterSeat.Column || SeatCompatibility.Adjacent(previous, beforeSeat)?.Number != SeatCompatibility.Adjacent(plan, afterSeat)?.Number;
+            })) return Conflict(new { message = "Yeni araç yolcuların fiziksel koltuk konumunu ve eş koltuk komşuluğunu korumalıdır." });
+        }
         var before = TicketJourney.Capture(trip);
         var after = TicketJourney.Capture(trip); after.BusId = bus.Id; after.BusPlateNumber = bus.PlateNumber; after.DepartureTime = departure; after.ArrivalTime = arrival;
         if (dto.Preview) return Ok(new { before, after, affectedTickets = tickets.Count, releasedHolds = reservations.Count(r => r.Kind == "Hold"), changeVersion = trip.ChangeVersion, cancellationUntil = departure,

@@ -4,6 +4,8 @@ namespace Travela.DTOs;
 
 public class StartPurchaseDto : CreateReservationDto
 {
+    [Required(ErrorMessage = "Cinsiyet seçiniz."), RegularExpression("^(Female|Male)$", ErrorMessage = "Cinsiyet Kadın veya Erkek olmalıdır.")]
+    public string Gender { get; set; } = "";
     public Guid RequestKey { get; set; }
     [MaxLength(8)]
     public List<LegalAcceptanceDto>? LegalAcceptances { get; set; }
@@ -21,6 +23,7 @@ public class PurchaseDto : JourneyDto
     public string PassengerName { get; set; } = "";
     public string? PassengerEmail { get; set; }
     public string? PassengerPhone { get; set; }
+    public string? PassengerGender { get; set; }
     public DateTime? PassengerCapturedAt { get; set; }
     public string? PassengerSnapshotSource { get; set; }
     public string DepartureCity { get; set; } = "";

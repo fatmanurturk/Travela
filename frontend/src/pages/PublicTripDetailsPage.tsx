@@ -4,8 +4,9 @@ import { apiUrl } from "../api";
 import SiteHeader from "../components/SiteHeader";
 import SeatMap from "../components/SeatMap";
 import JourneyStops from "../components/JourneyStops";
-import { buildSeats } from "../seatPlans";
 import type { Journey, SeatPosition } from "../seatPlans";
+import { seatConflict } from "../seatCompatibility";
+import type { Gender, SeatOccupancy, SunExposure } from "../seatCompatibility";
 
 import { tripStatusLabel } from "../reservations";
 import PassengerCheckoutForm from "../components/PassengerCheckoutForm";
@@ -24,6 +25,8 @@ type PublicTrip = Journey & {
   seatLayout?: string;
   seats?: SeatPosition[];
   occupiedSeats: number[];
+  seatOccupancies: SeatOccupancy[];
+  sunExposure: SunExposure;
   canReserve: boolean;
   seatPlanAvailable: boolean;
   departureHasPassed: boolean;
@@ -51,11 +54,15 @@ function TripDetails({ id }: { id: string | undefined }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
+  const [genders, setGenders] = useState<Record<number, Gender | "">>({});
+  const [selectionGender, setSelectionGender] = useState<Gender | "">("");
+  const removeSeat = (seat: number) => { setSelectedSeats(current => current.filter(number => number !== seat)); setGenders(current => { const next = { ...current }; delete next[seat]; return next; }); };
+  const seatErrors = Object.fromEntries(selectedSeats.map(seat => [seat, trip?.occupiedSeats.includes(seat) ? "Koltuk başka biri tarafından alınmış veya geçici olarak rezerve edilmiş. Koltuğu çıkarınız." : seatConflict(trip?.seats ?? [], seat, genders[seat], trip?.seatOccupancies ?? [], genders)]));
   const [saving, setSaving] = useState(false);
   const [bookingError, setBookingError] = useState("");
   const [revision, setRevision] = useState(0);
   const refresh = () => {
-    setLoading(true); setError(""); setSelectedSeats([]); setRevision(v => v + 1);
+    setLoading(true); setError(""); setSelectedSeats([]); setGenders({}); setRevision(v => v + 1);
   };
 
   useEffect(() => {
@@ -85,7 +92,7 @@ function TripDetails({ id }: { id: string | undefined }) {
   return (
     <div className="travela-site">
       <SiteHeader />
-      <main className="trip-detail-page">
+      <main className="trip-detail-page public-trip-detail-page">
         <Link to="/" className="back-home">← Ana sayfaya dön</Link>
         {bookingError && <div className="results-message error" role="alert">{bookingError} <Link to="/tickets">Biletlerimi kontrol et</Link></div>}
         {loading ? <div className="site-empty-state">Sefer bilgileri yükleniyor...</div> : error ? (
@@ -111,10 +118,13 @@ function TripDetails({ id }: { id: string | undefined }) {
               <div>
                 <h2 id="seat-heading">Koltuğunuzu seçin</h2>
                 <p>{trip.seatCapacity} koltuk · Sefer durumu: {tripStatusLabel(trip.status)}</p>
-                <p className="seat-legend"><span>□ Boş</span><span>▧ Dolu</span><span>✓ Seçili</span></p>
+                <label>Yeni seçilecek yolcunun cinsiyeti <select aria-label="Yeni yolcunun cinsiyeti" value={selectionGender} disabled={saving} onChange={event => setSelectionGender(event.target.value as Gender | "")}><option value="">Yolcu formunda seçeceğim</option><option value="Female">Kadın</option><option value="Male">Erkek</option></select></label>
+                <p>Her koltuğun yolcu formunda cinsiyeti ayrı ayrı seçebilirsiniz. Yan yana eş koltuklar aynı cinsiyette olmalıdır.</p>
                 {!trip.canReserve && <p role="status">{trip.departureHasPassed ? "Bu seferin kalkış zamanı geçtiği için bilet alınamaz." : tripStatusLabel(trip.status) === "İptal edildi" ? "Bu sefer iptal edildiği için bilet alınamaz." : !trip.seatPlanAvailable ? "Koltuk bilgileri kontrol ediliyor. Lütfen daha sonra deneyin." : trip.availableSeats === 0 ? "Bu seferde boş koltuk kalmadı." : "Bu sefer bilet satışına kapalı."}</p>}
-                {trip.seatPlanAvailable && <SeatMap seats={trip.seats ?? buildSeats("Unspecified", trip.seatCapacity)} layout={trip.seatLayout ?? "Unspecified"} occupied={trip.occupiedSeats} selected={selectedSeats} disabled={!trip.canReserve || saving}
-                  onChoose={seat => { setSelectedSeats(current => current.includes(seat) ? current.filter(number => number !== seat) : current.length < 10 ? [...current, seat] : current); setBookingError(""); }} />}
+                {!trip.seatPlanAvailable && <p role="status">Koltuk planı bulunamıyor veya doğrulanmamış. Firma ya da yönetici fiziksel koltuk planını tanımlamalıdır.</p>}
+                {trip.seatPlanAvailable && <SeatMap seats={trip.seats ?? []} layout={trip.seatLayout ?? "Unspecified"} occupied={trip.occupiedSeats} occupancies={trip.seatOccupancies} genders={genders} selectionGender={selectionGender} sun={trip.sunExposure} onIncompatible={setBookingError} selected={selectedSeats} disabled={!trip.canReserve || saving}
+                  onChoose={seat => { if (selectedSeats.includes(seat)) removeSeat(seat); else if (selectedSeats.length < 10) { setSelectedSeats(current => [...current, seat]); setGenders(current => ({ ...current, [seat]: selectionGender })); } else { setBookingError("En fazla 10 koltuk seçebilirsiniz."); return; } setBookingError(selectionGender ? "" : "Uygunluk kontrolü için her yolcunun cinsiyetini seçiniz."); }} />}
+                {!trip.seatPlanAvailable && <p>{trip.sunExposure?.message ?? "Güneş yönü bilgisi hesaplanamadı."}</p>}
                 <button type="button" className="site-button secondary" disabled={saving} onClick={refresh}>Koltuk planını yenile</button>
               </div>
               <aside className="booking-summary" aria-live="polite">
@@ -127,7 +137,7 @@ function TripDetails({ id }: { id: string | undefined }) {
                   <p>İndirim öncesi: <strong>{currencyFormatter.format(trip.price * selectedSeats.length)}</strong></p>
                 </> : <p>Devam etmek için boş bir koltuk seçiniz.</p>}
                 <p className="booking-notice">Biletiniz ödeme tamamlandığında oluşur. Koltuğunuz ödeme adımında 10 dakika ayrılır.</p>
-                <PassengerCheckoutForm tripId={trip.id} seats={selectedSeats} disabled={!trip.canReserve || saving} onBusy={setSaving} onError={setBookingError} onConflict={() => setRevision(value => value + 1)} onRemove={seat => setSelectedSeats(current => current.filter(number => number !== seat))} />
+                <PassengerCheckoutForm tripId={trip.id} seats={selectedSeats} genders={genders} seatErrors={seatErrors} onGender={(seat, gender) => setGenders(current => ({ ...current, [seat]: gender }))} disabled={!trip.canReserve || saving} onBusy={setSaving} onError={setBookingError} onConflict={() => setRevision(value => value + 1)} onRemove={removeSeat} />
               </aside>
             </section>
           </>

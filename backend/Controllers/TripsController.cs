@@ -314,6 +314,8 @@ namespace Travela.Api.Controllers
                     SellableSeatCount = item.SellableSeatCount ?? item.Bus.SeatCapacity, SeatLayout = item.SeatLayout, SeatPlanJson = item.SeatPlanJson,
                     Status = item.Status,
                     OccupiedSeats = _context.Reservations.Where(r => r.TripId == item.Id && r.Status == "Active").Select(r => r.SeatNumber).ToList(),
+                    SeatOccupancies = _context.Reservations.Where(r => r.TripId == item.Id && r.Status == "Active" && (r.Kind != "Hold" || r.HoldExpiresAt > now))
+                        .Select(r => new Travela.Api.Trips.SeatOccupancy(r.SeatNumber, r.PassengerGender, r.Kind, r.HoldExpiresAt)).ToList(),
                     CanReserve = item.Company.IsActive && item.Bus.IsActive && item.Route.IsActive && (item.DepartureTerminalId == null || item.DepartureTerminal!.IsActive) && (item.ArrivalTerminalId == null || item.ArrivalTerminal!.IsActive) &&
                         item.Bus.CompanyId == item.CompanyId && item.DepartureTime > now && item.AvailableSeats > 0 &&
                         (item.Status.ToLower() == "scheduled" || item.Status.ToLower() == "planlandı" || item.Status.ToLower() == "planlandi"),
@@ -338,10 +340,12 @@ namespace Travela.Api.Controllers
 
             trip.DepartureTime = AsUtc(trip.DepartureTime);
             trip.ArrivalTime = AsUtc(trip.ArrivalTime);
-            try { trip.Seats = Travela.Api.Trips.SeatPlans.Read(trip.SeatPlanJson, trip.SeatLayout, trip.SeatCapacity); }
+            var geometry = await _context.Trips.Where(t => t.Id == id).Select(t => t.Route.GeometryJson).SingleAsync();
+            trip.SunExposure = Travela.Api.Trips.SunExposure.Calculate(new DateTimeOffset(trip.DepartureTime), new DateTimeOffset(trip.ArrivalTime), geometry);
+            try { trip.Seats = Travela.Api.Trips.SeatPlans.ReadVerified(trip.SeatPlanJson, trip.SeatLayout, trip.SeatCapacity); }
             catch (ArgumentException) { trip.Seats = []; }
-            trip.SeatPlanAvailable = trip.Seats.Count == trip.SeatCapacity && trip.AvailableSeats == trip.SellableSeatCount - trip.OccupiedSeats.Count &&
-                !trip.Seats.Any(s => s.IsBlocked && trip.OccupiedSeats.Contains(s.Number));
+            trip.SeatPlanAvailable = trip.Seats.Count == trip.SeatCapacity && trip.Seats.Count(s => !s.IsBlocked) == trip.SellableSeatCount && trip.AvailableSeats == trip.SellableSeatCount - trip.OccupiedSeats.Count &&
+                trip.OccupiedSeats.All(number => trip.Seats.Any(s => s.Number == number && !s.IsBlocked));
             trip.DepartureHasPassed = trip.DepartureTime <= now;
             trip.CanReserve = trip.CanReserve && trip.SeatPlanAvailable;
             return Ok(trip);

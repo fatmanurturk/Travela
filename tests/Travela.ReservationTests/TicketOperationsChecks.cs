@@ -17,7 +17,7 @@ internal static class TicketOperationsChecks
         var company = new Company { Name = "Merkezi İşlem Firması" };
         var bus = new Bus { Company = company, PlateNumber = "34 OPS 777", NormalizedPlateNumber = "34OPS777", SeatCapacity = 20 };
         var route = new Travela.Api.Models.Route { DepartureCity = "Bursa", ArrivalCity = "İzmir", EstimatedDurationMinutes = 240 };
-        var trip = new Trip { Company = company, Bus = bus, Route = route, DepartureTime = DateTime.UtcNow.AddDays(5), ArrivalTime = DateTime.UtcNow.AddDays(5).AddHours(4), AvailableSeats = 20, Price = 600 };
+        var trip = new Trip { Company = company, Bus = bus, Route = route, DepartureTime = DateTime.UtcNow.AddDays(5), ArrivalTime = DateTime.UtcNow.AddDays(5).AddHours(4), AvailableSeats = 20, Price = 600, SeatLayout = "2+2", SeatPlanJson = Travela.Api.Trips.SeatPlans.Write(Travela.Api.Trips.SeatPlans.Create("2+2", 20)) };
         User Account(string name, string role)
         {
             var user = new User { FullName = name, Email = name + "@operations.example", Role = role, PhoneNumber = "+905321234567" };
@@ -48,7 +48,7 @@ internal static class TicketOperationsChecks
             return (await response.Content.ReadFromJsonAsync<PurchaseDto>())!;
         }
         Task<HttpResponseMessage> Start(int seat, Guid key) => Send("POST", "/api/tickets/checkout", ownerToken,
-            new { tripId = trip.Id, seatNumber = seat, requestKey = key, passengerName = "Enjekte edilen ad", legalAcceptances = GroupPurchaseChecks.SalesConsent() });
+            new { tripId = trip.Id, seatNumber = seat, gender = "Female", requestKey = key, passengerName = "Enjekte edilen ad", legalAcceptances = GroupPurchaseChecks.SalesConsent() });
         async Task Service(Func<PaymentService, Task> action)
         {
             await using var context = new TravelaDbContext(new DbContextOptionsBuilder<TravelaDbContext>().UseSqlServer(db.Database.GetConnectionString()).Options);

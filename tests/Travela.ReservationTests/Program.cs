@@ -17,7 +17,9 @@ using Travela.Models;
 
 var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
 Directory.SetCurrentDirectory(root);
+if (args.Contains("--seat-unit")) { SeatRulesChecks.Unit(); return; }
 using var source = new TravelaDbContextFactory().CreateDbContext([]);
+if (args.Contains("--migrate-seat-rules")) { await SeatRulesMigration.Apply(source); return; }
 if (args.Contains("--migrate-journey")) { await JourneyMigration.Apply(source); return; }
 if (args.Contains("--migrate-notifications")) { await NotificationMigration.Apply(source); return; }
 if (args.Contains("--migrate-group-purchases")) { await GroupPurchaseMigration.Apply(source); return; }
@@ -61,6 +63,7 @@ try
     await db.GetService<IMigrator>().MigrateAsync("20261102101401_AddReservationCancellation");
     await db.Database.MigrateAsync();
     Check(await db.Reservations.AnyAsync(r => r.ReservationNumber == legacyNumber && r.Kind == "Legacy" && r.Pnr == null) && !await db.PaymentOrders.AnyAsync(), "Migration eski ücretsiz kaydı korudu; ödenmiş bilete çevirmedi");
+    await db.Trips.Where(t => t.Id == trip.Id).ExecuteUpdateAsync(s => s.SetProperty(t => t.SeatLayout, "2+2").SetProperty(t => t.SeatPlanJson, Travela.Api.Trips.SeatPlans.Write(Travela.Api.Trips.SeatPlans.Create("2+2", 20))));
     var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start(); var port = ((IPEndPoint)listener.LocalEndpoint).Port; listener.Stop();
     var config = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
     var start = new ProcessStartInfo("dotnet") { WorkingDirectory = Path.Combine(root, "backend"), UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
@@ -119,7 +122,7 @@ try
     var failed = await Complete(failedOrder.Id, "Failed");
     Check(failed.Pnr == null && failed.PaymentStatus == "Failed" && failed.TicketStatus == "Cancelled", "Başarısız ödemede bilet yok ve koltuk serbest");
     Check((await Start(2)).Id != failed.Id, "Başarısız ödeme koltuğu yeni satın almaya açık");
-    var sameSeat = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Send("POST", "/api/tickets/checkout", token1, new { tripId = trip.Id, seatNumber = 3, requestKey = Guid.NewGuid(), amount = 1, legalAcceptances = GroupPurchaseChecks.SalesConsent() })));
+    var sameSeat = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Send("POST", "/api/tickets/checkout", token1, new { tripId = trip.Id, seatNumber = 3, gender = "Female", requestKey = Guid.NewGuid(), amount = 1, legalAcceptances = GroupPurchaseChecks.SalesConsent() })));
     Check(sameSeat.Count(r => r.IsSuccessStatusCode) == 1 && sameSeat.Count(r => r.StatusCode == HttpStatusCode.Conflict) == 7, "Aynı koltuğa 8 eş zamanlı satın alma: tek tutma");
     var repeatedKey = Guid.NewGuid();
     var clicks = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => Start(12, repeatedKey)));
@@ -209,6 +212,8 @@ try
     await JourneyChecks.Run(db, http, Check);
     await NotificationChangeChecks.Run(db, http, Check, root);
     await GroupPurchaseChecks.Run(db, http, Check, root);
+    await SeatRulesChecks.Integration(db, http, Check);
+    await BusSeatPlanChecks.Run(db, http, Check);
     Console.WriteLine($"SONUÇ: {passed} ödeme/bilet/iade/yönetici kontrolü başarılı.");
 
     async Task<string> Login(User u)
@@ -243,7 +248,7 @@ try
         if (!r.IsSuccessStatusCode) throw new Exception($"HTTP {(int)r.StatusCode}: {await r.Content.ReadAsStringAsync()}\n{log}");
         return (await r.Content.ReadFromJsonAsync<PurchaseDto>())!;
     }
-    Task<PurchaseDto> Start(int seat, Guid? key = null) => Send("POST", "/api/tickets/checkout", token1, new { tripId = trip.Id, seatNumber = seat, requestKey = key ?? Guid.NewGuid(), amount = 1, legalAcceptances = GroupPurchaseChecks.SalesConsent() }).ContinueWith(async t => await Read(await t)).Unwrap();
+    Task<PurchaseDto> Start(int seat, Guid? key = null) => Send("POST", "/api/tickets/checkout", token1, new { tripId = trip.Id, seatNumber = seat, gender = "Female", requestKey = key ?? Guid.NewGuid(), amount = 1, legalAcceptances = GroupPurchaseChecks.SalesConsent() }).ContinueWith(async t => await Read(await t)).Unwrap();
     async Task<PurchaseDto> Complete(Guid id, string outcome) => await Read(await Send("POST", $"/api/tickets/local/{id}/complete", token1, new { outcome }));
     async Task<PurchaseDto> Refund(Guid id, string outcome) => await Read(await Send("POST", $"/api/tickets/local/{id}/refund-result", token1, new { outcome }));
     async Task<PurchaseDto> Get(Guid id) => await Read(await Send("GET", $"/api/tickets/orders/{id}", token1));

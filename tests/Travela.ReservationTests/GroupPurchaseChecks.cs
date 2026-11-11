@@ -41,7 +41,7 @@ internal static class GroupPurchaseChecks
         async Task<JsonElement> Json(HttpResponseMessage response) { if (!response.IsSuccessStatusCode) throw new Exception(response.StatusCode + ": " + await response.Content.ReadAsStringAsync()); return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone(); }
         async Task<string> Login(User user) => (await Json(await Send("POST", "/api/auth/login", null, new { email = user.Email, password = "TestPass123!" }))).GetProperty("token").GetString()!;
         var token = await Login(buyer); var otherToken = await Login(stranger);
-        TicketPassengerDto Passenger(int seat, string name = "Başka Yolcu") => new() { SeatNumber = seat, FullName = name, Email = "traveler" + seat + "@group.example", Phone = "+905321234567" };
+        TicketPassengerDto Passenger(int seat, string name = "Başka Yolcu") => new() { Gender = "Female", SeatNumber = seat, FullName = name, Email = "traveler" + seat + "@group.example", Phone = "+905321234567" };
         StartGroupPurchaseDto Request(params int[] seats) => new() { TripId = trip.Id, RequestKey = Guid.NewGuid(), Passengers = seats.Select(n => Passenger(n)).ToList(), LegalAcceptances = SalesConsent() };
         var dto = Request(1, 2); dto.Passengers[1].FullName = "İkinci Yolcu";
         var response = await Send("POST", "/api/purchases", token, dto); var group = await Json(response); var id = group.GetProperty("id").GetGuid();
@@ -137,7 +137,7 @@ internal static class GroupPurchaseChecks
         var future = DateTime.UtcNow.AddDays(2);
         await db.PaymentOrders.Where(p => p.PaymentStatus == "Pending").ExecuteUpdateAsync(s => s.SetProperty(p => p.NextReconciliationAt, future));
         await db.PurchaseGroups.Where(g => g.PaymentStatus == "Pending").ExecuteUpdateAsync(s => s.SetProperty(g => g.NextReconciliationAt, future));
-        var old = await service.Start(buyer.Id, trip.Id, 21, Guid.NewGuid(), default, SalesConsent(), "127.0.0.1");
+        var old = await service.Start(buyer.Id, trip.Id, 21, Guid.NewGuid(), default, SalesConsent(), "127.0.0.1", "Female");
         var group = await service.StartGroup(buyer.Id, new StartGroupPurchaseDto { TripId = trip.Id, RequestKey = Guid.NewGuid(), Passengers = [passenger(22,"Kuyruk Yolcusu"), passenger(23,"İkinci Kuyruk Yolcusu")], LegalAcceptances = SalesConsent() }, null, default, "127.0.0.1");
         await db.LocalPaymentRecords.Where(p => p.Id == group.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, "Succeeded"));
         var gate = new SlowGate(old.Id); var services = new ServiceCollection();

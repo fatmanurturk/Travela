@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { apiUrl } from "../../api";
 import "../Admin.css";
 import SeatMap from "../../components/SeatMap";
+import BusSeatPlanManagement from "../../components/BusSeatPlanManagement";
 import { buildSeats, storedSeats } from "../../seatPlans";
 
 const API_URL = apiUrl("/api/buses");
@@ -125,6 +126,11 @@ function BusManagement() {
   const [editingBus, setEditingBus] = useState<Bus | null>(null);
   const [details, setDetails] = useState<BusDetail | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [planBusId, setPlanBusId] = useState<number | null>(null);
+  const [acceptedPlan, setAcceptedPlan] = useState<string | null>(null);
+  const planFingerprint = JSON.stringify({ id: editingBus?.id, capacity: form.seatCapacity, layout: form.seatLayout, blocked: [...form.blockedSeats].sort((a, b) => a - b) });
+  const originalBlocked = editingBus ? storedSeats(editingBus.seatPlanJson, editingBus.seatLayout ?? "Unspecified", editingBus.seatCapacity).filter(s => s.isBlocked).map(s => s.number).sort((a, b) => a - b) : [];
+  const needsPlanConfirmation = form.seatLayout !== "Unspecified" && (!editingBus || !editingBus.seatPlanJson || form.seatLayout !== editingBus.seatLayout || Number(form.seatCapacity) !== editingBus.seatCapacity || JSON.stringify([...form.blockedSeats].sort((a, b) => a - b)) !== JSON.stringify(originalBlocked));
 
   const getHeaders = (json = false): HeadersInit => {
     const token = sessionStorage.getItem("travela_token");
@@ -252,6 +258,7 @@ function BusManagement() {
   ]);
 
   const startCreate = () => {
+    setAcceptedPlan(null);
     setShowForm(true);
     setEditingBus(null);
     setForm({
@@ -262,6 +269,7 @@ function BusManagement() {
   };
 
   const startEdit = (bus: Bus) => {
+    setAcceptedPlan(null);
     setShowForm(true);
     setEditingBus(bus);
     setForm({
@@ -319,6 +327,7 @@ function BusManagement() {
             model: form.model,
             seatCapacity: Number(form.seatCapacity),
             seatLayout: form.seatLayout, blockedSeats: form.blockedSeats,
+            seatPlanConfirmed: acceptedPlan === planFingerprint,
             isActive: form.isActive,
           }),
         }
@@ -514,7 +523,8 @@ function BusManagement() {
                 />
               </label>
               <label>Koltuk düzeni<select aria-label="Koltuk düzeni" value={form.seatLayout} onChange={event => setForm(current => ({ ...current, seatLayout: event.target.value }))}>
-                {form.seatLayout === "Unspecified" && <option value="Unspecified">Eski kayıt - düzen doğrulanmamış</option>}
+                <option value="Unspecified">Düzen henüz doğrulanmadı</option>
+                {form.seatLayout === "Custom" && <option value="Custom">Özel yerleşim</option>}
                 <option value="2+2">2+2</option><option value="2+1">2+1</option>
               </select></label>
               <label>
@@ -530,8 +540,9 @@ function BusManagement() {
                 </select>
               </label>
             </div>
+            {needsPlanConfirmation && <label><input type="checkbox" checked={acceptedPlan === planFingerprint} onChange={e => setAcceptedPlan(e.target.checked ? planFingerprint : null)} />Koltuk planını gerçek otobüsle karşılaştırdım ve doğruluyorum.</label>}
             <div className="detail-actions">
-              <button className="primary-button" type="submit" disabled={saving}>
+              <button className="primary-button" type="submit" disabled={saving || (needsPlanConfirmation && acceptedPlan !== planFingerprint)}>
                 {saving ? "Kaydediliyor..." : "Kaydet"}
               </button>
               <button
@@ -547,12 +558,13 @@ function BusManagement() {
               </button>
             </div>
             <p>Koltuk planı değişiklikleri yeni oluşturulacak seferlerde kullanılır. Mevcut seferlerin kaydedilmiş planı korunur.</p>
-            <SeatMap seats={buildSeats(form.seatLayout, Number(form.seatCapacity), form.blockedSeats)} layout={form.seatLayout} mode="block" disabled={saving}
+            <SeatMap seats={(editingBus && form.seatLayout === editingBus.seatLayout && Number(form.seatCapacity) === editingBus.seatCapacity ? storedSeats(editingBus.seatPlanJson, form.seatLayout, editingBus.seatCapacity).map(s => ({ ...s, isBlocked: form.blockedSeats.includes(s.number) })) : buildSeats(form.seatLayout, Number(form.seatCapacity), form.blockedSeats))} layout={form.seatLayout} mode="block" disabled={saving}
               onChoose={number => setForm(current => ({ ...current, blockedSeats: current.blockedSeats.includes(number) ? current.blockedSeats.filter(value => value !== number) : [...current.blockedSeats, number] }))} />
           </form>
         </section>
       )}
 
+      {planBusId != null && <BusSeatPlanManagement key={planBusId} id={planBusId} close={() => setPlanBusId(null)} saved={() => { void loadBuses(); }} />}
       <section className="dashboard-section table-section">
         <div className="filter-header">
           <h2>Otobüs Listesi</h2>
@@ -690,6 +702,7 @@ function BusManagement() {
                         <button className="link-button" type="button" onClick={() => startEdit(bus)}>
                           Düzenle
                         </button>
+                        <button className="link-button" type="button" onClick={() => { setPlanBusId(bus.id); setShowForm(false); }}>Koltuk Planı Yönetimi</button>
                         <button className="link-button" type="button" onClick={() => void toggleStatus(bus)}>
                           {bus.isActive ? "Pasifleştir" : "Aktifleştir"}
                         </button>
@@ -753,6 +766,7 @@ function BusManagement() {
                   <div><strong>İptal Edilen Sefer</strong><span>{details.cancelledTripsCount}</span></div>
                 </div>
 
+                <button type="button" className="primary-button" onClick={() => { setPlanBusId(details.id); setDetails(null); }}>Koltuk Planı Yönetimi</button>
                 <h4>Yaklaşan Seferler</h4>
                 {details.upcomingTrips.length === 0 ? (
                   <p>Yaklaşan sefer bulunmuyor.</p>

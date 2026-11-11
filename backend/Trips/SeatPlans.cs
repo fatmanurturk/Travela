@@ -25,14 +25,22 @@ public static class SeatPlans
         }).ToList();
     }
     public static string Write(IEnumerable<SeatPosition> seats) => JsonSerializer.Serialize(seats, Options);
+    public static List<SeatPosition> ReadVerified(string? json, string layout, int capacity)
+    {
+        if (layout == "Unspecified" || string.IsNullOrWhiteSpace(json))
+            throw new ArgumentException("Koltuk planı bulunamıyor veya fiziksel yerleşimi doğrulanmamış. Firma ya da yönetici koltuk planını tanımlamalıdır.");
+        return Read(json, layout, capacity);
+    }
     public static List<SeatPosition> Read(string? json, string layout, int capacity)
     {
         if (string.IsNullOrEmpty(json)) return Create(layout, capacity);
         List<SeatPosition> seats;
         try { seats = JsonSerializer.Deserialize<List<SeatPosition>>(json, Options) ?? throw new ArgumentException("Koltuk planı okunamadı."); }
         catch (JsonException) { throw new ArgumentException("Koltuk planı okunamadı."); }
-        var expected = Create(layout, capacity, seats.Where(s => s.IsBlocked).Select(s => s.Number));
-        if (!seats.SequenceEqual(expected)) throw new ArgumentException("Koltuk planı kapasite ve düzenle eşleşmiyor.");
+        if (layout is not ("2+1" or "2+2" or "Custom" or "Unspecified") || capacity is < 1 or > 1000 || seats.Count != capacity || seats.Any(s => s == null) ||
+            seats.Select(s => s.Number).Distinct().Count() != capacity || seats.Any(s => s.Number < 1 || s.Number > capacity || s.Row < 1 || s.Row > 1000 || s.Column is not (1 or 2 or 4 or 5)) ||
+            seats.Select(s => (s.Row, s.Column)).Distinct().Count() != capacity || (layout == "2+1" && seats.Any(s => s.Column == 5)))
+            throw new ArgumentException("Koltuk planı kapasite ve düzenle eşleşmiyor; her fiziksel konum ve koltuk numarası benzersiz olmalıdır.");
         return seats;
     }
 }

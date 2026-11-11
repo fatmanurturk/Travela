@@ -21,7 +21,7 @@ public static class PurchasePresentation
         DateTime Utc(DateTime d) => DateTime.SpecifyKind(d, DateTimeKind.Utc);
         return new() { Id = id, PurchaseGroupId = p.PurchaseGroupId, Pnr = r.Pnr, Kind = r.Kind, TripId = t.Id, SeatNumber = r.SeatNumber,
             CompanyName = j.CompanyName, BusPlateNumber = j.BusPlateNumber, PassengerName = r.PassengerNameSnapshot ?? "Yolcu bilgisi kaydedilmemiş",
-            PassengerEmail = r.PassengerEmailSnapshot, PassengerPhone = r.PassengerPhoneSnapshot,
+            PassengerEmail = r.PassengerEmailSnapshot, PassengerPhone = r.PassengerPhoneSnapshot, PassengerGender = r.PassengerGender,
             PassengerCapturedAt = r.PassengerCapturedAt.HasValue ? Utc(r.PassengerCapturedAt.Value) : null, PassengerSnapshotSource = r.PassengerSnapshotSource,
             DepartureCity = j.DepartureCity, ArrivalCity = j.ArrivalCity,
             DepartureTerminalId = j.DepartureTerminalId, ArrivalTerminalId = j.ArrivalTerminalId, DepartureTerminalName = j.DepartureTerminalName, DepartureTerminalAddress = j.DepartureTerminalAddress, ArrivalTerminalName = j.ArrivalTerminalName, ArrivalTerminalAddress = j.ArrivalTerminalAddress, BoardingInstructions = j.BoardingInstructions,

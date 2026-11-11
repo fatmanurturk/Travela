@@ -159,6 +159,8 @@ namespace Travela.Data
 
     modelBuilder.Entity<Reservation>(entity =>
     {
+        entity.Property(r => r.PassengerGender).HasMaxLength(6);
+        entity.ToTable(t => t.HasCheckConstraint("CK_Reservations_PassengerGender", "[PassengerGender] IS NULL OR [PassengerGender] IN (N'Female', N'Male')"));
         entity.Property(r => r.PassengerEmailSnapshot).HasMaxLength(450);
         entity.Property(r => r.PassengerPhoneSnapshot).HasMaxLength(20);
         entity.Property(r => r.PassengerSnapshotSource).HasMaxLength(20);

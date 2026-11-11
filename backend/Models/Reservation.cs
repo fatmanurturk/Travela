@@ -11,6 +11,7 @@ public class Reservation
     public string? PassengerNameSnapshot { get; set; }
     public string? PassengerEmailSnapshot { get; set; }
     public string? PassengerPhoneSnapshot { get; set; }
+    public string? PassengerGender { get; set; }
     public DateTime? PassengerCapturedAt { get; set; }
     public string? PassengerSnapshotSource { get; set; }
     public int SeatNumber { get; set; }

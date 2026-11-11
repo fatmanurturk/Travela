@@ -52,7 +52,7 @@ function GroupCheckout({ id }: { id: string }) {
       {group.lastError && <p role="status">{group.lastError}</p>}{group.needsAttention && <p>Siparişiniz destek takibinde. Yeni ödeme başlatmadan durumu kontrol edin.</p>}
     </section><p>Her yolcunun ayrı PNR'si ve iptal/iade tutarı vardır. Bir bileti iptal etmek diğer biletleri iptal etmez.</p>
     {group.tickets[0] && <JourneyStops journey={group.tickets[0]} />}
-    <div className="reservation-list">{group.tickets.map(ticket => <section className="group-ticket-passenger" key={ticket.id} aria-label={`Yolcu · Koltuk ${ticket.seatNumber}`}><h2>{ticket.passengerName}</h2><p>{ticket.passengerEmail} · {ticket.passengerPhone}</p><TicketCard item={ticket} showCheckout={false} /></section>)}</div></>}
+    <div className="reservation-list">{group.tickets.map(ticket => <section className="group-ticket-passenger" key={ticket.id} aria-label={`Yolcu · Koltuk ${ticket.seatNumber}`}><h2>{ticket.passengerName}</h2><p>{ticket.passengerEmail} · {ticket.passengerPhone}</p><p>Cinsiyet: {ticket.passengerGender === "Female" ? "Kadın" : ticket.passengerGender === "Male" ? "Erkek" : "Eski kayıtta belirtilmemiş"}</p><TicketCard item={ticket} showCheckout={false} /></section>)}</div></>}
     <button type="button" className="site-button secondary" onClick={() => setRevision(value => value + 1)}>Yenile</button> <Link to="/tickets" className="site-button secondary">Biletlerim</Link>
   </main></div>;
 }

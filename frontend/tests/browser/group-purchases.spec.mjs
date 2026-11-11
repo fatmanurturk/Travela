@@ -18,7 +18,7 @@ for (const width of [390,1440]) test(`İki yolcu kendi bilgileriyle ortak sipari
   await setup(page, "LocalTest", width); let sent;
   await page.route("**/api/purchases", async r => { sent = r.request().postDataJSON(); await r.fulfill({ json: group }); }); await page.route(`**/api/purchases/${id}`, r => r.fulfill({ json: group }));
   await page.goto("/trips/12"); await page.getByRole("button", { name: /^Koltuk 2,/ }).click(); await page.getByRole("button", { name: /^Koltuk 3,/ }).click();
-  for (const [seat,name] of [[2,"Başka Yolcu"],[3,"İkinci Yolcu"]]) { await page.getByLabel(`Ad soyad · Koltuk ${seat}`).fill(name); await page.getByLabel(`E-posta · Koltuk ${seat}`).fill(`traveler${seat}@example.com`); await page.getByLabel(`Telefon · Koltuk ${seat}`).fill("+905321234567"); }
+  for (const [seat,name] of [[2,"Başka Yolcu"],[3,"İkinci Yolcu"]]) { await page.getByLabel(`Ad soyad · Koltuk ${seat}`).fill(name); await page.getByLabel(`E-posta · Koltuk ${seat}`).fill(`traveler${seat}@example.com`); await page.getByLabel(`Telefon · Koltuk ${seat}`).fill("+905321234567"); await page.getByRole("group", { name: `Cinsiyet seçiniz · Koltuk ${seat}` }).getByLabel("Kadın", { exact: true }).check(); }
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
   await page.getByRole("checkbox", { name: /Mesafeli satış sözleşmesini ve ön bilgilendirme/ }).check();
   await page.getByRole("button", { name: "Ödemeye geç", exact: true }).click();
@@ -32,11 +32,12 @@ test("iyzico sandbox akışı alıcı bilgilerini toplar ve yalnızca sağlayıc
   await setup(page, "IyzicoSandbox"); let sent; const sandboxGroup = { ...group, provider: "IyzicoSandbox", checkoutUrl: "https://sandbox-cpp.iyzipay.com/?token=test-sandbox" };
   await page.route("**/api/purchases", async r => { sent = r.request().postDataJSON(); await r.fulfill({ json: sandboxGroup }); }); await page.route(`**/api/purchases/${id}`, r => r.fulfill({ json: sandboxGroup }));
   await page.goto("/trips/12"); await page.getByRole("button", { name: /^Koltuk 2,/ }).click(); await page.getByRole("button", { name: "Hesap bilgilerimi kullan · Koltuk 2" }).click();
+  await page.locator('input[name="gender-2"][value="Female"]').check();
   for (const [field,value] of Object.entries({ name:"Alıcı", surname:"Test", identityNumber:"11111111111", address:"Sandbox adresi", city:"İzmir", country:"Türkiye", zipCode:"35000", phone:"+905321234567" })) await page.getByLabel(`Alıcı ${field}`, { exact: true }).fill(value);
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
   await page.getByRole("checkbox", { name: /Mesafeli satış sözleşmesini ve ön bilgilendirme/ }).check();
   await page.getByRole("button", { name: "Ödemeye geç", exact: true }).click();
   await expect(page).toHaveURL(`/purchase/${id}`);
-  expect(sent.buyer.identityNumber).toBe("11111111111"); await expect(page.getByRole("link", { name: "iyzico sandbox ödeme sayfasına git" })).toHaveAttribute("href", sandboxGroup.checkoutUrl);
+  expect(sent.buyer.identityNumber).toBe("11111111111"); expect(sent.passengers[0].gender).toBe("Female"); await expect(page.getByRole("link", { name: "iyzico sandbox ödeme sayfasına git" })).toHaveAttribute("href", sandboxGroup.checkoutUrl);
   await expect(page.getByRole("button", { name: "Ödemeyi başarılı yap" })).toHaveCount(0); await expect(page.locator('input[autocomplete="cc-number"]')).toHaveCount(0);
 });

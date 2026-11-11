@@ -869,6 +869,10 @@ namespace Travela.API.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("PassengerGender")
+                        .HasMaxLength(6)
+                        .HasColumnType("nvarchar(6)");
+
                     b.Property<int>("PassengerId")
                         .HasColumnType("int");
 
@@ -935,6 +939,8 @@ namespace Travela.API.Migrations
                         {
                             t.HasCheckConstraint("CK_Reservations_Kind", "([Kind] = N'Legacy' AND [Pnr] IS NULL) OR ([Kind] = N'Hold' AND [Pnr] IS NULL AND [HoldExpiresAt] IS NOT NULL) OR ([Kind] = N'Ticket' AND [Pnr] IS NOT NULL)");
 
+                            t.HasCheckConstraint("CK_Reservations_PassengerGender", "[PassengerGender] IS NULL OR [PassengerGender] IN (N'Female', N'Male')");
+
                             t.HasCheckConstraint("CK_Reservations_SeatNumber", "[SeatNumber] > 0");
 
                             t.HasCheckConstraint("CK_Reservations_Status", "([Status] = N'Active' AND [CancelledAt] IS NULL) OR ([Status] = N'Cancelled' AND [CancelledAt] IS NOT NULL)");
@@ -965,6 +971,9 @@ namespace Travela.API.Migrations
 
                     b.Property<int?>("EstimatedDurationMinutes")
                         .HasColumnType("int");
+
+                    b.Property<string>("GeometryJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
