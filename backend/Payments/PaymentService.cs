@@ -12,14 +12,13 @@ namespace Travela.Api.Payments;
 
 public class PaymentFlowException(string message, int status = 409) : Exception(message) { public int Status { get; } = status; }
 
-public partial class PaymentService(TravelaDbContext db, IPaymentProvider provider, TimeProvider clock, PaymentProviderRegistry? registry = null)
+public partial class PaymentService(TravelaDbContext db, IPaymentProvider provider, TimeProvider clock, PaymentProviderRegistry? registry = null, TripSegmentService? segmentService = null)
 {
+    private TripSegmentService Segments => segmentService ?? new(db, clock);
     private IPaymentProvider ProviderFor(string name) => registry?.Get(name) ?? (provider.Name == name ? provider : throw new PaymentFlowException("Siparişin ödeme sağlayıcısı kullanılamıyor.", 503));
     public static bool CanCancel(DateTime departureUtc, DateTime nowUtc) => departureUtc - nowUtc >= TimeSpan.FromHours(2);
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
-    private Task<Trip> LockTrip(int id, CancellationToken ct) => db.Trips
-        .FromSqlInterpolated($"SELECT * FROM Trips WITH (UPDLOCK, HOLDLOCK) WHERE Id = {id}")
-        .Include(t => t.Company).Include(t => t.Bus).Include(t => t.Route).Include(t => t.DepartureTerminal).Include(t => t.ArrivalTerminal).SingleAsync(ct);
+    private Task<Trip> LockTrip(int id, CancellationToken ct) => Segments.LockTrip(id, ct);
     private static bool Scheduled(Trip trip) => trip.Status.ToLowerInvariant() is "scheduled" or "planlandı" or "planlandi";
 
     public async Task<PaymentOrder> Start(
@@ -54,11 +53,10 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
             catch (ArgumentException) { throw new PaymentFlowException("Seferin koltuk planı doğrulanamadı. Lütfen firma ile iletişime geçin."); }
             if (seat > capacity) throw new PaymentFlowException("Koltuk numarası kapasite dışında.", 400);
             if (seats.Any(s => s.Number == seat && s.IsBlocked)) throw new PaymentFlowException("Bu koltuk satışa kapalı.", 409);
-            var compatibility = SeatCompatibility.Validate(seats, [new(seat, gender)], await ActiveSeats(tripId, ct), Now);
+            var segment = await Segments.Resolve(trip, ct: ct);
+            var compatibility = await Segments.ValidateSelection(trip, segment.From.StopOrder, segment.To.StopOrder, [new(seat, gender)], ct);
             if (compatibility != null) throw new PaymentFlowException(compatibility);
-            var used = await db.Reservations.CountAsync(r => r.TripId == tripId && r.Status == "Active", ct);
-            if (trip.AvailableSeats != (trip.SellableSeatCount ?? trip.Bus.SeatCapacity) - used) throw new PaymentFlowException("Eski kontenjan bilgileri doğrulanmadan satış yapılamaz.");
-            if (trip.AvailableSeats <= 0 || await db.Reservations.AnyAsync(r => r.TripId == tripId && r.SeatNumber == seat && r.Status == "Active", ct))
+            if (!(await Segments.AvailableSeatNumbers(trip, segment.From.StopOrder, segment.To.StopOrder, ct)).Contains(seat))
                 throw new PaymentFlowException("Koltuk başka bir yolcu tarafından alındı veya ödeme için tutuluyor.");
             var passenger = await db.Users.AsNoTracking().SessionAccounts(db).SingleOrDefaultAsync(u => u.Id == userId && u.Role == "Passenger", ct)
                 ?? throw new PaymentFlowException("Aktif bir yolcu hesabı gereklidir.", 401);
@@ -67,13 +65,14 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
                 PassengerCapturedAt = Now, PassengerSnapshotSource = "Checkout", PassengerGender = gender,
                 Kind = "Hold", HoldExpiresAt = new[] { Now.AddMinutes(10), trip.DepartureTime }.Min() };
             var order = new PaymentOrder { PassengerId = userId, Reservation = hold, RequestKey = requestKey, Amount = trip.Price, OriginalAmount = trip.Price, Provider = provider.Name, IsTest = provider.IsTest };
-            db.PaymentOrders.Add(order); trip.AvailableSeats--;
+            TripSegmentService.Capture(hold, segment);
+            db.PaymentOrders.Add(order);
             var acceptance = PurchaseAcceptance(userId, trip, requestKey, consentIp,
                 new { order.Amount, order.Currency, seats = new[] { seat } });
             acceptance.PaymentOrderId = order.Id;
             db.LegalAcceptances.Add(acceptance);
             PaymentHistory.Record(db, order, "CheckoutCreated", Now);
-            await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+            await Segments.SaveInventory(trip, ct); await tx.CommitAsync(ct);
             await tx.DisposeAsync();
             return await EnsureCheckout(order, ct);
         }
@@ -178,13 +177,13 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
             PaymentHistory.Record(db, order, "PaymentFailed", Now);
         }
         if (eventId != null) db.PaymentNotifications.Add(new() { Provider = name, EventId = eventId, OrderId = order.Id, ProcessedAt = Now });
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+        await Segments.SaveInventory(trip, ct); await tx.CommitAsync(ct);
     }
 
     private void Release(Reservation r, Trip trip, string reason)
     {
         if (r.Status != "Active") return;
-        r.Status = "Cancelled"; r.CancelledAt = Now; r.CancellationReason = reason; trip.AvailableSeats++;
+        Segments.Release(r, reason);
     }
 
     public static void RequestRefund(PaymentOrder order, DateTime now, TravelaDbContext? db = null)
@@ -211,17 +210,12 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
             order.Reservation.TicketJourneyJson ??= TicketJourney.Capture(trip).Write();
             Release(order.Reservation, trip, changeRight ? "Sefer değişikliği nedeniyle yolcu tam iade hakkını kullandı." : "Yolcu tarafından iptal edildi. Tam iade süreci başlatıldı.");
             RequestRefund(order, Now, db);
-            await db.SaveChangesAsync(ct);
+            await Segments.SaveInventory(trip, ct);
         }
         await tx.CommitAsync(ct);
     }
 
-    private async Task ExpireLocked(Trip trip, CancellationToken ct)
-    {
-        var expired = await db.Reservations.Where(r => r.TripId == trip.Id && r.Kind == "Hold" && r.Status == "Active" && r.HoldExpiresAt <= Now).ToListAsync(ct);
-        foreach (var r in expired) Release(r, trip, "Ödeme süresi doldu. Bilet düzenlenmedi.");
-        await db.SaveChangesAsync(ct);
-    }
+    private Task ExpireLocked(Trip trip, CancellationToken ct) => Segments.ExpireLocked(trip, ct);
     public async Task ExpireHolds(CancellationToken ct)
     {
         var ids = await db.Reservations.AsNoTracking().Where(r => r.Kind == "Hold" && r.Status == "Active" && r.HoldExpiresAt <= Now).Select(r => r.TripId).Distinct().OrderBy(id => id).Take(100).ToListAsync(ct);

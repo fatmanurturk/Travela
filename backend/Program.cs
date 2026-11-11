@@ -93,6 +93,8 @@ builder.Services.AddAuthorization(options =>
 });
 
 builder.Services.AddScoped<TripLifecycleService>();
+builder.Services.AddOptions<TripOptions>().Bind(builder.Configuration.GetSection("Trips"));
+builder.Services.AddScoped<TripSegmentService>();
 builder.Services.AddScoped<TripLifecycleFilter>();
 builder.Services.AddControllers(options => options.Filters.AddService<TripLifecycleFilter>());
 if (builder.Configuration["Trips:LifecycleEnabled"] != "false") builder.Services.AddHostedService<TripLifecycleWorker>();

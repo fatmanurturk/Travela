@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Travela.Api.Models
 {
     public class Trip
@@ -18,6 +20,9 @@ namespace Travela.Api.Models
 
         public int AvailableSeats { get; set; }
         public int ChangeVersion { get; set; }
+        [JsonIgnore] public List<TripStop> Stops { get; set; } = [];
+        [JsonIgnore] public List<TripLeg> Legs { get; set; } = [];
+        [JsonIgnore] public List<TripSegmentFare> SegmentFares { get; set; } = [];
         public string SeatLayout { get; set; } = "Unspecified";
         public string? SeatPlanJson { get; set; }
         public int? SeatCapacitySnapshot { get; set; }

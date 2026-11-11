@@ -20,6 +20,7 @@ var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../
 Directory.SetCurrentDirectory(root);
 if (args.Contains("--seat-unit")) { SeatRulesChecks.Unit(); return; }
 if (args.Contains("--test-db-unit")) { SqlTestDatabaseChecks.Run(); return; }
+if (args.Contains("--segment-tests")) { await SegmentInventoryChecks.Run(); return; }
 using var source = new TravelaDbContextFactory().CreateDbContext([]);
 if (args.Contains("--migrate-seat-rules")) { await SeatRulesMigration.Apply(source); return; }
 if (args.Contains("--migrate-journey")) { await JourneyMigration.Apply(source); return; }
@@ -64,8 +65,10 @@ try
     db.RolePermissions.Add(new RolePermission { Role = role, Permission = new Permission { Name = "trip.update" } });
     await db.SaveChangesAsync(); c1.CompanyId = company.Id; c2.CompanyId = otherCompany.Id; await db.SaveChangesAsync();
     var legacyNumber = Guid.NewGuid().ToString("N"); var created = DateTime.UtcNow;
-    await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Reservations (ReservationNumber, TripId, PassengerId, SeatNumber, Price, CreatedAt, Status) VALUES ({legacyNumber}, {trip.Id}, {u1.Id}, 20, 500, {created}, N'Active')");
-    await db.GetService<IMigrator>().MigrateAsync("20261102101401_AddReservationCancellation");
+    // Synthetic already-migrated legacy fixture; irreversible migrations are tested by upgrading a fresh old schema.
+    await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Reservations (ReservationNumber, TripId, PassengerId, SeatNumber, Price, CreatedAt, Status, PassengerNameSnapshot, PassengerEmailSnapshot, PassengerPhoneSnapshot, PassengerCapturedAt, PassengerSnapshotSource) VALUES ({legacyNumber}, {trip.Id}, {u1.Id}, 20, 500, {created}, N'Active', {u1.FullName}, {u1.Email}, {u1.PhoneNumber}, {created}, N'Migration')");
+    // Historical upgrade/backfill is tested on a separately seeded old schema by --segment-tests.
+    // Never downgrade the irreversible segment inventory migration.
     await db.Database.MigrateAsync();
     Check(await db.Reservations.AnyAsync(r => r.ReservationNumber == legacyNumber && r.Kind == "Legacy" && r.Pnr == null) && !await db.PaymentOrders.AnyAsync(), "Migration eski ücretsiz kaydı korudu; ödenmiş bilete çevirmedi");
     await db.Trips.Where(t => t.Id == trip.Id).ExecuteUpdateAsync(s => s.SetProperty(t => t.SeatLayout, "2+2").SetProperty(t => t.SeatPlanJson, Travela.Api.Trips.SeatPlans.Write(Travela.Api.Trips.SeatPlans.Create("2+2", 20))));
@@ -92,6 +95,7 @@ try
     var ready = false;
     for (var i = 0; i < 60; i++) { try { ready = (await http.GetAsync("/api/test")).IsSuccessStatusCode; if (ready) break; } catch (HttpRequestException) { } if (server.HasExited) throw new Exception(log.ToString()); await Task.Delay(200); }
     Check(ready, "Test API çalışıyor");
+    if (args.Contains("--notification-tests")) { await JourneyChecks.Run(db, http, Check); await NotificationChangeChecks.Run(db, http, Check, root); return; }
     var token1 = await Login(u1); var token2 = await Login(u2); var adminToken = await Login(admin); var companyToken = await Login(c1); var otherToken = await Login(c2);
     Check((await Send("POST", "/api/reservations", token1)).StatusCode == HttpStatusCode.Gone, "Bağımsız ücretsiz rezervasyon endpoint'i kapalı (410)");
     Check((await Send("POST", "/api/tickets/checkout", null, new { tripId = trip.Id, seatNumber = 1, requestKey = Guid.NewGuid() })).StatusCode == HttpStatusCode.Unauthorized, "Kimliksiz satın alma engellendi");
@@ -267,6 +271,8 @@ try
 }
 finally
 {
+    var diagnostics = Path.Combine(root, "tmp", "segment-stage1"); Directory.CreateDirectory(diagnostics);
+    await File.WriteAllTextAsync(Path.Combine(diagnostics, "reservation-api.log"), log.ToString());
     if (server is { HasExited: false }) { server.Kill(true); await server.WaitForExitAsync(); }
     server?.Dispose();
     await testDatabase.DeleteAsync(db);

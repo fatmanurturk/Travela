@@ -18,10 +18,6 @@ public partial class PaymentService
         await tx.CommitAsync(ct);
     }
 
-    private Task<List<SeatOccupancy>> ActiveSeats(int tripId, CancellationToken ct) => db.Reservations
-        .Where(r => r.TripId == tripId && r.Status == "Active" && (r.Kind != "Hold" || r.HoldExpiresAt > Now))
-        .Select(r => new SeatOccupancy(r.SeatNumber, r.PassengerGender, r.Kind, r.HoldExpiresAt)).ToListAsync(ct);
-
     // Caller holds the trip's UPDLOCK in a serializable transaction.
     private async Task<bool> SeatsStillValid(Trip trip, IReadOnlyList<Reservation> reservations, CancellationToken ct)
     {
@@ -29,9 +25,8 @@ public partial class PaymentService
         List<SeatPosition> plan;
         try { plan = SeatPlans.ReadVerified(trip.SeatPlanJson, trip.SeatLayout, trip.SeatCapacitySnapshot ?? trip.Bus.SeatCapacity); }
         catch (ArgumentException) { return false; }
-        var ids = reservations.Select(r => r.Id).ToList();
-        var occupied = await db.Reservations.Where(r => r.TripId == trip.Id && r.Status == "Active" && !ids.Contains(r.Id) && (r.Kind != "Hold" || r.HoldExpiresAt > Now))
-            .Select(r => new SeatOccupancy(r.SeatNumber, r.PassengerGender, r.Kind, r.HoldExpiresAt)).ToListAsync(ct);
-        return SeatCompatibility.Validate(plan, reservations.Select(r => new SeatPassenger(r.SeatNumber, r.PassengerGender)).ToList(), occupied, Now) == null;
+        var segment = await Segments.Resolve(trip, ct: ct);
+        return await Segments.ValidateSelection(trip, segment.From.StopOrder, segment.To.StopOrder,
+            reservations.Select(r => new SeatPassenger(r.SeatNumber, r.PassengerGender)).ToList(), ct, reservations.Select(r => r.Id).ToList()) == null;
     }
 }

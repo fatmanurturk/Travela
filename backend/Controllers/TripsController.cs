@@ -19,6 +19,7 @@ namespace Travela.Api.Controllers
     public partial class TripsController : ControllerBase
     {
         private readonly TravelaDbContext _context;
+        private Travela.Api.Trips.TripSegmentService Segments => new(_context, TimeProvider.System);
 
         public TripsController(TravelaDbContext context)
         {
@@ -786,7 +787,7 @@ namespace Travela.Api.Controllers
             var expiredHolds = await _context.Reservations.Where(r => r.TripId == id && r.Status == "Active" && r.Kind == "Hold" && r.HoldExpiresAt <= now).ToListAsync();
             if (companyId != trip.CompanyId && await _context.Reservations.AnyAsync(r => r.TripId == id))
                 return Conflict(new { message = "İşlem geçmişi bulunan sefer başka firmaya aktarılamaz." });
-            foreach (var hold in expiredHolds) { hold.Status = "Cancelled"; hold.CancelledAt = now; hold.CancellationReason = "Ödeme süresi doldu."; trip.AvailableSeats++; }
+            foreach (var hold in expiredHolds) Segments.Release(hold, "Ödeme süresi doldu.");
             if (await _context.Reservations.AnyAsync(r => r.TripId == id && r.Status == "Active" && (r.Kind != "Hold" || r.HoldExpiresAt > now)))
             {
                 return Conflict(new { message = "Aktif bilet veya ödeme tutması var. Saat/araç için kontrollü sefer değişikliği işlemini kullanın." });
@@ -844,13 +845,12 @@ namespace Travela.Api.Controllers
             var journeyError = await PrepareJourney(trip, bus, route!, dto);
             if (journeyError != null) return journeyError;
             if (trip.AvailableSeats < existingPassengerCount) return Conflict(new { message = "Satışa açık kapasite mevcut kontenjanın altına düşemez." });
-            trip.AvailableSeats -= existingPassengerCount;
             trip.UpdatedAt = now;
             trip.ChangeVersion++;
 
             try
             {
-                await _context.SaveChangesAsync();
+                await Segments.SaveInventory(trip);
                 await transaction.CommitAsync();
             }
             catch (Exception exception) when (IsConcurrencyConflict(exception))
@@ -926,8 +926,7 @@ namespace Travela.Api.Controllers
                 reservation.CancellationReason = "Sefer iptal edildi: " + trip.CancellationReason;
                 if (reservation.Kind == "Ticket") await Travela.Api.Notifications.TravelNotifications.Queue(_context, reservation, "Cancellation", "cancel-trip:" + trip.Id, DateTime.UtcNow, trip.CancellationReason);
             }
-            trip.AvailableSeats += activeReservations.Count;
-            await _context.SaveChangesAsync();
+            await Segments.SaveInventory(trip);
             await transaction.CommitAsync();
             return Ok(new { message = "Sefer iptal edildi." });
         }
@@ -1048,7 +1047,7 @@ namespace Travela.Api.Controllers
         {
             for (var current = exception; current != null; current = current.InnerException)
             {
-                if (current is SqlException { Number: 1205 or 2601 or 2627 })
+                if (current is SqlException { Number: 1205 or 2601 or 2627 or 51011 or 51012 })
                 {
                     return true;
                 }

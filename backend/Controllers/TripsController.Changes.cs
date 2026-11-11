@@ -48,6 +48,8 @@ public partial class TripsController
         var trip = await _context.Trips.FromSqlInterpolated($"SELECT * FROM Trips WITH (UPDLOCK, HOLDLOCK) WHERE Id = {id}")
             .Include(t => t.Bus).Include(t => t.Route).Include(t => t.Company).SingleOrDefaultAsync(ct);
         if (trip == null || !CanAccessTrip(user, trip)) return NotFound();
+        if (await _context.TripStops.CountAsync(s => s.TripId == id, ct) != 2)
+            return Conflict(new { message = "Ara duraklı sefer için kontrollü değişiklik desteği henüz açık değil." });
         var existing = await _context.TripChanges.AsNoTracking().SingleOrDefaultAsync(c => c.RequestKey == dto.RequestKey, ct);
         if (existing != null) return existing.TripId == id && existing.RequestHash == hash ? Ok(new { message = "Değişiklik daha önce uygulandı.", change = existing }) : Conflict(new { message = "İşlem anahtarı farklı bir değişiklikte kullanılmış." });
         if (trip.ChangeVersion != dto.ExpectedVersion) return Conflict(new { message = "Sefer değişti. Detayı yenileyip tekrar önizleyin." });
@@ -91,6 +93,7 @@ public partial class TripsController
         foreach (var r in await _context.Reservations.Where(r => r.TripId == id && r.Kind == "Ticket" && r.Status != "Active" && r.TicketJourneyJson == null).ToListAsync(ct)) r.TicketJourneyJson = before.Write();
         trip.Bus = bus; trip.BusId = bus.Id; trip.DepartureTime = departure; trip.ArrivalTime = arrival; trip.ChangeVersion++; trip.UpdatedAt = now;
         trip.SeatLayout = layout; trip.SeatPlanJson = SeatPlans.Write(plan); trip.SeatCapacitySnapshot = capacity; trip.SellableSeatCount = plan.Count(s => !s.IsBlocked); trip.AvailableSeats = trip.SellableSeatCount.Value - stable.Count;
+        await Segments.SynchronizeFullJourney(trip, ct);
         foreach (var r in reservations.Where(r => r.Kind == "Hold"))
         {
             r.Status = "Cancelled"; r.CancelledAt = now; r.CancellationReason = "Sefer değişikliği nedeniyle ödeme tutması sonlandırıldı. Yeni sefer bilgileriyle tekrar seçim yapın.";
@@ -103,7 +106,7 @@ public partial class TripsController
             await TravelNotifications.Queue(_context, r, "TripChanged", "trip-change:" + change.Id, now,
                 $"Önceki kalkış: {before.DepartureTime.AddHours(3):dd.MM.yyyy HH:mm}. Önceki araç: {before.BusPlateNumber}. Yeni araç: {after.BusPlateNumber}. Gerekçe: {change.Reason}. Yeni kalkışa kadar Biletlerim üzerinden tam iadeyle iptal edebilirsiniz.", ct);
         }
-        try { await _context.SaveChangesAsync(ct); await tx.CommitAsync(ct); }
+        try { await Segments.SaveInventory(trip, ct); await tx.CommitAsync(ct); }
         catch (Exception e) when (IsConcurrencyConflict(e)) { return Conflict(new { message = "Eş zamanlı sefer işlemi var. Detayı yenileyin." }); }
         return Ok(new { message = "Sefer değiştirildi; bildirimler kuyruğa alındı ve tam iade hakkı tanımlandı.", change });
     }

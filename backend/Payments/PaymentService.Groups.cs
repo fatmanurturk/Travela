@@ -49,17 +49,19 @@ public partial class PaymentService
             try { plan = SeatPlans.ReadVerified(trip.SeatPlanJson, trip.SeatLayout, trip.SeatCapacitySnapshot ?? trip.Bus.SeatCapacity); }
             catch (ArgumentException) { throw new PaymentFlowException("Seferin koltuk planı doğrulanamadı; firma kontrolü gereklidir."); }
             if (passengers.Any(p => !plan.Any(s => s.Number == p.SeatNumber && !s.IsBlocked))) throw new PaymentFlowException("Seçilen koltuklardan biri geçersiz veya satışa kapalı.");
-            var occupancy = await ActiveSeats(trip.Id, ct);
-            var compatibility = SeatCompatibility.Validate(plan, passengers.Select(p => new SeatPassenger(p.SeatNumber, p.gender)).ToList(), occupancy, Now);
+            var segment = await Segments.Resolve(trip, ct: ct);
+            var compatibility = await Segments.ValidateSelection(trip, segment.From.StopOrder, segment.To.StopOrder,
+                passengers.Select(p => new SeatPassenger(p.SeatNumber, p.gender)).ToList(), ct);
             if (compatibility != null) throw new PaymentFlowException(compatibility);
-            var occupied = occupancy.Select(s => s.SeatNumber).ToList();
-            if (trip.AvailableSeats != (trip.SellableSeatCount ?? trip.Bus.SeatCapacity) - occupied.Count || trip.AvailableSeats < passengers.Count || passengers.Any(p => occupied.Contains(p.SeatNumber)))
+            var available = await Segments.AvailableSeatNumbers(trip, segment.From.StopOrder, segment.To.StopOrder, ct);
+            if (passengers.Any(p => !available.Contains(p.SeatNumber)))
                 throw new PaymentFlowException("Seçilen koltuklardan biri artık alınamıyor. Hiçbir koltuk ayrılmadı; planı yenileyin.");
             if (!await db.Users.SessionAccounts(db).AnyAsync(u => u.Id == userId && u.Role == "Passenger", ct)) throw new PaymentFlowException("Aktif yolcu hesabı gereklidir.", 401);
             var price = await CampaignPricing.Quote(db, trip, userId, passengers.Count, couponCode, Now, true, ct);
             if (dto.ExpectedAmount.HasValue && dto.ExpectedAmount.Value != price.Amount)
                 throw new PaymentFlowException("Fiyat veya kampanya koşulları değişti. Güncel toplamı kontrol edip tekrar deneyin.");
             group = new() { PassengerId = userId, TripId = trip.Id, RequestKey = dto.RequestKey, RequestHash = hash, Amount = price.Amount,
+                BoardingStopOrder = segment.From.StopOrder, AlightingStopOrder = segment.To.StopOrder,
                 OriginalAmount = price.OriginalAmount, DiscountAmount = price.DiscountAmount, CampaignId = price.CampaignId, CampaignName = price.CampaignName, CouponCode = price.CouponCode,
                 Provider = provider.Name, IsTest = provider.IsTest, ProtectedBuyerJson = protectedBuyer, HoldExpiresAt = new[] { Now.AddMinutes(10), trip.DepartureTime }.Min() };
             var discountCents = (long)(price.DiscountAmount * 100);
@@ -70,18 +72,19 @@ public partial class PaymentService
                 var originalAmount = decimal.Round(trip.Price, 2);
                 var reservation = new Reservation { TripId = trip.Id, PassengerId = userId, SeatNumber = p.SeatNumber, Price = originalAmount - lineDiscount,
                     PassengerNameSnapshot = p.name, PassengerEmailSnapshot = p.email, PassengerPhoneSnapshot = p.phone, PassengerGender = p.gender, PassengerCapturedAt = Now, PassengerSnapshotSource = "PassengerEntry", Kind = "Hold", HoldExpiresAt = group.HoldExpiresAt };
+                TripSegmentService.Capture(reservation, segment);
                 var line = new PaymentOrder { PassengerId = userId, PurchaseGroup = group, Reservation = reservation, RequestKey = Guid.NewGuid(), Amount = reservation.Price,
                     OriginalAmount = originalAmount, DiscountAmount = lineDiscount, CampaignName = price.CampaignName, CouponCode = price.CouponCode,
                     Provider = provider.Name, IsTest = provider.IsTest, CheckoutUrl = "/purchase/" + group.Id };
                 group.Items.Add(line); PaymentHistory.Record(db, line, "CheckoutCreated", Now);
             }
-            db.PurchaseGroups.Add(group); trip.AvailableSeats -= passengers.Count;
+            db.PurchaseGroups.Add(group);
             var acceptance = PurchaseAcceptance(userId, trip, dto.RequestKey, consentIp,
                 new { group.Amount, group.Currency, group.OriginalAmount, group.DiscountAmount,
                     seats = passengers.Select(p => p.SeatNumber).ToArray() });
             acceptance.PurchaseGroupId = group.Id;
             db.LegalAcceptances.Add(acceptance);
-            await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+            await Segments.SaveInventory(trip, ct); await tx.CommitAsync(ct);
         }
         return await EnsureGroupCheckout(group.Id, ct);
     }
@@ -174,6 +177,6 @@ public partial class PaymentService
         if (result.Status == "Succeeded") group.ProviderPaymentId = result.Reference;
         group.ProtectedBuyerJson = null;
         if (eventId != null) db.PaymentNotifications.Add(new() { Provider = sourceName, EventId = eventId, OrderId = group.Id, ProcessedAt = Now });
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+        await Segments.SaveInventory(trip, ct); await tx.CommitAsync(ct);
     }
 }

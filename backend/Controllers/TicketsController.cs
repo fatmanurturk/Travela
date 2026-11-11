@@ -24,7 +24,7 @@ public class TicketsController(TravelaDbContext db, PaymentService payments, Loc
         if (!await ActiveUser(ct)) return Unauthorized();
         try { return await action(); }
         catch (PaymentFlowException e) { return StatusCode(e.Status, new { message = e.Message }); }
-        catch (Exception e) when (e is SqlException { Number: 1205 or 2601 or 2627 } || e is DbUpdateException { InnerException: SqlException { Number: 1205 or 2601 or 2627 } })
+        catch (Exception e) when (e is SqlException { Number: 1205 or 2601 or 2627 or 51011 or 51012 } || e is DbUpdateException { InnerException: SqlException { Number: 1205 or 2601 or 2627 or 51011 or 51012 } })
         { return Conflict(new { message = "Eş zamanlı işlem çakışması. Biletlerim sayfasını kontrol edip aynı işlem anahtarıyla tekrar deneyiniz." }); }
     }
     [HttpPost("checkout")]

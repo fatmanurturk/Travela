@@ -112,3 +112,74 @@ yapılmadı. Aşama 1 başlatılmadı.
 Kaynaklar:
 - [Microsoft — şifreleme ve sertifika doğrulaması](https://learn.microsoft.com/en-us/sql/connect/ado-net/encryption-and-certificate-validation)
 - [Microsoft — SqlClient AppContext anahtarları](https://learn.microsoft.com/en-us/sql/connect/ado-net/appcontext-switches)
+
+## Aşama 1 — segment çekirdeği ve migration taslağı
+
+`scripts/test-stage1.ps1` üç mevcut entegrasyon paketini, yeni segment SQL
+testlerini ve EF model/migration eşleşmesini doğrular. Yazma ve mevcut
+migration'ların uygulanması yine yalnızca GUID adlı geçici test veritabanlarındadır.
+Frontend doğrulaması: `frontend/` altında `npm test`, `npm run build`, `npm run lint`.
+
+Taslak: `20261111124242_AddIntermediateStopInventory`. **Ana veritabanına henüz
+uygulanmadı; uygulama ayrı kullanıcı onayına bağlıdır.** Yeni backend sürümünü
+ana veritabanında çalıştırmak için önce bu şema geçişinin onaylanması gerekir.
+`Trips:IntermediateStopsEnabled=false` kalır; yeni segment satış endpoint'i veya
+arayüzü bu aşamada açılmaz. Mevcut idempotency özetleri ve bilet JSON'ları değişmez.
+
+Yeni `RouteStop`, `TripStop`, `TripLeg`, `TripSegmentFare`, `ReservationLeg`
+modelleri ve `TripSegmentService` ortak envanter çekirdeğini oluşturur. Mevcut
+tam güzergâh yazıcıları, Serializable transaction ve sefer UPDLOCK/HOLDLOCK
+korunarak bağlanmıştır. Koltuk-dakika raporu ve segment satış arayüzleri kendi
+sonraki aşamalarında uygulanacaktır.
+
+Bacak üretimi dar kapsamlı `TR_Reservations_Legs` AFTER trigger'ındadır;
+fiyat, cinsiyet, durak seçimi ve satış kuralları uygulama servisinde kalır.
+`TR_ReservationLegs_Consistency` eksik/taşınmış/silinmiş bacağı ve ebeveynle
+uyumsuz aktifliği reddeder. Filtreli tekil indeks aktif `(TripId, SeatNumber,
+LegNumber)` içindir. Eski sefer/koltuk tekilliği, yeni indeks oluşturulup geçmiş
+veriyle doğrulanana kadar kaldırılmaz. Hold→Ticket aynı bacakları korur; iptal,
+başarısız ödeme ve süre aşımı geçmiş satırları silmeden pasifleştirir.
+
+EF trigger bulunan tablolarda `UseSqlOutputClause(false)` kullanır. Trigger'ın
+ürettiği bacaklar EF ile yeniden eklenmez; veritabanından sorgulanır. Tam
+güzergâh boş koltuk önbelleği, bütün bacaklardaki dolu **farklı koltukların
+birleşiminden** hesaplanır; bacak minimumu veya artırım/azaltım kullanılmaz.
+
+Eski şemada şehirler seferin `RouteId` ile bağlı olduğu iki uçtan okunur
+(mevcut API, bağlı güzergâhın şehirlerini değiştirmeyi engeller). Yeni rota
+durak şablonu bu geçişte kaynak değildir. Saat ve terminal anlık görüntüleri
+mevcut sefer sütunlarından alınır. Rezervasyonda eski bilet JSON'u varsa
+kayıtlı yolculuk saatleri korunur; yoksa sefer saatleri kullanılır. İptaller
+dahil her eski rezervasyon ilk→son durağa bağlanır.
+
+`SegmentMigrationChecks` eski şemada gerçek SQL verisi üretir; geçiş öncesi
+ve sonrası bütün mevcut tabloların kayıt sayıları ve eski sütunlarının SHA-256
+parmak izlerini karşılaştırır. Ödeme/iade toplamları, PNR, bilet JSON'u ve eski
+koltuk numaraları ayrıca korunur. Bozuk veri testi geçişin durduğunu ve
+verinin otomatik düzeltilmediğini denetler. Bunlar gerçek geliştirme verisi
+üzerinde denenmez.
+
+Geri dönüş: `Down` hiçbir tablo/sütun silmez; 51013 ile işlemi reddeder.
+Uygulama onayından önce yazmaları durdurup doğrulanmış tam yedek alınmalı;
+geri dönüş gerekirse yeni backend/worker'lar durdurulmalı, geçiş öncesi yedek
+ayrı hedefe geri yüklenip parmak izi/finansal toplamlar kontrol edilmeli ve
+eski uygulama sürümüyle bağlantı değiştirilmelidir. Yeni segment verisi varken
+eski tekil indeksi geri ekleyerek kısmi geri dönüş yapılmaz.
+
+11 Kasım 2026 Aşama 1 doğrulaması:
+
+| Kontrol | Sonuç |
+| --- | --- |
+| Yeni segment/migration/gerçek SQL eşzamanlılık testleri | 63 geçti |
+| Reservation / Route / Reporting | 197 / 61 / 95 geçti |
+| SQL hedef/şifreleme korumaları | 20 geçti |
+| Profil/oturum/hesap regresyonları | 136 geçti |
+| Ödeme sağlayıcısı / başlangıç-DI kontrolleri | 107 / 79 geçti |
+| Worker yapılandırma, bekleme ve iptal kontrolleri | Başarılı; SQL/teslimat yok |
+| Backend/test derlemeleri ve EF model eşleşmesi | Başarılı; derlemelerde 0 uyarı, 0 hata |
+| Frontend birim / üretim derlemesi / lint | 31 geçti / başarılı / çıkış 0, mevcut 32 uyarı |
+
+Vite'ın mevcut 500 kB paket boyutu uyarısı sürmektedir. Üç zorunlu SQL paketi
+ve segment paketi şifreli bağımsız test veritabanlarını temizledi. Üretilen
+inceleme SQL'i `tmp/segment-stage1/migration.sql` konumundadır; yürütülmemiştir.
+Ana veritabanı değiştirilmedi; özellik bayrağı açılmadı; Aşama 2 başlatılmadı.

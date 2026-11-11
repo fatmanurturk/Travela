@@ -30,7 +30,8 @@ public sealed class TerminalsController(TravelaDbContext db) : ControllerBase
             return BadRequest(new { message = "Terminal adı, şehir ve açık adres zorunludur." });
         var terminal = id.HasValue ? await db.Terminals.SingleOrDefaultAsync(t => t.Id == id, ct) : new Terminal();
         if (terminal == null) return NotFound(new { message = "Terminal bulunamadı." });
-        if (id.HasValue && terminal.City != dto.City.Trim() && await db.Trips.AnyAsync(t => t.DepartureTerminalId == id || t.ArrivalTerminalId == id, ct))
+        if (id.HasValue && terminal.City != dto.City.Trim() && (await db.Trips.AnyAsync(t => t.DepartureTerminalId == id || t.ArrivalTerminalId == id, ct) ||
+            await db.TripStops.AnyAsync(s => s.TerminalId == id, ct) || await db.RouteStops.AnyAsync(s => s.TerminalId == id, ct)))
             return Conflict(new { message = "Seferlerde kullanılmış terminalin şehri değiştirilemez." });
         terminal.Name = dto.Name.Trim(); terminal.City = dto.City.Trim(); terminal.Address = dto.Address.Trim(); terminal.IsActive = dto.IsActive;
         if (!id.HasValue) db.Terminals.Add(terminal);

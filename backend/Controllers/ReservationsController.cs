@@ -56,9 +56,8 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
                 reservation.Status = "Cancelled";
                 reservation.CancelledAt = DateTime.UtcNow;
                 reservation.CancellationReason = "Yolcu tarafından iptal edildi.";
-                trip.AvailableSeats++;
                 trip.UpdatedAt = DateTime.UtcNow;
-                await db.SaveChangesAsync(cancellationToken);
+                await new Travela.Api.Trips.TripSegmentService(db, TimeProvider.System).SaveInventory(trip, cancellationToken);
             }
             await transaction.CommitAsync(cancellationToken);
             var result = await Project(db.Reservations.AsNoTracking().Where(r => r.Id == reservation.Id)).SingleAsync(cancellationToken);

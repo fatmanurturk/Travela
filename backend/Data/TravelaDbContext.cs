@@ -4,7 +4,7 @@ using Travela.Api.Models;
 
 namespace Travela.Data
 {
-    public class TravelaDbContext : DbContext
+    public partial class TravelaDbContext : DbContext
     {
         public TravelaDbContext(
             DbContextOptions<TravelaDbContext> options)
@@ -39,6 +39,7 @@ namespace Travela.Data
       protected override void OnModelCreating(ModelBuilder modelBuilder)
 {
     base.OnModelCreating(modelBuilder);
+    ConfigureSegments(modelBuilder);
     modelBuilder.Entity<LegalAcceptance>(entity =>
     {
         entity.Property(a => a.DocumentType).HasMaxLength(40);
@@ -173,7 +174,7 @@ namespace Travela.Data
         entity.HasIndex(r => r.Pnr).IsUnique().HasFilter("[Pnr] IS NOT NULL");
         entity.ToTable(t => t.HasCheckConstraint("CK_Reservations_Kind", "([Kind] = N'Legacy' AND [Pnr] IS NULL) OR ([Kind] = N'Hold' AND [Pnr] IS NULL AND [HoldExpiresAt] IS NOT NULL) OR ([Kind] = N'Ticket' AND [Pnr] IS NOT NULL)"));
         entity.HasIndex(r => r.ReservationNumber).IsUnique();
-        entity.HasIndex(r => new { r.TripId, r.SeatNumber }).IsUnique().HasFilter("[Status] = N'Active'");
+        entity.HasIndex(r => new { r.TripId, r.SeatNumber });
         entity.HasIndex(r => new { r.PassengerId, r.CreatedAt });
         entity.HasIndex(r => new { r.TripId, r.Kind, r.Status });
         entity.HasIndex(r => r.IssuedAt);

@@ -110,7 +110,7 @@ internal static class JourneyChecks
         check((await Send("POST", "/api/trips", companyToken, TripPayload(2))).StatusCode == HttpStatusCode.BadRequest, "Pasif terminal yeni sefere atanamaz");
         var blocked = false;
         try { await db.GetService<IMigrator>().MigrateAsync("20261104073635_AddTicketPassengerSnapshotsAndPaymentHistory"); }
-        catch (SqlException e) when (e.Number == 51000) { blocked = true; }
+        catch (SqlException e) when (e.Number is 51000 or 51013) { blocked = true; }
         check(blocked && await db.Trips.AnyAsync(t => t.Id == tripId && t.SeatLayout == "2+1"), "Koltuk ve terminal bilgilerini kaybettirecek geri migration engellenir");
         await db.Database.MigrateAsync();
     }

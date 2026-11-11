@@ -659,6 +659,8 @@ namespace Travela.API.Migrations
 
                     b.ToTable("PaymentOrders", t =>
                         {
+                            t.HasTrigger("TR_PaymentOrders_Segment");
+
                             t.HasCheckConstraint("CK_PaymentOrders_Amount", "[Amount] > 0 AND [RefundAmount] >= 0 AND [RefundAmount] <= [Amount]");
 
                             t.HasCheckConstraint("CK_PaymentOrders_Discount", "[DiscountAmount] >= 0 AND [OriginalAmount] = [Amount] + [DiscountAmount]");
@@ -667,6 +669,8 @@ namespace Travela.API.Migrations
 
                             t.HasCheckConstraint("CK_PaymentOrders_Refund", "([RefundStatus] = N'None' AND [RefundAmount] = 0) OR ([PaymentStatus] = N'Paid' AND [RefundAmount] = [Amount] AND ([RefundStatus] IN (N'Pending', N'Failed') OR ([RefundStatus] = N'Succeeded' AND [RefundedAt] IS NOT NULL AND [RefundReference] IS NOT NULL)))");
                         });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("Travela.Api.Models.ProviderRefundAttempt", b =>
@@ -711,9 +715,15 @@ namespace Travela.API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int?>("AlightingStopOrder")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("BoardingStopOrder")
+                        .HasColumnType("int");
 
                     b.Property<int?>("CampaignId")
                         .HasColumnType("int");
@@ -809,8 +819,6 @@ namespace Travela.API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TripId");
-
                     b.HasIndex("PassengerId", "RequestKey")
                         .IsUnique();
 
@@ -820,12 +828,20 @@ namespace Travela.API.Migrations
                         .IsUnique()
                         .HasFilter("[ProviderToken] IS NOT NULL");
 
+                    b.HasIndex("TripId", "AlightingStopOrder");
+
+                    b.HasIndex("TripId", "BoardingStopOrder");
+
                     b.HasIndex("CampaignId", "PassengerId", "PaymentStatus", "HoldExpiresAt");
 
                     b.ToTable("PurchaseGroups", t =>
                         {
+                            t.HasTrigger("TR_PurchaseGroups_Segment");
+
                             t.HasCheckConstraint("CK_PurchaseGroups_Discount", "[DiscountAmount] >= 0 AND [OriginalAmount] = [Amount] + [DiscountAmount]");
                         });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("Travela.Api.Models.Reservation", b =>
@@ -835,6 +851,18 @@ namespace Travela.API.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("AlightingArrivalSnapshot")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("AlightingStopOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("BoardingDepartureSnapshot")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("BoardingStopOrder")
+                        .HasColumnType("int");
 
                     b.Property<string>("CancellationReason")
                         .HasMaxLength(1000)
@@ -929,22 +957,65 @@ namespace Travela.API.Migrations
 
                     b.HasIndex("PassengerId", "CreatedAt");
 
-                    b.HasIndex("TripId", "SeatNumber")
-                        .IsUnique()
-                        .HasFilter("[Status] = N'Active'");
+                    b.HasIndex("TripId", "AlightingStopOrder");
+
+                    b.HasIndex("TripId", "BoardingStopOrder");
+
+                    b.HasIndex("TripId", "SeatNumber");
 
                     b.HasIndex("TripId", "Kind", "Status");
 
                     b.ToTable("Reservations", t =>
                         {
+                            t.HasTrigger("TR_Reservations_Legs");
+
                             t.HasCheckConstraint("CK_Reservations_Kind", "([Kind] = N'Legacy' AND [Pnr] IS NULL) OR ([Kind] = N'Hold' AND [Pnr] IS NULL AND [HoldExpiresAt] IS NOT NULL) OR ([Kind] = N'Ticket' AND [Pnr] IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_Reservations_PassengerGender", "[PassengerGender] IS NULL OR [PassengerGender] IN (N'Female', N'Male')");
 
                             t.HasCheckConstraint("CK_Reservations_SeatNumber", "[SeatNumber] > 0");
 
+                            t.HasCheckConstraint("CK_Reservations_Segment", "([BoardingStopOrder] IS NULL AND [AlightingStopOrder] IS NULL AND [BoardingDepartureSnapshot] IS NULL AND [AlightingArrivalSnapshot] IS NULL) OR ([BoardingStopOrder] IS NOT NULL AND [AlightingStopOrder] IS NOT NULL AND [BoardingStopOrder] < [AlightingStopOrder] AND [BoardingDepartureSnapshot] IS NOT NULL AND [AlightingArrivalSnapshot] > [BoardingDepartureSnapshot])");
+
                             t.HasCheckConstraint("CK_Reservations_Status", "([Status] = N'Active' AND [CancelledAt] IS NULL) OR ([Status] = N'Cancelled' AND [CancelledAt] IS NOT NULL)");
                         });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.ReservationLeg", b =>
+                {
+                    b.Property<int>("ReservationId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LegNumber")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("SeatNumber")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TripId")
+                        .HasColumnType("int");
+
+                    b.HasKey("ReservationId", "LegNumber");
+
+                    b.HasIndex("TripId", "LegNumber");
+
+                    b.HasIndex("ReservationId", "TripId", "SeatNumber");
+
+                    b.HasIndex("TripId", "SeatNumber", "LegNumber")
+                        .IsUnique()
+                        .HasFilter("[IsActive] = 1");
+
+                    b.ToTable("ReservationLegs", t =>
+                        {
+                            t.HasTrigger("TR_ReservationLegs_Consistency");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("Travela.Api.Models.Route", b =>
@@ -981,6 +1052,45 @@ namespace Travela.API.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Routes");
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.RouteStop", b =>
+                {
+                    b.Property<int>("RouteId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StopOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ArrivalOffsetMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("DepartureOffsetMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("DistanceFromStartKm")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("decimal(12,3)");
+
+                    b.Property<int?>("TerminalId")
+                        .HasColumnType("int");
+
+                    b.HasKey("RouteId", "StopOrder");
+
+                    b.HasIndex("TerminalId");
+
+                    b.HasIndex("RouteId", "City")
+                        .IsUnique();
+
+                    b.ToTable("RouteStops", t =>
+                        {
+                            t.HasCheckConstraint("CK_RouteStops_OrderTime", "[StopOrder] >= 1 AND [ArrivalOffsetMinutes] >= 0 AND [DepartureOffsetMinutes] >= [ArrivalOffsetMinutes] AND ([DistanceFromStartKm] IS NULL OR [DistanceFromStartKm] >= 0)");
+                        });
                 });
 
             modelBuilder.Entity("Travela.Api.Models.Terminal", b =>
@@ -1282,6 +1392,127 @@ namespace Travela.API.Migrations
                     b.ToTable("TripChangeTickets");
                 });
 
+            modelBuilder.Entity("Travela.Api.Models.TripLeg", b =>
+                {
+                    b.Property<int>("TripId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LegNumber")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FromStopOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ToStopOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("TripId", "LegNumber");
+
+                    b.HasIndex("TripId", "FromStopOrder");
+
+                    b.HasIndex("TripId", "ToStopOrder");
+
+                    b.ToTable("TripLegs", t =>
+                        {
+                            t.HasTrigger("TR_TripLegs_Topology");
+
+                            t.HasCheckConstraint("CK_TripLegs_Adjacent", "[LegNumber] = [FromStopOrder] AND [ToStopOrder] = [FromStopOrder] + 1");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.TripSegmentFare", b =>
+                {
+                    b.Property<int>("TripId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FromStopOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ToStopOrder")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("TripId", "FromStopOrder", "ToStopOrder");
+
+                    b.HasIndex("TripId", "ToStopOrder");
+
+                    b.ToTable("TripSegmentFares", t =>
+                        {
+                            t.HasCheckConstraint("CK_TripSegmentFares_Value", "[FromStopOrder] < [ToStopOrder] AND [Amount] >= 0.01 AND [Source] IN (N'FullRoute', N'Manual', N'Automatic') AND ([IsApproved] = 0 OR [ApprovedAt] IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.TripStop", b =>
+                {
+                    b.Property<int>("TripId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StopOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ArrivalTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("BoardingInstructions")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("DepartureTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("DistanceFromStartKm")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("decimal(12,3)");
+
+                    b.Property<string>("TerminalAddress")
+                        .HasMaxLength(640)
+                        .HasColumnType("nvarchar(640)");
+
+                    b.Property<int?>("TerminalId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TerminalName")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.HasKey("TripId", "StopOrder");
+
+                    b.HasIndex("TerminalId");
+
+                    b.HasIndex("TripId", "City")
+                        .IsUnique();
+
+                    b.ToTable("TripStops", t =>
+                        {
+                            t.HasTrigger("TR_TripStops_Topology");
+
+                            t.HasCheckConstraint("CK_TripStops_OrderTime", "[StopOrder] >= 1 AND [DepartureTime] >= [ArrivalTime] AND ([DistanceFromStartKm] IS NULL OR [DistanceFromStartKm] >= 0)");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
             modelBuilder.Entity("Travela.Models.Permission", b =>
                 {
                     b.Property<int>("Id")
@@ -1567,6 +1798,16 @@ namespace Travela.API.Migrations
                         .HasForeignKey("TripId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
+
+                    b.HasOne("Travela.Api.Models.TripStop", null)
+                        .WithMany()
+                        .HasForeignKey("TripId", "AlightingStopOrder")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Travela.Api.Models.TripStop", null)
+                        .WithMany()
+                        .HasForeignKey("TripId", "BoardingStopOrder")
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 
             modelBuilder.Entity("Travela.Api.Models.Reservation", b =>
@@ -1583,9 +1824,51 @@ namespace Travela.API.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
+                    b.HasOne("Travela.Api.Models.TripStop", null)
+                        .WithMany()
+                        .HasForeignKey("TripId", "AlightingStopOrder")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Travela.Api.Models.TripStop", null)
+                        .WithMany()
+                        .HasForeignKey("TripId", "BoardingStopOrder")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.Navigation("Passenger");
 
                     b.Navigation("Trip");
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.ReservationLeg", b =>
+                {
+                    b.HasOne("Travela.Api.Models.TripLeg", null)
+                        .WithMany()
+                        .HasForeignKey("TripId", "LegNumber")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Travela.Api.Models.Reservation", "Reservation")
+                        .WithMany()
+                        .HasForeignKey("ReservationId", "TripId", "SeatNumber")
+                        .HasPrincipalKey("Id", "TripId", "SeatNumber")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Reservation");
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.RouteStop", b =>
+                {
+                    b.HasOne("Travela.Api.Models.Route", null)
+                        .WithMany()
+                        .HasForeignKey("RouteId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Travela.Api.Models.Terminal", null)
+                        .WithMany()
+                        .HasForeignKey("TerminalId")
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 
             modelBuilder.Entity("Travela.Api.Models.TravelNotification", b =>
@@ -1675,6 +1958,68 @@ namespace Travela.API.Migrations
                     b.Navigation("TripChange");
                 });
 
+            modelBuilder.Entity("Travela.Api.Models.TripLeg", b =>
+                {
+                    b.HasOne("Travela.Api.Models.Trip", "Trip")
+                        .WithMany("Legs")
+                        .HasForeignKey("TripId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Travela.Api.Models.TripStop", null)
+                        .WithMany()
+                        .HasForeignKey("TripId", "FromStopOrder")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Travela.Api.Models.TripStop", null)
+                        .WithMany()
+                        .HasForeignKey("TripId", "ToStopOrder")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Trip");
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.TripSegmentFare", b =>
+                {
+                    b.HasOne("Travela.Api.Models.Trip", "Trip")
+                        .WithMany("SegmentFares")
+                        .HasForeignKey("TripId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Travela.Api.Models.TripStop", null)
+                        .WithMany()
+                        .HasForeignKey("TripId", "FromStopOrder")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Travela.Api.Models.TripStop", null)
+                        .WithMany()
+                        .HasForeignKey("TripId", "ToStopOrder")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Trip");
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.TripStop", b =>
+                {
+                    b.HasOne("Travela.Api.Models.Terminal", null)
+                        .WithMany()
+                        .HasForeignKey("TerminalId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Travela.Api.Models.Trip", "Trip")
+                        .WithMany("Stops")
+                        .HasForeignKey("TripId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Trip");
+                });
+
             modelBuilder.Entity("Travela.Models.RolePermission", b =>
                 {
                     b.HasOne("Travela.Models.Permission", "Permission")
@@ -1710,6 +2055,15 @@ namespace Travela.API.Migrations
             modelBuilder.Entity("Travela.Api.Models.Reservation", b =>
                 {
                     b.Navigation("Payment");
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.Trip", b =>
+                {
+                    b.Navigation("Legs");
+
+                    b.Navigation("SegmentFares");
+
+                    b.Navigation("Stops");
                 });
 #pragma warning restore 612, 618
         }

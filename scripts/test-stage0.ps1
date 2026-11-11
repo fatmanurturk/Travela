@@ -36,7 +36,7 @@ try {
             'run', '--project', "tests/$project", '--configuration', $Configuration, '--no-build', '--no-restore'
         )
     }
-    Write-Host 'Aşama 0: üç SQL entegrasyon paketi başarılı; Aşama 1 başlatılmadı.'
+    Write-Host 'Üç SQL entegrasyon paketi başarılı; ana uygulama veritabanına migration uygulanmadı.'
 }
 finally {
     Pop-Location

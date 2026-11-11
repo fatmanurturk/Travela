@@ -37,13 +37,15 @@ public partial class TripsController
         if (occupied.Count > 0 && trip.SeatLayout != "Unspecified") return Conflict(new { message = "Aktif rezervasyonu olan doğrulanmış seferin fiziksel planı değiştirilemez; yalnızca koltuk blokajlarını güncelleyebilirsiniz." });
         trip.SeatPlanJson = SeatPlans.Write(seats); trip.SeatLayout = dto.Layout;
         trip.SeatCapacitySnapshot ??= trip.Bus.SeatCapacity; trip.SellableSeatCount = seats.Count(s => !s.IsBlocked);
-        trip.AvailableSeats = trip.SellableSeatCount.Value - occupied.Count; trip.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
+        trip.UpdatedAt = DateTime.UtcNow;
+        await Segments.SaveInventory(trip, ct); await transaction.CommitAsync(ct);
         return Ok(new { message = "Seferin fiziksel koltuk planı doğrulandı ve kaydedildi." });
     }
 
     private async Task<IActionResult?> PrepareJourney(Trip trip, Bus bus, Travela.Api.Models.Route route, CreateTripDto dto)
     {
+        if (trip.Id != 0 && await _context.TripStops.CountAsync(s => s.TripId == trip.Id) != 2)
+            return Conflict(new { message = "Ara duraklı sefer bu eski düzenleme akışında değiştirilemez." });
         List<SeatPosition> seats;
         try { seats = bus.SeatLayout == "Unspecified" ? SeatPlans.Read(bus.SeatPlanJson, bus.SeatLayout, bus.SeatCapacity) : SeatPlans.ReadVerified(bus.SeatPlanJson, bus.SeatLayout, bus.SeatCapacity); }
         catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
@@ -62,6 +64,8 @@ public partial class TripsController
         trip.DepartureTerminalAddress = departure == null ? null : departure.Address + ", " + departure.City;
         trip.ArrivalTerminalAddress = arrival == null ? null : arrival.Address + ", " + arrival.City;
         trip.BoardingInstructions = string.IsNullOrWhiteSpace(dto.BoardingInstructions) ? null : dto.BoardingInstructions.Trim();
+        trip.Route = route;
+        if (trip.Id != 0) await Segments.SynchronizeFullJourney(trip);
         return null;
     }
 
@@ -87,8 +91,8 @@ public partial class TripsController
         if (trip.AvailableSeats != (trip.SellableSeatCount ?? trip.Bus.SeatCapacity) - occupied.Count)
             return Conflict(new { message = "Mevcut kontenjan doğrulanmadan koltuk blokajı değiştirilemez." });
         trip.SeatPlanJson = SeatPlans.Write(seats); trip.SellableSeatCount = seats.Count(s => !s.IsBlocked);
-        trip.AvailableSeats = trip.SellableSeatCount.Value - occupied.Count; trip.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
+        trip.UpdatedAt = DateTime.UtcNow;
+        await Segments.SaveInventory(trip, ct); await transaction.CommitAsync(ct);
         return Ok(new { message = "Seferin satışa kapalı koltukları güncellendi." });
     }
 }

@@ -132,7 +132,7 @@ try
  Check(actualLife.All(t=>t.AvailableSeats==27&&t.Price==321),"Otomatik durum güncellemesi koltuk ve fiyatı değiştirmedi");
  Check(actualLife.Where(t=>t.Status is "Cancelled" or "İptal Edildi").All(t=>t.CancellationReason=="Firma iptali"&&t.CancelledAt==instant.AddDays(-3)&&t.UpdatedAt==null),"İptal edilmiş seferlerin durumu ve geçmişi korundu");
  Check(await lifecycle.Synchronize()==0,"Aynı saatle yinelenen eşitleme kayıtları tekrar değiştirmez");
- await db.Trips.Where(t=>lifeIds.Contains(t.Id)).ExecuteDeleteAsync();
+ await RemoveEmptyFixtureTrips(lifeIds);
  var backgroundTrip=new Trip{CompanyId=a.Id,BusId=t2.BusId,RouteId=route.Id,DepartureTime=DateTime.UtcNow.AddHours(-2),ArrivalTime=DateTime.UtcNow.AddHours(-1),Status="Scheduled",Price=100,AvailableSeats=30};
  db.Trips.Add(backgroundTrip);await db.SaveChangesAsync();
 
@@ -149,7 +149,7 @@ try
  // Read directly from SQL after startup: no MVC trip read has run yet.
  for(var retry=0;retry<50&&!await db.Trips.AsNoTracking().AnyAsync(t=>t.Id==backgroundTrip.Id&&t.Status=="Completed");retry++)await Task.Delay(100);
  Check(await db.Trips.AsNoTracking().AnyAsync(t=>t.Id==backgroundTrip.Id&&t.Status=="Completed"),"Arka plan görevi açılışta geçmiş seferi panel isteği olmadan tamamlar");
- await db.Trips.Where(t=>t.Id==backgroundTrip.Id).ExecuteDeleteAsync();
+ await RemoveEmptyFixtureTrips(backgroundTrip.Id);
 
  var token=await Login(c1);var other=await Login(c2);var passengerToken=await Login(passenger);var adminToken=await Login(admin);
  var lifecycleRole=await db.Roles.FirstOrDefaultAsync(r=>r.Name=="Company")??new Role{Name="Company"};
@@ -174,7 +174,7 @@ try
  Check(completedJson.GetProperty("items").EnumerateArray().Any(t=>t.GetProperty("id").GetInt32()==readTrip.Id&&t.GetProperty("status").GetString()=="Completed"),"Varış saati geçen sefer tamamlandı filtresinde anında görünür");
  var lifeSummary=await(await Send("/api/trips/summary",token)).Content.ReadFromJsonAsync<TripSummaryDto>();
  Check(lifeSummary!.CompletedTrips==await db.Trips.CountAsync(t=>t.CompanyId==a.Id&&t.Status=="Completed"),"Sefer özeti ve liste aynı otomatik durumları kullanır");
- await db.Trips.Where(t=>t.Id==readTrip.Id).ExecuteDeleteAsync();
+ await RemoveEmptyFixtureTrips(readTrip.Id);
 
  const string url="/api/company/reports?period=custom&from=2026-11-01&to=2026-11-01&environment=test&pageSize=1";
  var response=await Send(url,token); if(!response.IsSuccessStatusCode)throw new Exception(await response.Content.ReadAsStringAsync()+log);
@@ -194,7 +194,7 @@ try
  Check((await Send("/api/reservations/company?orderId="+active.Id,other)).StatusCode==HttpStatusCode.NotFound,"Başarısız iade bağlantısı başka firmaya veri açmıyor");
  Check((await Send(url.Replace("from=2026-11-01", "from=2026-11-04"),token)).StatusCode==HttpStatusCode.BadRequest,"HTTP geçersiz tarih aralığı 400");
  // Exercise additive migration on older persisted tickets without touching the application's database.
- await db.GetService<IMigrator>().MigrateAsync("20261102110356_HardenPaymentInvariants");
+ // The old-schema upgrade is covered by ReservationTests --segment-tests; this migration is irreversible.
  await db.Database.MigrateAsync();
  var backfill=await db.Reservations.AsNoTracking().SingleAsync(x=>x.Id==active.ReservationId);
  var refundBackfill=await db.PaymentOrders.AsNoTracking().SingleAsync(x=>x.Id==previous.Id);
@@ -262,7 +262,7 @@ try
  try{await service.Csv(a.Id,limit,default);throw new Exception("CSV sınırı uygulanmadı");}catch(ReportQueryException ex){Check(ex.Status==422,"10000 üzeri CSV açık hata; sonuçlar kesilmedi");}
  Console.WriteLine($"SONUÇ: {passed} raporlama SQL/HTTP kontrolü başarılı.");
 
- Trip Trip(Company company,Travela.Api.Models.Route r,int capacity,string plate)=>new(){Company=company,Bus=new(){Company=company,SeatCapacity=capacity,PlateNumber=plate,NormalizedPlateNumber=plate.Replace(" ","")},Route=r,DepartureTime=new(2026,11,10,9,0,0,DateTimeKind.Utc),ArrivalTime=new(2026,11,10,11,0,0,DateTimeKind.Utc),Price=500,AvailableSeats=capacity};
+ Trip Trip(Company company,Travela.Api.Models.Route r,int capacity,string plate)=>new(){Company=company,Bus=new(){Company=company,SeatCapacity=capacity,SeatLayout="Unspecified",PlateNumber=plate,NormalizedPlateNumber=plate.Replace(" ","")},Route=r,DepartureTime=new(2026,11,10,9,0,0,DateTimeKind.Utc),ArrivalTime=new(2026,11,10,11,0,0,DateTimeKind.Utc),Price=500,AvailableSeats=capacity};
  PaymentOrder Order(Trip t, int seat, decimal amount, string status, bool test, DateTime paid, string refund = "None")
  {
   var cancelled = refund != "None" || status == "Failed";
@@ -290,6 +290,17 @@ try
   };
   db.Add(order);
   return order;
+ }
+ async Task RemoveEmptyFixtureTrips(params int[] ids)
+ {
+  testDatabase.AssertTarget(db.Database.GetConnectionString());
+  if(await db.Reservations.AnyAsync(r=>ids.Contains(r.TripId)))throw new Exception("Geçmişi olan fixture silinemez.");
+  await using var cleanup=await db.Database.BeginTransactionAsync();
+  await db.TripSegmentFares.Where(f=>ids.Contains(f.TripId)).ExecuteDeleteAsync();
+  await db.TripLegs.Where(l=>ids.Contains(l.TripId)).ExecuteDeleteAsync();
+  await db.TripStops.Where(s=>ids.Contains(s.TripId)).ExecuteDeleteAsync();
+  await db.Trips.Where(t=>ids.Contains(t.Id)).ExecuteDeleteAsync();
+  await cleanup.CommitAsync();
  }
  async Task<string> Login(User user){var result=await http.PostAsJsonAsync("/api/auth/login",new{email=user.Email,password="TestPass123!"});result.EnsureSuccessStatusCode();return(await result.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!;}
  async Task<HttpResponseMessage> Send(string path,string? auth){using var request=new HttpRequestMessage(HttpMethod.Get,path);if(auth!=null)request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",auth);return await http.SendAsync(request);}

@@ -169,7 +169,7 @@ internal static class AccountStateChecks
             "Şifre sıfırlama beklemesi filtresi kapalı hesap filtresinden ayrıdır");
         var rollbackBlocked = false;
         try { await db.GetService<IMigrator>().MigrateAsync("20261103065228_AddPassengerProfilePreferences"); }
-        catch (SqlException exception) when (exception.Number == 51000) { rollbackBlocked = true; }
+        catch (SqlException exception) when (exception.Number is 51000 or 51013) { rollbackBlocked = true; }
         check(rollbackBlocked && await db.Users.AnyAsync(u => u.PasswordResetRequired) &&
             (await db.Database.GetAppliedMigrationsAsync()).Contains("20261104064425_SeparateAccountAccessStates"),
             "Bekleyen hesap durumları varken geri migration engellenir ve güvenlik alanları korunur");

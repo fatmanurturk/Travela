@@ -15,6 +15,10 @@ public class Reservation
     public DateTime? PassengerCapturedAt { get; set; }
     public string? PassengerSnapshotSource { get; set; }
     public int SeatNumber { get; set; }
+    public int? BoardingStopOrder { get; set; }
+    public int? AlightingStopOrder { get; set; }
+    public DateTime? BoardingDepartureSnapshot { get; set; }
+    public DateTime? AlightingArrivalSnapshot { get; set; }
     public decimal Price { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string Status { get; set; } = "Active";
