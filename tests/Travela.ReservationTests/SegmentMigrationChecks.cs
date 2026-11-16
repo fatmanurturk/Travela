@@ -71,7 +71,8 @@ internal static class SegmentMigrationChecks
             var s = snapshots[i]; var f = await Fingerprint(s.Table, s.Columns, s.Order);
             snapshots[i] = s with { Count = f.Count, Hash = f.Hash };
         }
-        check((await db.Database.GetPendingMigrationsAsync()).SequenceEqual([Migration]), "Geçiş yalnızca beklenen segment migration'ını içeriyor");
+        var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+        check(pending.Count == 3 && pending[0] == Migration && pending[1].EndsWith("_AddSharedBookingContactAndPassengerIdentity") && pending[2].EndsWith("_EnableIntermediateStopSales"), "Geçiş beklenen envanter, iletişim ve ara durak satış migration'larını içeriyor");
         await db.Database.MigrateAsync();
         foreach (var s in snapshots)
         {
@@ -80,6 +81,7 @@ internal static class SegmentMigrationChecks
             Console.WriteLine($"PARMAKİZİ {s.Table}: önce={s.Hash}; sonra={after.Hash}");
         }
         check(await db.Reservations.CountAsync(r => r.BoardingStopOrder == 1 && r.AlightingStopOrder == 2) == 3, "İptal ve Legacy dahil bütün eski rezervasyonlar ilk→son durağa bağlandı");
+        check(await db.TripStops.AllAsync(s => s.CityId != null && (s.StopOrder == 1 ? s.CanBoard && !s.CanAlight : !s.CanBoard && s.CanAlight)), "Eski gerçek uç duraklara şehir kimliği ve uygun biniş/iniş izinleri verildi; ara durak uydurulmadı");
         check(await db.ReservationLegs.CountAsync(l => l.IsActive) == 2 && await db.ReservationLegs.CountAsync() == 3, "İptal bacakları geçmiş olarak pasif kaldı");
         check(await db.PaymentOrders.SumAsync(p => p.Amount) == 1000 && await db.PaymentOrders.SumAsync(p => p.RefundAmount) == 500, "Finansal toplamlar: 1000 TL ödeme, 500 TL iade korundu");
         check(await db.PurchaseGroups.AnyAsync(g => g.BoardingStopOrder == 1 && g.AlightingStopOrder == 2 && g.RequestHash == new string('A',64)), "Eski ortak sipariş tam güzergâha bağlandı; idempotency özeti değiştirilmedi");

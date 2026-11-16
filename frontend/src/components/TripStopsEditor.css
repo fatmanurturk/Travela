@@ -1,0 +1,11 @@
+.trip-stops-panel { margin: 18px 0; padding: 16px; border: 1px solid #d8e1ef; border-radius: 10px; min-width: 0; }
+.trip-stops-panel summary { cursor: pointer; font-weight: 600; }
+.trip-stops-editor { display: grid; gap: 12px; min-width: 0; }
+.trip-stops-editor fieldset { border: 1px solid #d8e1ef; border-radius: 8px; padding: 12px; min-width: 0; }
+.trip-stop-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 12px; }
+.trip-stops-editor label { display: grid; gap: 6px; min-width: 0; }
+.trip-stops-editor input:not([type=checkbox]), .trip-stops-editor select, .result-journey-choice select { width: 100%; min-width: 0; box-sizing: border-box; padding: 9px; border: 1px solid #ccd8e8; border-radius: 6px; font: inherit; }
+.trip-fare-row, .trip-stop-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.trip-fare-row { padding: 10px 0; border-bottom: 1px solid #e3eaf3; }
+.trip-fare-row small { color: #9b4c16; }
+.result-journey-choice { display: grid; gap: 6px; grid-column: 1/-1; min-width: 0; }

@@ -9,6 +9,7 @@ public class Reservation
     public int TripId { get; set; }
     public int PassengerId { get; set; }
     public string? PassengerNameSnapshot { get; set; }
+    public string? PassengerIdentityNumberSnapshot { get; set; }
     public string? PassengerEmailSnapshot { get; set; }
     public string? PassengerPhoneSnapshot { get; set; }
     public string? PassengerGender { get; set; }

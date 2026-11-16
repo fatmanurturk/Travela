@@ -15,6 +15,8 @@ public class PurchaseDto : JourneyDto
 {
     public Guid Id { get; set; }
     public Guid? PurchaseGroupId { get; set; }
+    public int? BoardingStopOrder { get; set; }
+    public int? AlightingStopOrder { get; set; }
     public string? Pnr { get; set; }
     public string Kind { get; set; } = "";
     public int TripId { get; set; }

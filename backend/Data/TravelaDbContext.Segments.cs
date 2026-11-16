@@ -19,7 +19,7 @@ public partial class TravelaDbContext
             e.HasKey(s => new { s.RouteId, s.StopOrder });
             e.Property(s => s.City).HasMaxLength(100);
             e.Property(s => s.DistanceFromStartKm).HasPrecision(12, 3);
-            e.HasIndex(s => new { s.RouteId, s.City }).IsUnique();
+            e.HasIndex(s => new { s.RouteId, s.CityId });
             e.HasOne<Travela.Api.Models.Route>().WithMany().HasForeignKey(s => s.RouteId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne<Terminal>().WithMany().HasForeignKey(s => s.TerminalId).OnDelete(DeleteBehavior.NoAction);
             e.ToTable(t => t.HasCheckConstraint("CK_RouteStops_OrderTime", "[StopOrder] >= 1 AND [ArrivalOffsetMinutes] >= 0 AND [DepartureOffsetMinutes] >= [ArrivalOffsetMinutes] AND ([DistanceFromStartKm] IS NULL OR [DistanceFromStartKm] >= 0)"));
@@ -32,7 +32,9 @@ public partial class TravelaDbContext
             e.Property(s => s.TerminalAddress).HasMaxLength(640);
             e.Property(s => s.BoardingInstructions).HasMaxLength(1000);
             e.Property(s => s.DistanceFromStartKm).HasPrecision(12, 3);
-            e.HasIndex(s => new { s.TripId, s.City }).IsUnique();
+            e.HasIndex(s => new { s.TripId, s.CityId });
+            e.HasIndex(s => new { s.CityId, s.CanBoard, s.DepartureTime, s.TripId });
+            e.HasIndex(s => new { s.CityId, s.CanAlight, s.TripId, s.StopOrder });
             e.HasOne(s => s.Trip).WithMany(t => t.Stops).HasForeignKey(s => s.TripId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne<Terminal>().WithMany().HasForeignKey(s => s.TerminalId).OnDelete(DeleteBehavior.NoAction);
             e.ToTable(t => { t.UseSqlOutputClause(false); t.HasTrigger("TR_TripStops_Topology");
@@ -87,6 +89,10 @@ public partial class TravelaDbContext
     // Intermediate topology is explicitly supplied by TripSegmentService, never inferred from a later route edit.
     private async Task PrepareNewTripSnapshots(CancellationToken ct)
     {
+        foreach (var stop in ChangeTracker.Entries<TripStop>().Where(e => e.State == EntityState.Added).Select(e => e.Entity))
+            stop.CityId ??= Travela.Api.Routes.TurkishCities.Id(stop.City);
+        foreach (var stop in ChangeTracker.Entries<RouteStop>().Where(e => e.State == EntityState.Added).Select(e => e.Entity))
+            stop.CityId ??= Travela.Api.Routes.TurkishCities.Id(stop.City);
         foreach (var trip in ChangeTracker.Entries<Trip>().Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList())
         {
             if (trip.Stops.Count != 0) continue;

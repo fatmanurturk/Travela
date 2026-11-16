@@ -3,8 +3,14 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { apiUrl } from "../api";
 import SiteHeader from "../components/SiteHeader";
 import TripSearchForm from "../components/TripSearchForm";
+import { tripPath, journeyQuery } from "../journeySelection";
 
 type PublicTrip = {
+  boardingStopOrder?: number;
+  alightingStopOrder?: number;
+  mainDepartureCity?: string;
+  mainArrivalCity?: string;
+  journeyOptions?: PublicTrip[];
   departureTerminalName?: string | null;
   arrivalTerminalName?: string | null;
   id: number;
@@ -64,6 +70,10 @@ function SearchResultsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const departureCity = searchParams.get("from") ?? "";
   const arrivalCity = searchParams.get("to") ?? "";
+  const fromId = searchParams.get("fromId") ?? "";
+  const toId = searchParams.get("toId") ?? "";
+  const outboundBoarding = searchParams.get("outboundBoarding"); const outboundAlighting = searchParams.get("outboundAlighting");
+  const inboundBoarding = searchParams.get("inboundBoarding"); const inboundAlighting = searchParams.get("inboundAlighting");
   const date = searchParams.get("date") ?? "";
   const returnDate = searchParams.get("returnDate") ?? "";
   const tripType = searchParams.get("tripType") === "round-trip" ? "round-trip" : "one-way";
@@ -89,6 +99,7 @@ function SearchResultsPage() {
   const [retry, setRetry] = useState(0);
   const [selectedTrips, setSelectedTrips] = useState<Record<number, PublicTrip>>({});
   const [selectionError, setSelectionError] = useState("");
+  const [journeyChoices, setJourneyChoices] = useState<Record<string, PublicTrip>>({});
 
   const validCriteria = (allTrips || Boolean(departureCity && arrivalCity && date)) &&
     passengers >= 1 && passengers <= 10;
@@ -118,6 +129,10 @@ function SearchResultsPage() {
       });
       if (leg.from) params.set("departureCity", leg.from);
       if (leg.to) params.set("arrivalCity", leg.to);
+      if (fromId && toId && !allTrips) {
+        params.set("departureCityId", direction === "outbound" ? fromId : toId);
+        params.set("arrivalCityId", direction === "outbound" ? toId : fromId);
+      }
       if (leg.date) params.set("date", leg.date);
       if (allTrips) params.set("all", "true");
       if (companyId) params.set("companyId", companyId);
@@ -165,6 +180,7 @@ function SearchResultsPage() {
     return () => controller.abort();
   }, [
     allTrips,
+    fromId, toId,
     companyId,
     date,
     departureCity,
@@ -184,13 +200,13 @@ function SearchResultsPage() {
   ]);
 
   useEffect(() => {
-    const ids = [outboundTripId, inboundTripId].filter(Boolean);
+    const ids = [{ id: outboundTripId, from: outboundBoarding, to: outboundAlighting }, { id: inboundTripId, from: inboundBoarding, to: inboundAlighting }].filter(item => item.id);
     if (ids.length === 0) return;
     const controller = new AbortController();
     const loadSelected = async () => {
-      const selected = await Promise.all(ids.map(async (id) => {
+      const selected = await Promise.all(ids.map(async ({ id, from, to }) => {
         try {
-          const response = await fetch(apiUrl(`/api/trips/public/${id}`), { signal: controller.signal });
+          const response = await fetch(apiUrl(`/api/trips/public/${id}${journeyQuery({ boardingStopOrder: Number(from), alightingStopOrder: Number(to) })}`), { signal: controller.signal });
           if (!response.ok) return { error: "Önceden seçilen sefer artık görüntülenemiyor." };
           return { trip: await response.json() as PublicTrip };
         } catch (error) {
@@ -209,7 +225,7 @@ function SearchResultsPage() {
     };
     void loadSelected();
     return () => controller.abort();
-  }, [inboundTripId, outboundTripId]);
+  }, [inboundTripId, outboundTripId, outboundBoarding, outboundAlighting, inboundBoarding, inboundAlighting]);
 
   const companyOptions = useMemo(() => {
     const unique = new Map<number, CompanyOption>();
@@ -248,7 +264,11 @@ function SearchResultsPage() {
   const chooseTrip = (trip: PublicTrip, direction: "outbound" | "inbound") => {
     setSelectionError("");
     setSelectedTrips((current) => ({ ...current, [trip.id]: trip }));
-    updateQuery(direction === "outbound" ? "outboundTrip" : "returnTrip", String(trip.id));
+    const params = new URLSearchParams(searchParams);
+    params.set(direction === "outbound" ? "outboundTrip" : "returnTrip", String(trip.id));
+    const prefix = direction === "outbound" ? "outbound" : "inbound";
+    if (trip.boardingStopOrder && trip.alightingStopOrder) { params.set(`${prefix}Boarding`, String(trip.boardingStopOrder)); params.set(`${prefix}Alighting`, String(trip.alightingStopOrder)); }
+    setSearchParams(params);
   };
 
   const clearFilters = () => {
@@ -287,17 +307,25 @@ function SearchResultsPage() {
         ) : (
           <>
             <div className="result-list">
-              {leg.trips.map((trip) => {
+              {leg.trips.map((baseTrip) => {
+                const options = [baseTrip, ...(baseTrip.journeyOptions ?? [])];
+                const trip = journeyChoices[`${direction}:${baseTrip.id}`] && options.find(option => journeyQuery(option) === journeyQuery(journeyChoices[`${direction}:${baseTrip.id}`])) || baseTrip;
                 const crossesDay = localDate(trip.departureTime) !== localDate(trip.arrivalTime);
+                const arrivalDays = Math.round((Date.parse(`${localDate(trip.arrivalTime)}T00:00:00Z`) - Date.parse(`${localDate(trip.departureTime)}T00:00:00Z`)) / 86400000);
                 const isSelected = selectedId === String(trip.id);
                 return (
                   <article className={`result-card${isSelected ? " selected" : ""}`} key={trip.id}>
                     <div className="result-card-company"><span className="company-mark" aria-hidden="true">{trip.companyName.slice(0, 1)}</span><strong>{trip.companyName}</strong></div>
+                    {options.length > 1 && <label className="result-journey-choice">Biniş ve iniş noktaları<select aria-label={`Biniş ve iniş noktaları · Sefer ${trip.id}`} value={journeyQuery(trip)} onChange={event => {
+                      const choice = options.find(option => journeyQuery(option) === event.target.value)!;
+                      setJourneyChoices(current => ({ ...current, [`${direction}:${baseTrip.id}`]: choice }));
+                    }}>{options.map(option => <option key={journeyQuery(option)} value={journeyQuery(option)}>{option.departureTerminalName ?? option.departureCity} → {option.arrivalTerminalName ?? option.arrivalCity} · {timeFormatter.format(new Date(option.departureTime))} · {currencyFormatter.format(option.price)}</option>)}</select></label>}
+                    {trip.mainDepartureCity && (trip.departureCity !== trip.mainDepartureCity || trip.arrivalCity !== trip.mainArrivalCity) && <p>Ana sefer: {trip.mainDepartureCity} → {trip.mainArrivalCity}</p>}
                     {(trip.departureTerminalName || trip.arrivalTerminalName) && <p>{trip.departureTerminalName ?? "Terminal belirtilmemiş"} → {trip.arrivalTerminalName ?? "Terminal belirtilmemiş"}</p>}
                     <div className="result-timeline">
                       <div><strong>{timeFormatter.format(new Date(trip.departureTime))}</strong><span>{trip.departureCity}</span><small>{dateFormatter.format(new Date(trip.departureTime))}</small></div>
-                      <div className="timeline-duration"><span>{durationLabel(trip.durationMinutes)}</span><i /><small>{crossesDay ? "Ertesi gün varış" : "Direkt sefer"}</small></div>
-                      <div><strong>{timeFormatter.format(new Date(trip.arrivalTime))}</strong><span>{trip.arrivalCity}</span><small>{dateFormatter.format(new Date(trip.arrivalTime))}{crossesDay ? " · +1 gün" : ""}</small></div>
+                      <div className="timeline-duration"><span>{durationLabel(trip.durationMinutes)}</span><i /><small>{crossesDay ? `${arrivalDays} gün sonra varış` : "Aynı gün varış"}</small></div>
+                      <div><strong>{timeFormatter.format(new Date(trip.arrivalTime))}</strong><span>{trip.arrivalCity}</span><small>{dateFormatter.format(new Date(trip.arrivalTime))}{crossesDay ? ` · +${arrivalDays} gün` : ""}</small></div>
                     </div>
                     <div className="result-card-price">
                       <span>{trip.availableSeats} boş koltuk</span>
@@ -305,13 +333,13 @@ function SearchResultsPage() {
                       <span className="total-price">Toplam: {currencyFormatter.format(trip.price * passengers)}</span>
                     </div>
                     <div className="result-card-actions">
-                      <Link className="result-detail-link" to={`/trips/${trip.id}`}>Sefer detayı</Link>
+                      <Link className="result-detail-link" to={tripPath(trip.id, trip)}>Sefer detayı</Link>
                       <button
                         type="button"
                         className={isSelected && tripType === "round-trip" ? "site-button selected-button" : "site-button primary"}
                         onClick={() => {
                           if (tripType === "round-trip") chooseTrip(trip, direction);
-                          else navigate(`/trips/${trip.id}`);
+                          else navigate(tripPath(trip.id, trip));
                         }}
                       >
                         {isSelected && tripType === "round-trip" ? "Seçildi" : direction === "outbound" && tripType === "round-trip" ? "Gidişi seç" : direction === "inbound" ? "Dönüşü seç" : "Seferi incele / koltuk seç"}

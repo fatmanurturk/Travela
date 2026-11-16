@@ -72,7 +72,7 @@ internal static class SegmentInventoryChecks
             var service = new TripSegmentService(db, clock, enabled);
             var noFlag = new TripSegmentService(db, clock);
             var loaded = await db.Trips.Include(t => t.Bus).SingleAsync(t => t.Id == id);
-            await Reject(async () => { await noFlag.Resolve(loaded, 1, 2); }, "Bayrak varsayılan kapalı; segment satışı reddedildi");
+            Check((await noFlag.Resolve(loaded, 1, 2)).Price == 250, "Onaylı kesim varsayılan yolcu akışında çözümlenir");
             Check((await noFlag.Resolve(loaded)).Price == 500, "Parametresiz tam güzergâh fiyatı Trip.Price");
             await Reject(async () => { await service.Resolve(loaded, 2, 1); }, "Ters yön reddedildi");
             await Reject(async () => { await service.Resolve(loaded, 1, null); }, "Tek taraflı durak parametresi reddedildi");
@@ -163,7 +163,7 @@ internal static class SegmentInventoryChecks
                 await db.SaveChangesAsync(); await service.RecalculateAutomaticFares(price); await db.SaveChangesAsync(); await tx.CommitAsync();
             }
             Check((await db.TripSegmentFares.SingleAsync(f => f.TripId == priceTrip && f.FromStopOrder == 1 && f.ToStopOrder == 2)).Amount == 123.45m, "Manuel fiyat otomatik hesaplamayla ezilmedi");
-            Check(!(await service.Resolve(price, 2, 3)).IsApproved, "Yeni otomatik fiyat firma onayı bekliyor");
+            await Reject(async () => { await service.Resolve(price, 2, 3); }, "Yeni otomatik fiyat onaylanmadan yolcuya sunulmaz");
             await Reject(async () => { await Hold(priceTrip, 3, 2, 3); }, "Firma onayı olmayan otomatik fiyatla satış engellendi");
             var stops = await db.TripStops.Where(s => s.TripId == priceTrip).OrderBy(s => s.StopOrder).ToListAsync();
             Check(TripSegmentService.AutomaticFare(1.01m, stops[0], stops[2], stops[0], stops[1]) == .51m, "Mesafe oranı ve AwayFromZero yuvarlaması");

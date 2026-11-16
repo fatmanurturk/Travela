@@ -44,7 +44,7 @@ public partial class TripsController
 
     private async Task<IActionResult?> PrepareJourney(Trip trip, Bus bus, Travela.Api.Models.Route route, CreateTripDto dto)
     {
-        if (trip.Id != 0 && await _context.TripStops.CountAsync(s => s.TripId == trip.Id) != 2)
+        if (trip.Id != 0 && dto.Stops == null && await _context.TripStops.CountAsync(s => s.TripId == trip.Id) != 2)
             return Conflict(new { message = "Ara duraklı sefer bu eski düzenleme akışında değiştirilemez." });
         List<SeatPosition> seats;
         try { seats = bus.SeatLayout == "Unspecified" ? SeatPlans.Read(bus.SeatPlanJson, bus.SeatLayout, bus.SeatCapacity) : SeatPlans.ReadVerified(bus.SeatPlanJson, bus.SeatLayout, bus.SeatCapacity); }
@@ -65,7 +65,18 @@ public partial class TripsController
         trip.ArrivalTerminalAddress = arrival == null ? null : arrival.Address + ", " + arrival.City;
         trip.BoardingInstructions = string.IsNullOrWhiteSpace(dto.BoardingInstructions) ? null : dto.BoardingInstructions.Trim();
         trip.Route = route;
-        if (trip.Id != 0) await Segments.SynchronizeFullJourney(trip);
+        var stopInput = dto.Stops;
+        if (trip.Id == 0 && stopInput == null) {
+            var template = await _context.RouteStops.AsNoTracking().Where(s => s.RouteId == route.Id).OrderBy(s => s.StopOrder).ToListAsync();
+            if (template.Count >= 2) stopInput = template.Select(s => new TripStopInputDto {
+                CityId = s.CityId ?? 0, TerminalId = s.TerminalId ?? 0, CanBoard = s.CanBoard, CanAlight = s.CanAlight,
+                ArrivalTime = new DateTimeOffset(trip.DepartureTime.AddMinutes(s.ArrivalOffsetMinutes), TimeSpan.Zero),
+                DepartureTime = new DateTimeOffset(trip.DepartureTime.AddMinutes(s.DepartureOffsetMinutes), TimeSpan.Zero), DistanceFromStartKm = s.DistanceFromStartKm }).ToList();
+        }
+        if (stopInput != null) {
+            try { await TripJourneyManagement.SetJourney(_context, trip, stopInput, dto.Fares ?? []); }
+            catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
+        } else if (trip.Id != 0) await Segments.SynchronizeFullJourney(trip);
         return null;
     }
 

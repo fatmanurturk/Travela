@@ -9,6 +9,8 @@ import type { ScheduleMode } from "../../tripScheduling";
 import JourneyStops from "../../components/JourneyStops";
 import TripSeatEditor from "../../components/TripSeatEditor";
 import TripChangeEditor from "../../components/TripChangeEditor";
+import TripStopsEditor, { JourneyFields, serializeJourney } from "../../components/TripStopsEditor";
+import type { JourneyDraft } from "../../components/TripStopsEditor";
 import type { Journey } from "../../seatPlans";
 
 const API_URL = apiUrl("/api/trips");
@@ -182,6 +184,7 @@ function TripManagement() {
   const [sortBy, setSortBy] = useState("date");
   const [sortDirection, setSortDirection] = useState("asc");
   const [search, setSearch] = useState("");
+  const [journeyDraft, setJourneyDraft] = useState<JourneyDraft | null>(null);
   const [companyFilter, setCompanyFilter] = useState("");
   const [departureCityFilter, setDepartureCityFilter] = useState("");
   const [arrivalCityFilter, setArrivalCityFilter] = useState("");
@@ -368,6 +371,7 @@ function TripManagement() {
   );
 
   const resetTripForm = () => {
+    setJourneyDraft(null);
     resetSchedule();
     setShowTripForm(false);
     setEditingTrip(null);
@@ -375,6 +379,7 @@ function TripManagement() {
   };
 
   const createTrip = () => {
+    setJourneyDraft(null);
     resetSchedule();
     setEditingTrip(null);
     setTripForm(createEmptyTripForm());
@@ -384,6 +389,7 @@ function TripManagement() {
   };
 
   const editTrip = (trip: Trip) => {
+    setJourneyDraft(null);
     resetSchedule();
     setEditingTrip(trip);
     setTripForm({
@@ -401,6 +407,7 @@ function TripManagement() {
   };
 
   const copyTrip = (trip: Trip) => {
+    setJourneyDraft(null);
     resetSchedule(); setEditingTrip(null); setCopiedFrom(trip.id);
     setTripForm({ companyId: String(trip.companyId), busId: String(trip.busId), routeId: String(trip.routeId), departureTime: "", arrivalTime: "", price: String(trip.price), departureTerminalId: String(trip.departureTerminalId ?? ""), arrivalTerminalId: String(trip.arrivalTerminalId ?? ""), boardingInstructions: trip.boardingInstructions ?? "" });
     setError(""); setMessage(""); setShowTripForm(true);
@@ -442,7 +449,8 @@ function TripManagement() {
       const payload = times.map(time => ({
         companyId: isAdmin && tripForm.companyId ? Number(tripForm.companyId) : null,
         busId: Number(tripForm.busId), routeId: Number(tripForm.routeId), price: Number(tripForm.price), ...time
-        , departureTerminalId: tripForm.departureTerminalId ? Number(tripForm.departureTerminalId) : null,
+        , ...(journeyDraft ? serializeJourney(journeyDraft, new Date(time.departureTime).getTime() - new Date(`${tripForm.departureTime}+03:00`).getTime()) : {}),
+        departureTerminalId: tripForm.departureTerminalId ? Number(tripForm.departureTerminalId) : null,
         arrivalTerminalId: tripForm.arrivalTerminalId ? Number(tripForm.arrivalTerminalId) : null, boardingInstructions: tripForm.boardingInstructions.trim() || null
       }));
       const batch = !editingTrip && scheduleMode !== "single";
@@ -683,6 +691,19 @@ function TripManagement() {
                 Tüm saatler Türkiye saatidir. Yeni seferler <strong>Planlandı</strong> durumunda oluşturulur.
               </div>
             </div>
+            {!editingTrip && <details className="trip-stops-panel"><summary>Ara durakları ve kesim fiyatlarını tanımla</summary>
+              <p>Güzergâhın kayıtlı durak şablonu varsa yeni seferde kullanılır. Buradan sefere özel duraklar tanımlayabilirsiniz. Saatleri ve terminalleri eksiksiz girin.</p>
+              {!journeyDraft ? <button type="button" className="secondary-button" disabled={!tripForm.departureTime || !tripForm.arrivalTime || !tripForm.departureTerminalId || !tripForm.arrivalTerminalId} onClick={async () => {
+                try {
+                  const r = await fetch(apiUrl("/api/routes/city-options")); if (!r.ok) throw Error("Şehirler yüklenemedi.");
+                  const cities = await r.json() as { id: number; name: string }[]; const route = routes.find(r => r.id === Number(tripForm.routeId));
+                  setJourneyDraft({ stops: [
+                    { cityId: cities.find(c => c.name === route?.departureCity)?.id ?? 0, terminalId: Number(tripForm.departureTerminalId), arrivalTime: tripForm.departureTime, departureTime: tripForm.departureTime, canBoard: true, canAlight: false, distanceFromStartKm: 0 },
+                    { cityId: cities.find(c => c.name === route?.arrivalCity)?.id ?? 0, terminalId: Number(tripForm.arrivalTerminalId), arrivalTime: tripForm.arrivalTime, departureTime: tripForm.arrivalTime, canBoard: false, canAlight: true }
+                  ], fares: [] });
+                } catch (e) { setError((e as Error).message); }
+              }}>Sefere özel durakları düzenle</button> : <><JourneyFields value={journeyDraft} onChange={setJourneyDraft} disabled={saving} fullPrice={Number(tripForm.price)} /><button type="button" className="secondary-button" onClick={() => setJourneyDraft(null)}>Güzergâh şablonunu kullan</button></>}
+            </details>}
             {!editingTrip && scheduleMode !== "single" && <section className="trip-repeat" aria-labelledby="trip-repeat-title">
               <h3 id="trip-repeat-title">Sefer takvimi</h3>
               <p>Kalkış ve varış alanları ilk seferin saatini ve yolculuk süresini belirler. Aynı otobüs, güzergâh, terminal ve fiyat seçilen tarihlere uygulanır. Bir işlemde en fazla 100 sefer kaydedilir.</p>
@@ -830,6 +851,7 @@ function TripManagement() {
               </div>
               <p className="trip-helper">Boş koltuk sayısı ödeme tutmaları ve satılmış biletlerle güncellenir. Eski ücretsiz kayıtlar korunur; ödenmiş bilet sayılmaz.</p>
               <JourneyStops journey={detail} />
+              <TripStopsEditor key={`stops:${detail.id}`} id={detail.id} fullPrice={detail.price} saved={() => { void openDetail(detail.id, true); void loadTrips(); }} />
               {normalizeStatus(detail.status) === "Scheduled" && <TripChangeEditor key={detail.id} trip={detail} buses={buses.filter(bus => bus.companyId === detail.companyId && bus.isActive)} saved={() => { void openDetail(detail.id, true); void loadTrips(); void loadSummary(); }} />}
               {normalizeStatus(detail.status) === "Scheduled" && <TripSeatEditor key={`${detail.id}:${detail.updatedAt}`} id={detail.id} saved={() => { void openDetail(detail.id, true); void loadTrips(); void loadSummary(); }} />}
               <div className="detail-actions">

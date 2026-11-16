@@ -85,6 +85,8 @@ namespace Travela.Data
     modelBuilder.Entity<PurchaseGroup>(e =>
     {
         e.Property(g => g.Amount).HasPrecision(18, 2); e.Property(g => g.Currency).HasMaxLength(3);
+        e.Property(g => g.ContactEmail).HasMaxLength(320);
+        e.Property(g => g.ContactPhone).HasMaxLength(16);
         e.Property(g => g.RequestHash).HasMaxLength(64); e.Property(g => g.Provider).HasMaxLength(30);
         e.Property(g => g.PaymentStatus).HasMaxLength(20); e.Property(g => g.CheckoutState).HasMaxLength(20);
         e.Property(g => g.ProviderToken).HasMaxLength(200); e.Property(g => g.ProviderPaymentId).HasMaxLength(128); e.Property(g => g.LastError).HasMaxLength(1000);
@@ -161,6 +163,7 @@ namespace Travela.Data
     modelBuilder.Entity<Reservation>(entity =>
     {
         entity.Property(r => r.PassengerGender).HasMaxLength(6);
+        entity.Property(r => r.PassengerIdentityNumberSnapshot).HasMaxLength(11);
         entity.ToTable(t => t.HasCheckConstraint("CK_Reservations_PassengerGender", "[PassengerGender] IS NULL OR [PassengerGender] IN (N'Female', N'Male')"));
         entity.Property(r => r.PassengerEmailSnapshot).HasMaxLength(450);
         entity.Property(r => r.PassengerPhoneSnapshot).HasMaxLength(20);

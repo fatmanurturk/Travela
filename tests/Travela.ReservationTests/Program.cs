@@ -18,10 +18,26 @@ using Travela.Tests;
 
 var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
 Directory.SetCurrentDirectory(root);
+if (args.Contains("--identity-unit")) { IdentityNumberChecks.Run(); return; }
 if (args.Contains("--seat-unit")) { SeatRulesChecks.Unit(); return; }
 if (args.Contains("--test-db-unit")) { SqlTestDatabaseChecks.Run(); return; }
 if (args.Contains("--segment-tests")) { await SegmentInventoryChecks.Run(); return; }
 using var source = new TravelaDbContextFactory().CreateDbContext([]);
+if (args.Contains("--segment-readiness"))
+{
+    var future = source.Trips.AsNoTracking().Where(t => t.DepartureTime > DateTime.UtcNow && t.Status == "Scheduled");
+    var futureIds = future.Select(t => t.Id);
+    Console.WriteLine($"Planlanan ileri tarihli sefer: {await future.CountAsync()}");
+    Console.WriteLine($"Ara duraklı sefer: {await future.CountAsync(t => t.Stops.Count > 2)}");
+    Console.WriteLine($"Terminal veya şehir kimliği eksik durak: {await source.TripStops.CountAsync(s => futureIds.Contains(s.TripId) && (s.CityId == null || s.TerminalId == null))}");
+    Console.WriteLine($"Güzergâh durak şablonu: {await source.RouteStops.Select(s => s.RouteId).Distinct().CountAsync()}");
+    var missingFares = await (from a in source.TripStops from b in source.TripStops
+        where futureIds.Contains(a.TripId) && a.TripId == b.TripId && a.StopOrder < b.StopOrder && a.CanBoard && b.CanAlight &&
+            !source.TripSegmentFares.Any(f => f.TripId == a.TripId && f.FromStopOrder == a.StopOrder && f.ToStopOrder == b.StopOrder && f.IsApproved)
+        select a.TripId).CountAsync();
+    Console.WriteLine($"İzinli fakat onaylı fiyatı eksik kesim: {missingFares}");
+    return;
+}
 if (args.Contains("--migrate-seat-rules")) { await SeatRulesMigration.Apply(source); return; }
 if (args.Contains("--migrate-journey")) { await JourneyMigration.Apply(source); return; }
 if (args.Contains("--migrate-notifications")) { await NotificationMigration.Apply(source); return; }
@@ -96,6 +112,7 @@ try
     for (var i = 0; i < 60; i++) { try { ready = (await http.GetAsync("/api/test")).IsSuccessStatusCode; if (ready) break; } catch (HttpRequestException) { } if (server.HasExited) throw new Exception(log.ToString()); await Task.Delay(200); }
     Check(ready, "Test API çalışıyor");
     if (args.Contains("--notification-tests")) { await JourneyChecks.Run(db, http, Check); await NotificationChangeChecks.Run(db, http, Check, root); return; }
+    if (args.Contains("--segment-sales")) { await SegmentSalesChecks.Run(db, http, Check); return; }
     var token1 = await Login(u1); var token2 = await Login(u2); var adminToken = await Login(admin); var companyToken = await Login(c1); var otherToken = await Login(c2);
     Check((await Send("POST", "/api/reservations", token1)).StatusCode == HttpStatusCode.Gone, "Bağımsız ücretsiz rezervasyon endpoint'i kapalı (410)");
     Check((await Send("POST", "/api/tickets/checkout", null, new { tripId = trip.Id, seatNumber = 1, requestKey = Guid.NewGuid() })).StatusCode == HttpStatusCode.Unauthorized, "Kimliksiz satın alma engellendi");
@@ -149,11 +166,12 @@ try
     await db.LocalPaymentRecords.Where(p => p.Id == missed.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, "Succeeded"));
     await Service(s => s.Reconcile(missed.Id, default));
     Check((await Get(missed.Id)).Pnr != null, "Kayıp ödeme bildirimi sunucudan sağlayıcı mutabakatıyla kurtarıldı");
-    var cutoff = DateTime.SpecifyKind(DateTime.UtcNow.AddDays(1).Date, DateTimeKind.Utc);
     foreach (var minutes in new[] { 121, 120, 119 })
     {
         var boundary = await Start(6 + 121 - minutes); boundary = await Complete(boundary.Id, "Succeeded");
-        await db.Trips.Where(t => t.Id == trip.Id).ExecuteUpdateAsync(s => s.SetProperty(t => t.DepartureTime, cutoff.AddMinutes(minutes)));
+        var boundaryReservation = await db.Reservations.AsNoTracking().SingleAsync(r => r.Pnr == boundary.Pnr);
+        var boundaryJourney = Travela.Api.Trips.TicketJourney.Read(boundaryReservation.TicketJourneyJson!);
+        var cutoff = boundaryJourney.DepartureTime.AddMinutes(-minutes);
         var accepted = true;
         try { await Service(s => s.CancelTicket(u1.Id, boundary.Pnr!, default), new FixedClock(cutoff)); }
         catch (PaymentFlowException) { accepted = false; }
@@ -221,6 +239,7 @@ try
     await JourneyChecks.Run(db, http, Check);
     await NotificationChangeChecks.Run(db, http, Check, root);
     await GroupPurchaseChecks.Run(db, http, Check, root);
+    await SegmentSalesChecks.Run(db, http, Check);
     await SeatRulesChecks.Integration(db, http, Check);
     await BusSeatPlanChecks.Run(db, http, Check);
     Console.WriteLine($"SONUÇ: {passed} ödeme/bilet/iade/yönetici kontrolü başarılı.");

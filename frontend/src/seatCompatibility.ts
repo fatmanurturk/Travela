@@ -13,9 +13,10 @@ export function seatConflict(plan: SeatPosition[], number: number, gender: Gende
   if (!seat) return "Koltuk planı bulunamıyor.";
   const neighbor = adjacentSeat(plan, seat);
   if (!neighbor) return "";
-  const taken = occupied.find(s => s.seatNumber === neighbor.number);
-  if (taken && !taken.gender) return "Yan koltuktaki yolcunun cinsiyet bilgisi doğrulanamadığı için bu koltuk satışa uygun değil.";
-  const required = taken?.gender ?? selected[neighbor.number];
-  if (required && gender && required !== gender) return `Bu koltuğun yanındaki yolcu ${required === "Female" ? "kadın" : "erkek"} olduğu için yalnızca ${required === "Female" ? "kadın" : "erkek"} yolcular rezervasyon yapabilir.`;
+  const taken = occupied.filter(s => s.seatNumber === neighbor.number);
+  if (taken.some(s => !s.gender)) return "Yan koltuktaki yolcunun cinsiyet bilgisi doğrulanamadığı için bu koltuk satışa uygun değil.";
+  const required = [...taken.map(s => s.gender), selected[neighbor.number]].filter(Boolean);
+  const conflict = required.find(value => gender && value !== gender);
+  if (conflict) return `Bu koltuğun yanındaki yolcu ${conflict === "Female" ? "kadın" : "erkek"} olduğu için yalnızca ${conflict === "Female" ? "kadın" : "erkek"} yolcular rezervasyon yapabilir.`;
   return "";
 }

@@ -743,6 +743,14 @@ namespace Travela.API.Migrations
                     b.Property<string>("CheckoutUrl")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
                     b.Property<string>("CouponCode")
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
@@ -903,6 +911,10 @@ namespace Travela.API.Migrations
 
                     b.Property<int>("PassengerId")
                         .HasColumnType("int");
+
+                    b.Property<string>("PassengerIdentityNumberSnapshot")
+                        .HasMaxLength(11)
+                        .HasColumnType("nvarchar(11)");
 
                     b.Property<string>("PassengerNameSnapshot")
                         .HasColumnType("nvarchar(max)");
@@ -1065,10 +1077,19 @@ namespace Travela.API.Migrations
                     b.Property<int>("ArrivalOffsetMinutes")
                         .HasColumnType("int");
 
+                    b.Property<bool>("CanAlight")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanBoard")
+                        .HasColumnType("bit");
+
                     b.Property<string>("City")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("CityId")
+                        .HasColumnType("int");
 
                     b.Property<int>("DepartureOffsetMinutes")
                         .HasColumnType("int");
@@ -1084,8 +1105,7 @@ namespace Travela.API.Migrations
 
                     b.HasIndex("TerminalId");
 
-                    b.HasIndex("RouteId", "City")
-                        .IsUnique();
+                    b.HasIndex("RouteId", "CityId");
 
                     b.ToTable("RouteStops", t =>
                         {
@@ -1473,10 +1493,19 @@ namespace Travela.API.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<bool>("CanAlight")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanBoard")
+                        .HasColumnType("bit");
+
                     b.Property<string>("City")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("CityId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("DepartureTime")
                         .HasColumnType("datetime2");
@@ -1500,8 +1529,11 @@ namespace Travela.API.Migrations
 
                     b.HasIndex("TerminalId");
 
-                    b.HasIndex("TripId", "City")
-                        .IsUnique();
+                    b.HasIndex("TripId", "CityId");
+
+                    b.HasIndex("CityId", "CanAlight", "TripId", "StopOrder");
+
+                    b.HasIndex("CityId", "CanBoard", "DepartureTime", "TripId");
 
                     b.ToTable("TripStops", t =>
                         {
@@ -1613,6 +1645,10 @@ namespace Travela.API.Migrations
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("IdentityNumber")
+                        .HasMaxLength(11)
+                        .HasColumnType("nvarchar(11)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");

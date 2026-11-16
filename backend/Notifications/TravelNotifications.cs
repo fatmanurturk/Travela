@@ -12,12 +12,14 @@ public static class TravelNotifications
     {
         var user = await db.Users.SingleAsync(u => u.Id == reservation.PassengerId, ct);
         var trip = await db.Trips.Include(t => t.Route).Include(t => t.Company).Include(t => t.Bus).SingleAsync(t => t.Id == reservation.TripId, ct);
-        var journey = reservation.TicketJourneyJson == null ? TicketJourney.Capture(trip) : TicketJourney.Read(reservation.TicketJourneyJson);
+        var journey = await new TripSegmentService(db, TimeProvider.System).Journey(trip, reservation, ct);
         var subject = type switch { "Purchase" => "Biletiniz hazır", "Reminder" => "Yolculuğunuz yaklaşıyor", "Cancellation" => "Seferiniz iptal edildi", "RefundSucceeded" => "İadeniz tamamlandı", "RefundFailed" => "İadeniz henüz tamamlanamadı", _ => "Seferinizde değişiklik var" };
         var enabled = type switch { "Reminder" => user.TripRemindersEnabled, "Cancellation" => user.CancellationNotificationsEnabled, "RefundSucceeded" or "RefundFailed" => user.RefundNotificationsEnabled, _ => true };
         var body = $"Travela — {subject}. PNR: {reservation.Pnr ?? "Düzenlenmedi"}. {journey.DepartureCity} → {journey.ArrivalCity}. Kalkış: {journey.DepartureTime.AddHours(3):dd.MM.yyyy HH:mm} (Türkiye). Koltuk: {reservation.SeatNumber}. " +
             $"Biniş: {journey.DepartureTerminalName} {journey.DepartureTerminalAddress}. {journey.BoardingInstructions} {details}";
-        var channels = new[] { ("Email", reservation.PassengerEmailSnapshot ?? user.Email, user.EmailNotificationsEnabled), ("Sms", reservation.PassengerPhoneSnapshot ?? user.PhoneNumber ?? "", user.SmsNotificationsEnabled) };
+        var contact = await db.PaymentOrders.Where(p => p.ReservationId == reservation.Id && p.PurchaseGroupId != null)
+            .Select(p => new { p.PurchaseGroup!.ContactEmail, p.PurchaseGroup.ContactPhone }).SingleOrDefaultAsync(ct);
+        var channels = new[] { ("Email", contact?.ContactEmail ?? reservation.PassengerEmailSnapshot ?? user.Email, user.EmailNotificationsEnabled), ("Sms", contact?.ContactPhone ?? reservation.PassengerPhoneSnapshot ?? user.PhoneNumber ?? "", user.SmsNotificationsEnabled) };
         foreach (var (channel, recipient, channelEnabled) in channels)
         {
             if (db.TravelNotifications.Local.Any(n => n.ReservationId == reservation.Id && n.EventKey == key && n.Channel == channel) ||
@@ -33,7 +35,8 @@ public static class TravelNotifications
     {
         var upper = now.AddHours(24);
         var items = await db.Reservations.Where(r => r.Kind == "Ticket" && r.Status == "Active" && r.Payment != null && r.Payment.PaymentStatus == "Paid" &&
-            r.Trip.DepartureTime > now && r.Trip.DepartureTime <= upper && r.Trip.Status == "Scheduled" &&
+            (r.ChangeCancellationUntil != null || r.Payment!.PurchaseGroupId == null ? r.Trip.DepartureTime : r.BoardingDepartureSnapshot ?? r.Trip.DepartureTime) > now &&
+            (r.ChangeCancellationUntil != null || r.Payment!.PurchaseGroupId == null ? r.Trip.DepartureTime : r.BoardingDepartureSnapshot ?? r.Trip.DepartureTime) <= upper && (r.Trip.Status == "Scheduled" || r.Trip.Status == "InProgress") &&
             !db.TravelNotifications.Any(n => n.ReservationId == r.Id && n.Type == "Reminder" && n.EventKey == "reminder:" + r.Trip.ChangeVersion.ToString()))
             .OrderBy(r => r.Trip.DepartureTime).Take(100).Include(r => r.Trip).ToListAsync(ct);
         foreach (var r in items)
@@ -43,7 +46,8 @@ public static class TravelNotifications
             var trip = await db.Trips.FromSqlInterpolated($"SELECT * FROM Trips WITH (UPDLOCK, HOLDLOCK) WHERE Id = {r.TripId}").SingleAsync(ct);
             await db.Entry(r).ReloadAsync(ct);
             await db.Entry(trip).ReloadAsync(ct);
-            if (r.Status == "Active" && trip.Status == "Scheduled" && trip.DepartureTime > now && trip.DepartureTime <= upper)
+            var journey = await new TripSegmentService(db, TimeProvider.System).Journey(trip, r, ct);
+            if (r.Status == "Active" && (trip.Status == "Scheduled" || trip.Status == "InProgress") && journey.DepartureTime > now && journey.DepartureTime <= upper)
                 await Queue(db, r, "Reminder", "reminder:" + trip.ChangeVersion, now, ct: ct);
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         }

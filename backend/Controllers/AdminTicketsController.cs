@@ -76,6 +76,9 @@ public sealed class AdminTicketsController(TravelaDbContext db, TimeProvider clo
             query = query.Where(r => r.ReservationNumber.Contains(term) || (r.Pnr != null && r.Pnr.Contains(term)) ||
                 (r.PassengerNameSnapshot != null && r.PassengerNameSnapshot.Contains(term)) ||
                 (r.PassengerEmailSnapshot != null && r.PassengerEmailSnapshot.Contains(term)) ||
+                (r.Payment != null && r.Payment.PurchaseGroup != null &&
+                    ((r.Payment.PurchaseGroup.ContactEmail != null && r.Payment.PurchaseGroup.ContactEmail.Contains(term)) ||
+                     (r.Payment.PurchaseGroup.ContactPhone != null && r.Payment.PurchaseGroup.ContactPhone.Contains(term)))) ||
                 (r.PassengerPhoneSnapshot != null && r.PassengerPhoneSnapshot.Contains(term)) || r.Passenger.FullName.Contains(term) ||
                 r.Passenger.Email.Contains(term) || r.Trip.Company.Name.Contains(term) || (r.Payment != null && (r.Payment.Id == orderId || r.Payment.PurchaseGroupId == orderId)));
         }
@@ -185,7 +188,8 @@ public sealed class AdminTicketsController(TravelaDbContext db, TimeProvider clo
         Id = r.Id, OrderId = r.Payment == null ? null : r.Payment.Id, PurchaseGroupId = r.Payment == null ? null : r.Payment.PurchaseGroupId, ReservationNumber = r.ReservationNumber, Pnr = r.Pnr, Kind = r.Kind, TicketJourneyJson = r.TicketJourneyJson,
         TripId = r.TripId, CompanyId = r.Trip.CompanyId, CompanyName = r.Trip.Company.Name, PassengerId = r.PassengerId,
         AccountName = r.Passenger.FullName, PassengerName = r.PassengerNameSnapshot ?? "Yolcu bilgisi kaydedilmemiş",
-        PassengerEmail = r.PassengerEmailSnapshot, PassengerPhone = r.PassengerPhoneSnapshot,
+        PassengerEmail = r.Payment != null && r.Payment.PurchaseGroup != null ? r.Payment.PurchaseGroup.ContactEmail ?? r.PassengerEmailSnapshot : r.PassengerEmailSnapshot,
+        PassengerPhone = r.Payment != null && r.Payment.PurchaseGroup != null ? r.Payment.PurchaseGroup.ContactPhone ?? r.PassengerPhoneSnapshot : r.PassengerPhoneSnapshot,
         PassengerSnapshotSource = r.PassengerSnapshotSource, PassengerCapturedAt = r.PassengerCapturedAt,
         DepartureCity = r.Trip.Route.DepartureCity, ArrivalCity = r.Trip.Route.ArrivalCity, DepartureTime = r.Trip.DepartureTime,
         SeatNumber = r.SeatNumber, Amount = r.Payment == null ? r.Price : r.Payment.Amount,

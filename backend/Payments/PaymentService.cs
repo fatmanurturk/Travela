@@ -204,10 +204,12 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
         var order = await db.PaymentOrders.Include(p => p.Reservation).SingleAsync(p => p.Reservation.Pnr == pnr && p.PassengerId == userId, ct);
         if (order.Reservation.Status == "Active")
         {
-            var changeRight = order.Reservation.ChangeCancellationUntil > Now && trip.DepartureTime > Now;
-            if (!CanCancel(trip.DepartureTime, Now) && !changeRight) throw new PaymentFlowException("Kalkışa 2 saatten az kaldığı için iptal ve iade yapılamaz.");
+            var journey = await Segments.Journey(trip, order.Reservation, ct);
+            var departure = order.PurchaseGroupId.HasValue ? journey.DepartureTime : trip.DepartureTime;
+            var changeRight = order.Reservation.ChangeCancellationUntil > Now && departure > Now;
+            if (!CanCancel(departure, Now) && !changeRight) throw new PaymentFlowException("Kalkışa 2 saatten az kaldığı için iptal ve iade yapılamaz.");
             await db.Entry(trip).Reference(t => t.Route).LoadAsync(ct);
-            order.Reservation.TicketJourneyJson ??= TicketJourney.Capture(trip).Write();
+            order.Reservation.TicketJourneyJson ??= journey.Write();
             Release(order.Reservation, trip, changeRight ? "Sefer değişikliği nedeniyle yolcu tam iade hakkını kullandı." : "Yolcu tarafından iptal edildi. Tam iade süreci başlatıldı.");
             RequestRefund(order, Now, db);
             await Segments.SaveInventory(trip, ct);

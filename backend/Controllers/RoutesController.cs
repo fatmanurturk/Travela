@@ -16,14 +16,23 @@ namespace Travela.Api.Controllers;
 [ApiController]
 [Route("api/routes")]
 [Authorize(Policy = "trip.view", Roles = "Admin,Company")]
-public class RoutesController(TravelaDbContext context) : ControllerBase
+public partial class RoutesController(TravelaDbContext context) : ControllerBase
 {
     [HttpGet("public")]
     [AllowAnonymous]
-    public async Task<IActionResult> GetPublicRoutes() => Ok(await context.Routes.AsNoTracking()
-        .Where(r => r.IsActive).OrderBy(r => r.DepartureCity).ThenBy(r => r.ArrivalCity)
-        .Select(r => new RouteDto { Id = r.Id, DepartureCity = r.DepartureCity, ArrivalCity = r.ArrivalCity,
-            DistanceKm = r.DistanceKm, EstimatedDurationMinutes = r.EstimatedDurationMinutes }).ToListAsync());
+    public async Task<IActionResult> GetPublicRoutes()
+    {
+        var routes = await context.Routes.AsNoTracking().Where(r => r.IsActive).Select(r => new RouteDto { Id = r.Id, DepartureCity = r.DepartureCity, ArrivalCity = r.ArrivalCity, DistanceKm = r.DistanceKm, EstimatedDurationMinutes = r.EstimatedDurationMinutes }).ToListAsync();
+        var pairs = await (from a in context.TripStops from b in context.TripStops
+            where a.TripId == b.TripId && a.StopOrder < b.StopOrder && a.CanBoard && b.CanAlight && a.Trip.Route.IsActive
+            select new { a.Trip.RouteId, From = a.City, To = b.City, FromId = a.CityId, ToId = b.CityId }).Distinct().ToListAsync();
+        routes.AddRange(pairs.Select(p => new RouteDto { Id = p.RouteId, DepartureCity = p.From, ArrivalCity = p.To, DepartureCityId = p.FromId, ArrivalCityId = p.ToId }));
+        foreach (var route in routes) { route.DepartureCityId ??= TurkishCities.Id(route.DepartureCity); route.ArrivalCityId ??= TurkishCities.Id(route.ArrivalCity); }
+        return Ok(routes.DistinctBy(r => (r.DepartureCityId, r.ArrivalCityId)).OrderBy(r => r.DepartureCity).ThenBy(r => r.ArrivalCity));
+    }
+
+    [HttpGet("city-options"), AllowAnonymous]
+    public IActionResult CityOptions() => Ok(TurkishCities.All.Select((name, index) => new { id = index + 1, name }));
 
     [HttpGet("cities")]
     public async Task<IActionResult> GetCities() => await GetCurrentUserAsync() is null

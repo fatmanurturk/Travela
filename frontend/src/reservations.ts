@@ -34,6 +34,10 @@ export function currentRole(): string | null {
 
 // Limit login destinations to known local passenger routes (no external redirect).
 export function passengerReturnTo(value: string | null): string {
+  if (value && /^\/trips\/\d+\?boardingStopOrder=[1-9][0-9]*&alightingStopOrder=[1-9][0-9]*$/.test(value)) {
+    const params = new URLSearchParams(value.split("?")[1]);
+    if (Number(params.get("boardingStopOrder")) < Number(params.get("alightingStopOrder"))) return value;
+  }
   return value && (/^\/trips\/\d+$/.test(value) || /^\/tickets\/[a-f0-9]{32}$/i.test(value) || (value === "/tickets" || value === "/reservations" || /^\/(?:payment|test-payment|purchase)\/[a-f0-9-]{36}$/i.test(value))) ? value : "/";
 }
 

@@ -4,6 +4,9 @@ namespace Travela.Api.Models;
 
 public class RouteStop
 {
+    public int? CityId { get; set; }
+    public bool CanBoard { get; set; } = true;
+    public bool CanAlight { get; set; } = true;
     public int RouteId { get; set; }
     public int StopOrder { get; set; }
     public string City { get; set; } = "";
@@ -15,6 +18,9 @@ public class RouteStop
 
 public class TripStop
 {
+    public int? CityId { get; set; }
+    public bool CanBoard { get; set; } = true;
+    public bool CanAlight { get; set; } = true;
     public int TripId { get; set; }
     public int StopOrder { get; set; }
     public string City { get; set; } = "";

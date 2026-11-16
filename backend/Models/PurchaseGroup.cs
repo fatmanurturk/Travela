@@ -5,6 +5,8 @@ public class PurchaseGroup
     public Guid Id { get; set; } = Guid.NewGuid();
     public int PassengerId { get; set; }
     public int TripId { get; set; }
+    public string? ContactEmail { get; set; }
+    public string? ContactPhone { get; set; }
     public int? BoardingStopOrder { get; set; }
     public int? AlightingStopOrder { get; set; }
     public Guid RequestKey { get; set; }

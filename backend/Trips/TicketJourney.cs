@@ -21,5 +21,17 @@ public class TicketJourney : JourneyDto
         DepartureTerminalName = t.DepartureTerminalName, ArrivalTerminalName = t.ArrivalTerminalName,
         DepartureTerminalAddress = t.DepartureTerminalAddress, ArrivalTerminalAddress = t.ArrivalTerminalAddress, BoardingInstructions = t.BoardingInstructions };
     public string Write() => JsonSerializer.Serialize(this, Options);
+    public static TicketJourney Capture(Trip trip, TripSegment segment)
+    {
+        var journey = Capture(trip);
+        journey.DepartureCity = segment.From.City; journey.ArrivalCity = segment.To.City;
+        journey.DepartureTime = DateTime.SpecifyKind(segment.From.DepartureTime, DateTimeKind.Utc);
+        journey.ArrivalTime = DateTime.SpecifyKind(segment.To.ArrivalTime, DateTimeKind.Utc);
+        journey.DepartureTerminalId = segment.From.TerminalId; journey.ArrivalTerminalId = segment.To.TerminalId;
+        journey.DepartureTerminalName = segment.From.TerminalName; journey.ArrivalTerminalName = segment.To.TerminalName;
+        journey.DepartureTerminalAddress = segment.From.TerminalAddress; journey.ArrivalTerminalAddress = segment.To.TerminalAddress;
+        journey.BoardingInstructions = segment.From.BoardingInstructions;
+        return journey;
+    }
     public static TicketJourney Read(string json) => JsonSerializer.Deserialize<TicketJourney>(json, Options)!;
 }

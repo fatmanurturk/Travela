@@ -60,6 +60,8 @@ namespace Travela.DTOs
 
     public class CreateTripDto
     {
+        [MinLength(2), MaxLength(81)] public List<TripStopInputDto>? Stops { get; set; }
+        [MaxLength(3240)] public List<SegmentFareInputDto>? Fares { get; set; }
         public int? CompanyId { get; set; }
 
         [Range(1, int.MaxValue)]
@@ -118,6 +120,8 @@ namespace Travela.DTOs
 
     public class RouteDto
     {
+        public int? DepartureCityId { get; set; }
+        public int? ArrivalCityId { get; set; }
         public int Id { get; set; }
         public string DepartureCity { get; set; } = string.Empty;
         public string ArrivalCity { get; set; } = string.Empty;

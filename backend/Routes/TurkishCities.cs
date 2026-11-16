@@ -4,6 +4,9 @@ namespace Travela.Api.Routes;
 
 public static class TurkishCities
 {
+    // Stable catalog IDs. Keep the existing catalog order when adding new metadata.
+    public static int? Id(string? name) { var city = Normalize(name); return city == null ? null : All.ToList().IndexOf(city) + 1; }
+    public static string? Name(int? id) => id is >= 1 and <= 81 ? All[id.Value - 1] : null;
     public static IReadOnlyList<string> All { get; } = Array.AsReadOnly(new[]
     {
         "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Aksaray", "Amasya", "Ankara", "Antalya",

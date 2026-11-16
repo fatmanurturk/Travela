@@ -4,6 +4,8 @@ import { apiUrl } from "../api";
 import { getTodayInTurkey } from "../dateUtils";
 
 type RouteOption = {
+  departureCityId?: number;
+  arrivalCityId?: number;
   departureCity: string;
   arrivalCity: string;
 };
@@ -112,6 +114,8 @@ function TripSearchForm({
       passengers,
       tripType,
     });
+    const route = routes.find(route => normalizeCity(route.departureCity) === normalizeCity(departureCity) && normalizeCity(route.arrivalCity) === normalizeCity(arrivalCity));
+    if (route?.departureCityId && route.arrivalCityId) { params.set("fromId", String(route.departureCityId)); params.set("toId", String(route.arrivalCityId)); }
     if (tripType === "round-trip") params.set("returnDate", returnDate);
     navigate(`/search?${params.toString()}`);
   };

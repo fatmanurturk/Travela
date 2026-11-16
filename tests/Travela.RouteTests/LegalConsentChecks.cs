@@ -101,12 +101,14 @@ internal static class LegalConsentChecks
             requestKey,
             userId = other.Id,
             companyId = -1,
+            contactEmail = "contact@consent.example",
+            contactPhone = "+905321234567",
             passengers = new[]
             {
                 new
                 {
-                    seatNumber = 1, fullName = "Test Yolcusu", email = "traveler@consent.example",
-                    phone = "+905321234567", gender = "Female"
+                    seatNumber = 1, fullName = "Test Yolcusu", identityNumber = "10000000146",
+                    gender = "Female"
                 }
             },
             legalAcceptances = acceptances

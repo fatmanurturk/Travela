@@ -9,7 +9,7 @@ public static class PurchasePresentation
 {
     public static async Task<PurchaseDto> Detail(TravelaDbContext db, int userId, Guid id, TimeProvider clock, CancellationToken ct)
     {
-        var p = await db.PaymentOrders.AsNoTracking().Include(p => p.Reservation).ThenInclude(r => r.Trip).ThenInclude(t => t.Route)
+        var p = await db.PaymentOrders.AsNoTracking().Include(p => p.PurchaseGroup).Include(p => p.Reservation).ThenInclude(r => r.Trip).ThenInclude(t => t.Route)
             .Include(p => p.Reservation).ThenInclude(r => r.Trip).ThenInclude(t => t.Company)
             .Include(p => p.Reservation).ThenInclude(r => r.Trip).ThenInclude(t => t.Bus)
             .SingleAsync(p => p.Id == id && p.PassengerId == userId, ct);
@@ -17,11 +17,13 @@ public static class PurchasePresentation
         var legalAccepted = await db.LegalAcceptances.AsNoTracking().AnyAsync(a =>
             a.UserId == userId && a.DocumentType == LegalDocuments.Sales &&
             (p.PurchaseGroupId.HasValue ? a.PurchaseGroupId == p.PurchaseGroupId : a.PaymentOrderId == id), ct);
-        var j = r.TicketJourneyJson == null ? TicketJourney.Capture(t) : TicketJourney.Read(r.TicketJourneyJson);
+        var j = await new TripSegmentService(db, clock).Journey(t, r, ct);
+        var cancelDeparture = p.PurchaseGroupId.HasValue ? j.DepartureTime : t.DepartureTime;
         DateTime Utc(DateTime d) => DateTime.SpecifyKind(d, DateTimeKind.Utc);
         return new() { Id = id, PurchaseGroupId = p.PurchaseGroupId, Pnr = r.Pnr, Kind = r.Kind, TripId = t.Id, SeatNumber = r.SeatNumber,
+            BoardingStopOrder = r.BoardingStopOrder, AlightingStopOrder = r.AlightingStopOrder,
             CompanyName = j.CompanyName, BusPlateNumber = j.BusPlateNumber, PassengerName = r.PassengerNameSnapshot ?? "Yolcu bilgisi kaydedilmemiş",
-            PassengerEmail = r.PassengerEmailSnapshot, PassengerPhone = r.PassengerPhoneSnapshot, PassengerGender = r.PassengerGender,
+            PassengerEmail = p.PurchaseGroup?.ContactEmail ?? r.PassengerEmailSnapshot, PassengerPhone = p.PurchaseGroup?.ContactPhone ?? r.PassengerPhoneSnapshot, PassengerGender = r.PassengerGender,
             PassengerCapturedAt = r.PassengerCapturedAt.HasValue ? Utc(r.PassengerCapturedAt.Value) : null, PassengerSnapshotSource = r.PassengerSnapshotSource,
             DepartureCity = j.DepartureCity, ArrivalCity = j.ArrivalCity,
             DepartureTerminalId = j.DepartureTerminalId, ArrivalTerminalId = j.ArrivalTerminalId, DepartureTerminalName = j.DepartureTerminalName, DepartureTerminalAddress = j.DepartureTerminalAddress, ArrivalTerminalName = j.ArrivalTerminalName, ArrivalTerminalAddress = j.ArrivalTerminalAddress, BoardingInstructions = j.BoardingInstructions,
@@ -32,7 +34,7 @@ public static class PurchasePresentation
             Amount = p.Amount, OriginalAmount = p.OriginalAmount, DiscountAmount = p.DiscountAmount, CampaignName = p.CampaignName, CouponCode = p.CouponCode,
             Currency = p.Currency, IsTest = p.IsTest, Provider = p.Provider, PaymentStatus = p.PaymentStatus,
             TicketStatus = r.Status, RefundStatus = p.RefundStatus, RefundAmount = p.RefundAmount,
-            CanCancel = r.Kind == "Ticket" && r.Status == "Active" && p.PaymentStatus == "Paid" && (PaymentService.CanCancel(t.DepartureTime, clock.GetUtcNow().UtcDateTime) || (r.ChangeCancellationUntil > clock.GetUtcNow().UtcDateTime && t.DepartureTime > clock.GetUtcNow().UtcDateTime)),
+            CanCancel = r.Kind == "Ticket" && r.Status == "Active" && p.PaymentStatus == "Paid" && (PaymentService.CanCancel(cancelDeparture, clock.GetUtcNow().UtcDateTime) || (r.ChangeCancellationUntil > clock.GetUtcNow().UtcDateTime && cancelDeparture > clock.GetUtcNow().UtcDateTime)),
             CancellationReason = r.CancellationReason, CancelledAt = r.CancelledAt.HasValue ? Utc(r.CancelledAt.Value) : null,
             LastError = p.LastError?.Replace("Yerel test adaptörü iade hatası.", "İade işlemi tamamlanamadı."), NeedsAttention = p.NeedsAttention,
             LegalAccepted = legalAccepted,

@@ -68,7 +68,7 @@ internal static class SeatRulesChecks
         async Task<HttpResponseMessage> Send(int tripId, params (int Seat, string Gender)[] passengers)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, "/api/purchases"); request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            request.Content = JsonContent.Create(new StartGroupPurchaseDto { TripId = tripId, RequestKey = Guid.NewGuid(), LegalAcceptances = GroupPurchaseChecks.SalesConsent(), Passengers = passengers.Select(p => new TicketPassengerDto { SeatNumber = p.Seat, Gender = p.Gender, FullName = "Yolcu " + p.Seat, Email = "traveler@travela.test", Phone = "+905321234567" }).ToList() });
+            request.Content = JsonContent.Create(new StartGroupPurchaseDto { ContactEmail = "contact@travela.test", ContactPhone = "+905321234567", TripId = tripId, RequestKey = Guid.NewGuid(), LegalAcceptances = GroupPurchaseChecks.SalesConsent(), Passengers = passengers.Select(p => new TicketPassengerDto { SeatNumber = p.Seat, Gender = p.Gender, FullName = "Yolcu " + p.Seat, IdentityNumber = "10000000146" }).ToList() });
             return await http.SendAsync(request);
         }
         var first = await Send(trip.Id, (1, "Female")); check(first.IsSuccessStatusCode, "Kadın yolcu boş koltuğu API üzerinden tutar");

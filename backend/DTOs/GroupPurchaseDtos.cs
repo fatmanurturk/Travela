@@ -8,8 +8,8 @@ public class TicketPassengerDto
     public string Gender { get; set; } = "";
     [Range(1,1000, ErrorMessage = "Geçerli bir koltuk seçiniz.")] public int SeatNumber { get; set; }
     [Required(ErrorMessage = "Ad soyad zorunludur."), MinLength(2, ErrorMessage = "Ad soyad en az 2 karakter olmalıdır."), MaxLength(120, ErrorMessage = "Ad soyad en fazla 120 karakter olmalıdır.")] public string FullName { get; set; } = "";
-    [Required(ErrorMessage = "E-posta zorunludur."), EmailAddress(ErrorMessage = "Geçerli bir e-posta giriniz."), MaxLength(320, ErrorMessage = "E-posta en fazla 320 karakter olmalıdır.")] public string Email { get; set; } = "";
-    [Required(ErrorMessage = "Telefon zorunludur."), RegularExpression(@"^\+[1-9]\d{7,14}$", ErrorMessage = "Telefonu +905xxxxxxxxx biçiminde giriniz.")] public string Phone { get; set; } = "";
+    [Required(ErrorMessage = "T.C. kimlik numarası zorunludur."), Travela.Api.Validation.TurkishIdentityNumber]
+    public string IdentityNumber { get; set; } = "";
 }
 public class CheckoutBuyerDto
 {
@@ -24,6 +24,12 @@ public class CheckoutBuyerDto
 }
 public class StartGroupPurchaseDto
 {
+    public int? BoardingStopOrder { get; set; }
+    public int? AlightingStopOrder { get; set; }
+    [Required(ErrorMessage = "E-posta zorunludur."), EmailAddress(ErrorMessage = "Geçerli bir e-posta giriniz."), MaxLength(320)]
+    public string ContactEmail { get; set; } = "";
+    [Required(ErrorMessage = "Telefon zorunludur."), RegularExpression(@"^\+[1-9][0-9]{7,14}$", ErrorMessage = "Telefonu +905xxxxxxxxx biçiminde giriniz.")]
+    public string ContactPhone { get; set; } = "";
     [MaxLength(8)]
     public List<LegalAcceptanceDto>? LegalAcceptances { get; set; }
 

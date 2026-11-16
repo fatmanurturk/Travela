@@ -52,10 +52,12 @@ public sealed class CampaignsController(TravelaDbContext db, TimeProvider clock)
         var trip = await db.Trips.AsNoTracking().Include(t => t.Company).Include(t => t.Bus).Include(t => t.Route)
             .Include(t => t.DepartureTerminal).Include(t => t.ArrivalTerminal).SingleOrDefaultAsync(t => t.Id == dto.TripId, ct);
         if (trip == null) return NotFound();
-        if (trip.DepartureTime <= Now || trip.Status is not ("Scheduled" or "Planlandı" or "Planlandi") || !trip.Company.IsActive || !trip.Bus.IsActive ||
-            trip.Bus.CompanyId != trip.CompanyId || !trip.Route.IsActive || trip.DepartureTerminal is { IsActive: false } || trip.ArrivalTerminal is { IsActive: false })
-            return BadRequest(new { message = "Bu sefer satışa açık değil." });
-        try { return Ok(await CampaignPricing.Quote(db, trip, user.Id, dto.PassengerCount, dto.CouponCode, Now, false, ct)); }
+        try {
+            var segments = new Travela.Api.Trips.TripSegmentService(db, clock);
+            var segment = await segments.Resolve(trip, dto.BoardingStopOrder, dto.AlightingStopOrder, ct);
+            if (!await segments.CanSell(trip, segment, ct)) return BadRequest(new { message = "Bu yolculuk kesimi satışa açık değil." });
+            return Ok(await CampaignPricing.Quote(db, trip, user.Id, dto.PassengerCount, dto.CouponCode, Now, false, ct, segment.Price, segment.From.DepartureTime));
+        }
         catch (PaymentFlowException e) { return StatusCode(e.Status, new { message = e.Message }); }
     }
 

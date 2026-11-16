@@ -41,12 +41,32 @@ internal static class GroupPurchaseChecks
         async Task<JsonElement> Json(HttpResponseMessage response) { if (!response.IsSuccessStatusCode) throw new Exception(response.StatusCode + ": " + await response.Content.ReadAsStringAsync()); return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone(); }
         async Task<string> Login(User user) => (await Json(await Send("POST", "/api/auth/login", null, new { email = user.Email, password = "TestPass123!" }))).GetProperty("token").GetString()!;
         var token = await Login(buyer); var otherToken = await Login(stranger);
-        TicketPassengerDto Passenger(int seat, string name = "Başka Yolcu") => new() { Gender = "Female", SeatNumber = seat, FullName = name, Email = "traveler" + seat + "@group.example", Phone = "+905321234567" };
-        StartGroupPurchaseDto Request(params int[] seats) => new() { TripId = trip.Id, RequestKey = Guid.NewGuid(), Passengers = seats.Select(n => Passenger(n)).ToList(), LegalAcceptances = SalesConsent() };
+        TicketPassengerDto Passenger(int seat, string name = "Başka Yolcu") => new() { Gender = "Female", SeatNumber = seat, FullName = name, IdentityNumber = "10000000146" };
+        StartGroupPurchaseDto Request(params int[] seats) => new() { ContactEmail = "contact@group.example", ContactPhone = "+905321234567", TripId = trip.Id, RequestKey = Guid.NewGuid(), Passengers = seats.Select(n => Passenger(n)).ToList(), LegalAcceptances = SalesConsent() };
+        foreach (var invalid in new[] { "", "10000000136", "10000000147", "00000000000", "1000000014x" })
+        {
+            var bad = Request(30); bad.Passengers[0].IdentityNumber = invalid;
+            check((await Send("POST", "/api/purchases", token, bad)).StatusCode == HttpStatusCode.BadRequest, "Eksik veya geçersiz T.C. kimlik numarası sunucuda reddedilir");
+        }
+        foreach (var field in new[] { "email", "phone", "name" })
+        {
+            var bad = Request(30);
+            if (field == "email") bad.ContactEmail = "invalid";
+            if (field == "phone") bad.ContactPhone = "";
+            if (field == "name") bad.Passengers[0].FullName = "";
+            check((await Send("POST", "/api/purchases", token, bad)).StatusCode == HttpStatusCode.BadRequest, "Eksik yolcu adı veya geçersiz ortak iletişim bilgisi reddedilir");
+        }
+        check(!await db.Reservations.AnyAsync(r => r.TripId == trip.Id && r.SeatNumber == 30), "Geçersiz form koltuk tutmaz");
         var dto = Request(1, 2); dto.Passengers[1].FullName = "İkinci Yolcu";
         var response = await Send("POST", "/api/purchases", token, dto); var group = await Json(response); var id = group.GetProperty("id").GetGuid();
         check(group.GetProperty("amount").GetDecimal() == 666.66m && group.GetProperty("tickets").GetArrayLength() == 2 && group.GetProperty("tickets")[0].GetProperty("pnr").ValueKind == JsonValueKind.Null, "İki koltuk tek siparişte sunucu fiyatıyla ayrılır; ödeme öncesi PNR oluşmaz");
+        check(await db.PurchaseGroups.AnyAsync(g => g.Id == id && g.ContactEmail == dto.ContactEmail && g.ContactPhone == dto.ContactPhone) &&
+            await db.Reservations.CountAsync(r => r.Payment!.PurchaseGroupId == id && r.PassengerIdentityNumberSnapshot == "10000000146" && r.PassengerEmailSnapshot == null && r.PassengerPhoneSnapshot == null) == 2,
+            "İletişim ortak siparişte, ad ve T.C. kimlik numarası yolcunun koltuğunda tutulur");
         var again = await Json(await Send("POST", "/api/purchases", token, dto)); check(again.GetProperty("id").GetGuid() == id && await db.PurchaseGroups.CountAsync(g => g.Id == id) == 1, "Aynı ortak sipariş anahtarı ikinci sipariş veya tutma oluşturmaz");
+        dto.ContactEmail = "changed@group.example";
+        check((await Send("POST", "/api/purchases", token, dto)).StatusCode == HttpStatusCode.Conflict, "İletişim bilgisi değişikliği aynı işlem anahtarıyla farklı sipariş oluşturmaz");
+        dto.ContactEmail = "contact@group.example";
         dto.Passengers[0].FullName = "Değiştirilmiş Yolcu"; check((await Send("POST", "/api/purchases", token, dto)).StatusCode == HttpStatusCode.Conflict, "Aynı anahtarla yolcu bilgisini değiştirme engellenir");
         check((await Send("GET", $"/api/purchases/{id}", otherToken)).StatusCode == HttpStatusCode.NotFound && (await Send("POST", "/api/purchases", null, Request(4))).StatusCode == HttpStatusCode.Unauthorized, "Ortak sipariş kimlik ve sahiplik denetimleriyle korunur");
         var before = await db.Trips.Where(t => t.Id == trip.Id).Select(t => t.AvailableSeats).SingleAsync();
@@ -55,6 +75,9 @@ internal static class GroupPurchaseChecks
         group = await Json(await Send("POST", $"/api/purchases/{id}/local-complete", token, new { outcome = "Succeeded" }));
         var tickets = group.GetProperty("tickets").EnumerateArray().ToList(); var pnr = tickets[0].GetProperty("pnr").GetString()!; var lineId = tickets[0].GetProperty("id").GetGuid();
         check(tickets.All(t => t.GetProperty("kind").GetString() == "Ticket") && tickets.Select(t => t.GetProperty("pnr").GetString()).Distinct().Count() == 2 && tickets[0].GetProperty("passengerName").GetString() == "Başka Yolcu" && tickets[1].GetProperty("passengerName").GetString() == "İkinci Yolcu", "Tek ödeme her yolcu için ayrı PNR ve başkası adına değişmeyen yolcu bilgisi üretir");
+        check(await db.TravelNotifications.CountAsync(n => n.Reservation.Payment!.PurchaseGroupId == id && n.Type == "Purchase" &&
+            ((n.Channel == "Email" && n.Recipient == "contact@group.example") || (n.Channel == "Sms" && n.Recipient == "+905321234567"))) == 4,
+            "Her iki biletin e-posta ve SMS bildirimleri ortak iletişim bilgilerine yönlenir");
         await Json(await Send("POST", $"/api/purchases/{id}/local-complete", token, new { outcome = "Succeeded" }));
         check(await db.Reservations.CountAsync(r => r.Payment!.PurchaseGroupId == id && r.Kind == "Ticket") == 2, "Yinelenen ortak ödeme sonucu bilet sayısını artırmaz");
         await Json(await Send("POST", $"/api/tickets/{pnr}/cancel", token)); await Json(await Send("POST", $"/api/tickets/local/{lineId}/refund-result", token, new { outcome = "Succeeded" }));
@@ -86,7 +109,7 @@ internal static class GroupPurchaseChecks
         var fake = new FakeIyzico(db, options.Value.SecretKey); var provider = new IyzicoSandboxProvider(new HttpClient(fake), db, options, protection); var service = new PaymentService(db, provider, TimeProvider.System);
         var billing = new CheckoutBuyerDto { Name = "Alıcı", Surname = "Test", IdentityNumber = "11111111111", Address = "Sandbox test adresi", City = "İzmir", Country = "Türkiye", ZipCode = "35000", Phone = "+905321234567" };
         var protectedBuyer = protection.CreateProtector("Travela.IyzicoBuyer.v1").Protect(JsonSerializer.Serialize(new IyzicoBuyer(billing, buyer.Email, "127.0.0.1"), new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-        var request = new StartGroupPurchaseDto { TripId = trip.Id, RequestKey = Guid.NewGuid(), Buyer = billing, Passengers = [passenger(11, "Sandbox Bir"), passenger(12, "Sandbox İki")], LegalAcceptances = SalesConsent() };
+        var request = new StartGroupPurchaseDto { ContactEmail = "contact@group.example", ContactPhone = "+905321234567", TripId = trip.Id, RequestKey = Guid.NewGuid(), Buyer = billing, Passengers = [passenger(11, "Sandbox Bir"), passenger(12, "Sandbox İki")], LegalAcceptances = SalesConsent() };
         var group = await service.StartGroup(buyer.Id, request, protectedBuyer, default, "127.0.0.1"); var id = group.Id;
         check(group.CheckoutState == "Ready" && IyzicoSandboxProvider.AllowedCheckoutUrl(group.CheckoutUrl) && fake.Initializations == 1 && fake.AuthValid && group.ProtectedBuyerJson == null, "iyzico sandbox başlatma imzalı istek, iki sepet satırı ve güvenli hosted URL kullanır; alıcı kimliği işlemden sonra tutulmaz");
         check(!IyzicoSandboxProvider.AllowedCheckoutUrl("https://sandbox-cpp.iyzipay.com.evil.test/?token=x") && !IyzicoSandboxProvider.AllowedCheckoutUrl("http://sandbox-cpp.iyzipay.com/?token=x"), "Sahte sağlayıcı alan adı ve HTTP ödeme adresi reddedilir");
@@ -122,7 +145,7 @@ internal static class GroupPurchaseChecks
         await db.PaymentOrders.Where(p => p.Id == line.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.NextRefundAttemptAt, DateTime.UtcNow.AddSeconds(-1)));
         await service.ProcessRefund(line.Id, default); db.ChangeTracker.Clear();
         check(await db.PaymentOrders.AnyAsync(p => p.Id == line.Id && p.RefundStatus == "Succeeded") && fake.RefundPosts == 1 && await db.Reservations.AnyAsync(r => r.Id == lines[1].ReservationId && r.Status == "Active"), "iyzico raporundan iade doğrulanır; ikinci para transferi veya diğer bilete iptal uygulanmaz");
-        var unresolvedRequest = new StartGroupPurchaseDto { TripId = trip.Id, RequestKey = Guid.NewGuid(), Buyer = billing, Passengers = [passenger(15, "Başlatma Testi")], LegalAcceptances = SalesConsent() }; fake.LoseInitializeResponse = true;
+        var unresolvedRequest = new StartGroupPurchaseDto { ContactEmail = "contact@group.example", ContactPhone = "+905321234567", TripId = trip.Id, RequestKey = Guid.NewGuid(), Buyer = billing, Passengers = [passenger(15, "Başlatma Testi")], LegalAcceptances = SalesConsent() }; fake.LoseInitializeResponse = true;
         var unresolved = await service.StartGroup(buyer.Id, unresolvedRequest, protectedBuyer, default, "127.0.0.1"); var initCount = fake.Initializations;
         await service.StartGroup(buyer.Id, unresolvedRequest, protectedBuyer, default, "127.0.0.1"); await service.ReconcileGroup(unresolved.Id, default);
         check(fake.Initializations == initCount && (await db.PurchaseGroups.AsNoTracking().SingleAsync(g => g.Id == unresolved.Id)).CheckoutState == "Unknown", "Başlatma yanıtı kaybolan iyzico siparişi ikinci ödeme sayfası açmaz; mutabakat ve destek durumunda kalır");
@@ -138,7 +161,7 @@ internal static class GroupPurchaseChecks
         await db.PaymentOrders.Where(p => p.PaymentStatus == "Pending").ExecuteUpdateAsync(s => s.SetProperty(p => p.NextReconciliationAt, future));
         await db.PurchaseGroups.Where(g => g.PaymentStatus == "Pending").ExecuteUpdateAsync(s => s.SetProperty(g => g.NextReconciliationAt, future));
         var old = await service.Start(buyer.Id, trip.Id, 21, Guid.NewGuid(), default, SalesConsent(), "127.0.0.1", "Female");
-        var group = await service.StartGroup(buyer.Id, new StartGroupPurchaseDto { TripId = trip.Id, RequestKey = Guid.NewGuid(), Passengers = [passenger(22,"Kuyruk Yolcusu"), passenger(23,"İkinci Kuyruk Yolcusu")], LegalAcceptances = SalesConsent() }, null, default, "127.0.0.1");
+        var group = await service.StartGroup(buyer.Id, new StartGroupPurchaseDto { ContactEmail = "contact@group.example", ContactPhone = "+905321234567", TripId = trip.Id, RequestKey = Guid.NewGuid(), Passengers = [passenger(22,"Kuyruk Yolcusu"), passenger(23,"İkinci Kuyruk Yolcusu")], LegalAcceptances = SalesConsent() }, null, default, "127.0.0.1");
         await db.LocalPaymentRecords.Where(p => p.Id == group.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, "Succeeded"));
         var gate = new SlowGate(old.Id); var services = new ServiceCollection();
         services.AddScoped(_ => new TravelaDbContext(new DbContextOptionsBuilder<TravelaDbContext>().UseSqlServer(db.Database.GetConnectionString()).Options));

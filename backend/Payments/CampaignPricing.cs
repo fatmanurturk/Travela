@@ -36,16 +36,17 @@ public static class CampaignPricing
     // Reserve capacity in the same serializable transaction as the seat holds.
     // Campaign locks are always taken by ID, after the trip lock, including automatic selection.
     public static async Task<CampaignPrice> Quote(TravelaDbContext db, Trip trip, int userId, int passengers,
-        string? couponCode, DateTime now, bool reserve, CancellationToken ct)
+        string? couponCode, DateTime now, bool reserve, CancellationToken ct, decimal? segmentPrice = null, DateTime? segmentDeparture = null)
     {
         if (passengers is < 1 or > 10) throw new PaymentFlowException("1–10 yolcu seçilmelidir.", 400);
-        var subtotal = decimal.Round(trip.Price, 2) * passengers;
+        var subtotal = decimal.Round(segmentPrice ?? trip.Price, 2) * passengers;
+        var departure = segmentDeparture ?? trip.DepartureTime;
         if (subtotal <= 0) throw new PaymentFlowException("Sefer fiyatı geçersiz.");
         var code = NormalizeCode(couponCode);
         var ids = await db.Campaigns.AsNoTracking().Where(c => c.CompanyId == trip.CompanyId && c.IsActive &&
             c.StartsAt <= now && c.EndsAt > now && (c.RouteId == null || c.RouteId == trip.RouteId) &&
-            (c.DepartureFrom == null || c.DepartureFrom <= trip.DepartureTime) &&
-            (c.DepartureUntil == null || c.DepartureUntil > trip.DepartureTime) &&
+            (c.DepartureFrom == null || c.DepartureFrom <= departure) &&
+            (c.DepartureUntil == null || c.DepartureUntil > departure) &&
             c.MinimumSubtotal <= subtotal && c.Code == code).OrderBy(c => c.Id).Select(c => c.Id).ToListAsync(ct);
         var best = new CampaignPrice(subtotal, 0, subtotal);
         foreach (var id in ids)
@@ -55,7 +56,7 @@ public static class CampaignPricing
                 : await db.Campaigns.AsNoTracking().SingleAsync(c => c.Id == id, ct);
             // Recheck after locking: management may have changed the campaign meanwhile.
             if (!c.IsActive || c.StartsAt > now || c.EndsAt <= now || c.Code != code || c.CompanyId != trip.CompanyId ||
-                c.RouteId.HasValue && c.RouteId != trip.RouteId || c.DepartureFrom > trip.DepartureTime || c.DepartureUntil <= trip.DepartureTime) continue;
+                c.RouteId.HasValue && c.RouteId != trip.RouteId || c.DepartureFrom > departure || c.DepartureUntil <= departure) continue;
             var uses = Uses(db, id, now);
             if (c.UsageLimit.HasValue && await uses.CountAsync(ct) >= c.UsageLimit.Value ||
                 await uses.CountAsync(g => g.PassengerId == userId, ct) >= c.PerUserLimit) continue;

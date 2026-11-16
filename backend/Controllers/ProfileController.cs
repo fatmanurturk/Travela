@@ -16,6 +16,7 @@ public sealed class UpdateUserProfileDto
 {
     [Required, MaxLength(120)] public string FullName { get; set; } = "";
     [MaxLength(32)] public string? PhoneNumber { get; set; }
+    [Travela.Api.Validation.TurkishIdentityNumber] public string? IdentityNumber { get; set; }
 }
 public sealed class ChangePasswordDto
 {
@@ -49,7 +50,7 @@ public partial class ProfileController(TravelaDbContext db, SessionTokenService 
     public async Task<IActionResult> GetProfile(CancellationToken ct)
     {
         var user = await CurrentUser(ct); if (user == null) return Unauthorized();
-        return Ok(new { user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role,
+        return Ok(new { user.Id, user.FullName, user.Email, user.PhoneNumber, user.IdentityNumber, user.Role,
             CreatedAt = Utc(user.CreatedAt), LastLoginAt = user.LastLoginAt.HasValue ? Utc(user.LastLoginAt.Value) : (DateTime?)null,
             notificationPreferences = Preferences(user) });
     }
@@ -62,7 +63,8 @@ public partial class ProfileController(TravelaDbContext db, SessionTokenService 
         if (!TryPhone(dto.PhoneNumber, out var phone)) return BadRequest(new { message = "Geçerli bir telefon numarası girin. Örnek: 05xx xxx xx xx veya +ülke kodu ve numara." });
         var user = await CurrentUser(ct); if (user == null) return Unauthorized();
         var affected = await db.Users.ForSession(User, db).Where(u => u.Id == user.Id && u.SecurityVersion == user.SecurityVersion)
-            .ExecuteUpdateAsync(update => update.SetProperty(u => u.FullName, name).SetProperty(u => u.PhoneNumber, phone).SetProperty(u => u.UpdatedAt, clock.GetUtcNow().UtcDateTime), ct);
+            .ExecuteUpdateAsync(update => update.SetProperty(u => u.FullName, name).SetProperty(u => u.PhoneNumber, phone)
+                .SetProperty(u => u.IdentityNumber, dto.IdentityNumber ?? user.IdentityNumber).SetProperty(u => u.UpdatedAt, clock.GetUtcNow().UtcDateTime), ct);
         if (affected != 1) return Unauthorized();
         return Ok(new { message = "Kişisel bilgilerin güncellendi.", fullName = name, phoneNumber = phone });
     }

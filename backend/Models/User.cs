@@ -5,6 +5,8 @@ namespace Travela.Models
         public int Id { get; set; }
 
         public string FullName { get; set; } = string.Empty;
+        [System.ComponentModel.DataAnnotations.MaxLength(11)]
+        public string? IdentityNumber { get; set; }
 
         public string Email { get; set; } = string.Empty;
 

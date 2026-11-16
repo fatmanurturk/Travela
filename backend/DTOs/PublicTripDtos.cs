@@ -18,6 +18,11 @@ namespace Travela.DTOs
 
     public class PublicTripDto : JourneyDto
     {
+        public int? BoardingStopOrder { get; set; }
+        public int? AlightingStopOrder { get; set; }
+        public string MainDepartureCity { get; set; } = "";
+        public string MainArrivalCity { get; set; } = "";
+        public List<PublicTripDto> JourneyOptions { get; set; } = [];
         public int Id { get; set; }
         public int CompanyId { get; set; }
         public string CompanyName { get; set; } = string.Empty;

@@ -81,8 +81,9 @@ test("Koltuk onayı sözleşme olmadan sipariş oluşturmaz; seçim değişirse 
   await page.goto("/trips/12");
   await chooseSeat(page, 2);
   await page.getByLabel("Ad soyad · Koltuk 2").fill("Onay Test Yolcusu");
-  await page.getByLabel("E-posta · Koltuk 2").fill("consent@example.test");
-  await page.getByLabel("Telefon · Koltuk 2").fill("+905321234567");
+  await page.getByLabel("T.C. Kimlik No · Koltuk 2").fill("10000000146");
+  await page.getByLabel("İletişim e-posta").fill("consent@example.test");
+  await page.getByLabel("İletişim telefon").fill("+905321234567");
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
   const submit = page.getByRole("button", { name: "Ödemeye geç", exact: true });
   await expect(submit).toBeDisabled();

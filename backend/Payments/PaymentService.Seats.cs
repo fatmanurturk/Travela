@@ -25,7 +25,13 @@ public partial class PaymentService
         List<SeatPosition> plan;
         try { plan = SeatPlans.ReadVerified(trip.SeatPlanJson, trip.SeatLayout, trip.SeatCapacitySnapshot ?? trip.Bus.SeatCapacity); }
         catch (ArgumentException) { return false; }
-        var segment = await Segments.Resolve(trip, ct: ct);
+        if (reservations.Count == 0) return false;
+        var first = reservations[0];
+        if (reservations.Any(r => r.BoardingStopOrder != first.BoardingStopOrder || r.AlightingStopOrder != first.AlightingStopOrder)) return false;
+        TripSegment segment;
+        try { segment = await Segments.Resolve(trip, first.BoardingStopOrder, first.AlightingStopOrder, ct); }
+        catch (PaymentFlowException) { return false; }
+        if (!await Segments.CanSell(trip, segment, ct)) return false;
         return await Segments.ValidateSelection(trip, segment.From.StopOrder, segment.To.StopOrder,
             reservations.Select(r => new SeatPassenger(r.SeatNumber, r.PassengerGender)).ToList(), ct, reservations.Select(r => r.Id).ToList()) == null;
     }

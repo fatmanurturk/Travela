@@ -82,6 +82,8 @@ public partial class TripsController
                 return beforeSeat.Row != afterSeat.Row || beforeSeat.Column != afterSeat.Column || SeatCompatibility.Adjacent(previous, beforeSeat)?.Number != SeatCompatibility.Adjacent(plan, afterSeat)?.Number;
             })) return Conflict(new { message = "Yeni araç yolcuların fiziksel koltuk konumunu ve eş koltuk komşuluğunu korumalıdır." });
         }
+        if (await _context.TripStops.CountAsync(s => s.TripId == id, ct) > 2)
+            return Conflict(new { message = "Ara duraklı seferin saatlerini ve duraklarını Duraklar ve kesim fiyatları bölümünden yönetin. Rezervasyon geçmişi varsa yeni sefer oluşturun." });
         var before = TicketJourney.Capture(trip);
         var after = TicketJourney.Capture(trip); after.BusId = bus.Id; after.BusPlateNumber = bus.PlateNumber; after.DepartureTime = departure; after.ArrivalTime = arrival;
         if (dto.Preview) return Ok(new { before, after, affectedTickets = tickets.Count, releasedHolds = reservations.Count(r => r.Kind == "Hold"), changeVersion = trip.ChangeVersion, cancellationUntil = departure,

@@ -23,15 +23,15 @@ public sealed record TripSegment(TripStop From, TripStop To, decimal Price, bool
 public sealed class TripSegmentService(TravelaDbContext db, TimeProvider clock, IOptions<TripOptions>? options = null)
 {
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
-    public bool IntermediateStopsEnabled => options?.Value.IntermediateStopsEnabled == true;
+    public bool IntermediateStopsEnabled => options?.Value.IntermediateStopsEnabled ?? true;
 
     public static void InitializeFullJourney(Trip trip, Travela.Api.Models.Route route)
     {
         trip.Stops = [
-            new() { Trip = trip, StopOrder = 1, City = route.DepartureCity, ArrivalTime = trip.DepartureTime,
+            new() { Trip = trip, StopOrder = 1, City = route.DepartureCity, CityId = TurkishCities.Id(route.DepartureCity), CanAlight = false, ArrivalTime = trip.DepartureTime,
                 DepartureTime = trip.DepartureTime, TerminalId = trip.DepartureTerminalId, TerminalName = trip.DepartureTerminalName,
                 TerminalAddress = trip.DepartureTerminalAddress, BoardingInstructions = trip.BoardingInstructions, DistanceFromStartKm = 0 },
-            new() { Trip = trip, StopOrder = 2, City = route.ArrivalCity, ArrivalTime = trip.ArrivalTime,
+            new() { Trip = trip, StopOrder = 2, City = route.ArrivalCity, CityId = TurkishCities.Id(route.ArrivalCity), CanBoard = false, ArrivalTime = trip.ArrivalTime,
                 DepartureTime = trip.ArrivalTime, TerminalId = trip.ArrivalTerminalId, TerminalName = trip.ArrivalTerminalName,
                 TerminalAddress = trip.ArrivalTerminalAddress, DistanceFromStartKm = route.DistanceKm }
         ];
@@ -49,13 +49,35 @@ public sealed class TripSegmentService(TravelaDbContext db, TimeProvider clock, 
         var first = from ?? 1; var last = to ?? stops.Count;
         if (first < 1 || last > stops.Count || first >= last) throw new PaymentFlowException("Durak çifti geçersiz.", 400);
         var full = first == 1 && last == stops.Count;
-        if (!full && !IntermediateStopsEnabled) throw new PaymentFlowException("Ara durak satışı henüz açık değil.", 400);
+        if (!stops[first - 1].CanBoard || !stops[last - 1].CanAlight) throw new PaymentFlowException("Seçilen duraklarda biniş veya iniş izni yok.", 400);
         var legCount = await db.TripLegs.CountAsync(l => l.TripId == trip.Id, ct);
         if (legCount != stops.Count - 1) throw new PaymentFlowException("Seferin bacak zinciri eksik.");
         if (full) return new(stops[first - 1], stops[last - 1], trip.Price, true);
         var fare = await db.TripSegmentFares.AsNoTracking().SingleOrDefaultAsync(f => f.TripId == trip.Id && f.FromStopOrder == first && f.ToStopOrder == last, ct);
-        if (fare == null) throw new PaymentFlowException("Bu segment için fiyat tanımlanmadı.");
+        if (fare == null || !fare.IsApproved) throw new PaymentFlowException("Bu yolculuk kesimi için onaylı fiyat tanımlanmadı.");
         return new(stops[first - 1], stops[last - 1], fare.Amount, fare.IsApproved);
+    }
+
+    public static bool SaleStatus(string status) => status.ToLowerInvariant() is "scheduled" or "planlandı" or "planlandi" or "inprogress" or "in progress" or "devam ediyor";
+
+    public async Task<bool> CanSell(Trip trip, TripSegment segment, CancellationToken ct = default)
+    {
+        var terminals = new[] { segment.From.TerminalId, segment.To.TerminalId }.Where(i => i.HasValue).Select(i => i!.Value).ToArray();
+        return segment.IsApproved && segment.From.CanBoard && segment.To.CanAlight && segment.From.DepartureTime > Now &&
+            SaleStatus(trip.Status) && trip.Company.IsActive && trip.Bus.IsActive && trip.Route.IsActive && trip.Bus.CompanyId == trip.CompanyId &&
+            !await db.Terminals.AnyAsync(t => terminals.Contains(t.Id) && !t.IsActive, ct);
+    }
+
+    public async Task<TicketJourney> Journey(Trip trip, Reservation reservation, CancellationToken ct = default)
+    {
+        if (reservation.TicketJourneyJson != null) return TicketJourney.Read(reservation.TicketJourneyJson);
+        var stops = await db.TripStops.AsNoTracking().Where(s => s.TripId == trip.Id).OrderBy(s => s.StopOrder).ToListAsync(ct);
+        var from = stops.Single(s => s.StopOrder == (reservation.BoardingStopOrder ?? 1));
+        var to = stops.Single(s => s.StopOrder == (reservation.AlightingStopOrder ?? stops.Count));
+        var journey = TicketJourney.Capture(trip, new(from, to, reservation.Price, true));
+        journey.DepartureTime = DateTime.SpecifyKind(reservation.BoardingDepartureSnapshot ?? from.DepartureTime, DateTimeKind.Utc);
+        journey.ArrivalTime = DateTime.SpecifyKind(reservation.AlightingArrivalSnapshot ?? to.ArrivalTime, DateTimeKind.Utc);
+        return journey;
     }
 
     public IQueryable<ReservationLeg> OccupiedLegs(int tripId, int from, int to) => db.ReservationLegs.AsNoTracking()
@@ -174,8 +196,9 @@ public sealed class TripSegmentService(TravelaDbContext db, TimeProvider clock, 
     public async Task ValidateStops(IReadOnlyList<TripStop> stops, CancellationToken ct = default)
     {
         if (stops.Count is < 2 or > 81 || !stops.Select(s => s.StopOrder).SequenceEqual(Enumerable.Range(1, stops.Count)) ||
-            stops.Any(s => TurkishCities.Normalize(s.City) != s.City) || stops.Select(s => s.City).Distinct().Count() != stops.Count)
-            throw new ArgumentException("Duraklar sıralı, tekrarsız ve Türkiye şehirlerinden seçilmiş olmalıdır.");
+            stops.Any(s => TurkishCities.Normalize(s.City) != s.City || s.CityId != TurkishCities.Id(s.City)) ||
+            stops.Where(s => s.TerminalId.HasValue).Select(s => s.TerminalId).Distinct().Count() != stops.Count)
+            throw new ArgumentException("Duraklar sıralı olmalı; her durak için geçerli şehir ve farklı terminal seçilmelidir.");
         foreach (var (stop, index) in stops.Select((s, i) => (s, i)))
         {
             if (stop.ArrivalTime > stop.DepartureTime || index > 0 && stops[index - 1].DepartureTime >= stop.ArrivalTime ||
@@ -215,6 +238,7 @@ public sealed class TripSegmentService(TravelaDbContext db, TimeProvider clock, 
         if (stops.Count != 2) throw new PaymentFlowException("Ara duraklı sefer bu eski düzenleme akışında değiştirilemez.");
         var first = stops[0]; var last = stops[1];
         first.City = trip.Route.DepartureCity; last.City = trip.Route.ArrivalCity;
+        first.CityId = TurkishCities.Id(first.City); last.CityId = TurkishCities.Id(last.City);
         first.ArrivalTime = first.DepartureTime = trip.DepartureTime;
         last.ArrivalTime = last.DepartureTime = trip.ArrivalTime;
         first.TerminalId = trip.DepartureTerminalId; last.TerminalId = trip.ArrivalTerminalId;

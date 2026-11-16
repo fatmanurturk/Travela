@@ -26,6 +26,8 @@ public sealed class SaveCampaignDto
 
 public sealed class CampaignQuoteDto
 {
+    public int? BoardingStopOrder { get; set; }
+    public int? AlightingStopOrder { get; set; }
     [Range(1, int.MaxValue)] public int TripId { get; set; }
     [Range(1, 10)] public int PassengerCount { get; set; }
     [MaxLength(32)] public string? CouponCode { get; set; }

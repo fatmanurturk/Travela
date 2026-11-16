@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { apiUrl } from "../api";
 import SiteHeader from "../components/SiteHeader";
 import SeatMap from "../components/SeatMap";
@@ -13,6 +13,10 @@ import { tripStatusLabel } from "../reservations";
 import PassengerCheckoutForm from "../components/PassengerCheckoutForm";
 
 type PublicTrip = Journey & {
+  boardingStopOrder?: number;
+  alightingStopOrder?: number;
+  mainDepartureCity?: string;
+  mainArrivalCity?: string;
   id: number;
   companyName: string;
   departureCity: string;
@@ -47,10 +51,14 @@ const dateTimeFormatter = new Intl.DateTimeFormat("tr-TR", {
 
 function PublicTripDetailsPage() {
   const { id } = useParams();
-  return <TripDetails key={id} id={id} />;
+  const [params] = useSearchParams();
+  const query = new URLSearchParams();
+  for (const field of ["boardingStopOrder", "alightingStopOrder"]) if (params.has(field)) query.set(field, params.get(field)!);
+  const segmentQuery = query.size ? `?${query}` : "";
+  return <TripDetails key={`${id}${segmentQuery}`} id={id} segmentQuery={segmentQuery} />;
 }
 
-function TripDetails({ id }: { id: string | undefined }) {
+function TripDetails({ id, segmentQuery }: { id: string | undefined; segmentQuery: string }) {
   const [trip, setTrip] = useState<PublicTrip | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -201,7 +209,7 @@ function TripDetails({ id }: { id: string | undefined }) {
     const controller = new AbortController();
     const loadTrip = async () => {
       try {
-        const response = await fetch(apiUrl(`/api/trips/public/${id}`), { signal: controller.signal });
+        const response = await fetch(apiUrl(`/api/trips/public/${id}${segmentQuery}`), { signal: controller.signal });
         if (!response.ok) {
           if (response.status === 404) throw new Error("Sefer bulunamadı.");
           throw new Error("Sefer bilgileri şu anda alınamıyor.");
@@ -219,7 +227,7 @@ function TripDetails({ id }: { id: string | undefined }) {
     };
     void loadTrip();
     return () => controller.abort();
-  }, [id, revision]);
+  }, [id, segmentQuery, revision]);
 
   return (
     <div className="travela-site">
@@ -274,7 +282,7 @@ function TripDetails({ id }: { id: string | undefined }) {
                 </> : <p>Devam etmek için boş bir koltuk seçiniz.</p>}
                 <p className="booking-notice">Biletiniz ödeme tamamlandığında oluşur. Koltuğunuz ödeme adımında 10 dakika ayrılır.</p>
                 <PassengerCheckoutForm
-                  tripId={trip.id} seats={selectedSeats} genders={genders} seatErrors={seatErrors}
+                  tripId={trip.id} boardingStopOrder={trip.boardingStopOrder} alightingStopOrder={trip.alightingStopOrder} seats={selectedSeats} genders={genders} seatErrors={seatErrors}
                   disabled={!trip.canReserve || saving} onBusy={setSaving} onError={setBookingError}
                   onConflict={() => setRevision(value => value + 1)} onRemove={removeSeat}
                 />

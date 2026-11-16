@@ -97,12 +97,12 @@ public class ReservationsController(TravelaDbContext db) : ControllerBase
         if (dateFrom.HasValue)
         {
             var start = new DateTimeOffset(dateFrom.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(3)).UtcDateTime;
-            query = query.Where(r => r.Trip.DepartureTime >= start);
+            query = query.Where(r => (r.BoardingDepartureSnapshot ?? r.Trip.DepartureTime) >= start);
         }
         if (dateTo.HasValue)
         {
             var end = new DateTimeOffset(dateTo.Value.ToDateTime(TimeOnly.MaxValue), TimeSpan.FromHours(3)).UtcDateTime;
-            query = query.Where(r => r.Trip.DepartureTime <= end);
+            query = query.Where(r => (r.BoardingDepartureSnapshot ?? r.Trip.DepartureTime) <= end);
         }
         if (!string.IsNullOrEmpty(status)) query = query.Where(r => r.Status == status);
         var totalCount = await query.CountAsync(cancellationToken);
