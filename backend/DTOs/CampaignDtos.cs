@@ -10,9 +10,19 @@ public sealed class SaveCampaignDto
     [MaxLength(1000)] public string Description { get; set; } = "";
     [MaxLength(32)] public string? Code { get; set; }
     [Required] public string DiscountType { get; set; } = "Percentage";
-    [Range(typeof(decimal), "0.01", "9999999")] public decimal Value { get; set; }
-    [Range(typeof(decimal), "0", "99999999")] public decimal MinimumSubtotal { get; set; }
-    [Range(typeof(decimal), "0.01", "99999999")] public decimal? MaximumDiscount { get; set; }
+[Range(typeof(decimal), "0.01", "9999999",
+    ParseLimitsInInvariantCulture = true)]
+public decimal Value { get; set; }
+
+[Range(typeof(decimal), "0", "99999999",
+    ParseLimitsInInvariantCulture = true)]
+public decimal MinimumSubtotal { get; set; }
+
+[Range(typeof(decimal), "0.01", "99999999",
+    ParseLimitsInInvariantCulture = true)]
+public decimal? MaximumDiscount { get; set; }
+
+
     [Range(1, 1000000)] public int? UsageLimit { get; set; }
     [Range(1, 1000000)] public int PerUserLimit { get; set; } = 1;
     public DateTimeOffset StartsAt { get; set; }

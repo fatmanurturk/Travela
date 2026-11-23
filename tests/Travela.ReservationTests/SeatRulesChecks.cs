@@ -17,6 +17,28 @@ internal static class SeatRulesChecks
         var count = 0;
         void Check(bool value, string message) { if (!value) throw new Exception(message); count++; Console.WriteLine("OK: " + message); }
         var now = DateTime.UtcNow; var plan = SeatPlans.Create("2+2", 12);
+        var coach = SeatPlans.Create("2+1", 41, [22, 39]);
+        int[][] coachRows = [
+            [3, 6, 9, 12, 15, 18, 21, 0, 25, 28, 31, 34, 37, 41],
+            [2, 5, 8, 11, 14, 17, 20, 0, 24, 27, 30, 33, 36, 40],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 39],
+            [1, 4, 7, 10, 13, 16, 19, 22, 23, 26, 29, 32, 35, 38]
+        ];
+        Check(coach.Count == 41 && coach.Select(s => s.Number).SequenceEqual(Enumerable.Range(1, 41)) &&
+            coachRows.SelectMany((numbers, c) => numbers.Select((n, r) => coach.SingleOrDefault(s => s.Row == r + 1 && s.Column == c + 1)?.Number == (n == 0 ? (int?)null : n))).All(v => v),
+            "41 koltuklu 2+1 plan tam numaralama, kapı boşluğu ve arka 39 konumunu korur");
+        Check(SeatPlans.ReadVerified(SeatPlans.Write(coach), "2+1", 41).SequenceEqual(coach) &&
+            coach.Where(s => s.IsBlocked).Select(s => s.Number).SequenceEqual([22, 39]), "41 koltuk API doğrulaması ve blokajları korunur");
+        var legacyCoach = coach.Select(s => s with { Row = (s.Number - 1) / 3 + 1, Column = (((s.Number - 1) % 3) switch { 0 => 1, 1 => 2, _ => 4 }) }).ToList();
+        var correctedCoach = SeatPlans.ReadVerified(SeatPlans.Write(legacyCoach), "2+1", 41);
+        Check(correctedCoach.SequenceEqual(coach) && SeatPlans.ReadVerified(SeatPlans.Write(legacyCoach), "Custom", 41).SequenceEqual(legacyCoach),
+            "Kayıtlı eski standart 41 koltuk planı düzeltilir; numaralar, blokajlar ve özel planlar korunur");
+        Check(SeatCompatibility.Validate(correctedCoach, [new(1, "Male")], [new(2, "Female", "Ticket", null)], now) == null &&
+            SeatCompatibility.Validate(correctedCoach, [new(3, "Male")], [new(2, "Female", "Ticket", null)], now) != null,
+            "Eski planla rezervasyon kontrolü de yeni fiziksel eşleri kullanır");
+        Check(SeatCompatibility.Adjacent(coach, coach.Single(s => s.Number == 20))?.Number == 21 &&
+            SeatCompatibility.Adjacent(coach, coach.Single(s => s.Number == 24))?.Number == 25 &&
+            new[] { 1, 22, 23, 38, 39 }.All(n => SeatCompatibility.Adjacent(coach, coach.Single(s => s.Number == n)) == null), "41 koltuk fiziksel eşleri ve bağımsız tekli/arka koltuklar");
         foreach (var gender in new[] { "Female", "Male" })
         {
             var other = gender == "Female" ? "Male" : "Female";

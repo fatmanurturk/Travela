@@ -43,8 +43,9 @@ try{
  await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Users (FullName, Email, PasswordHash, Role, IsActive, MustChangePassword, SecurityVersion, CreatedAt, PasswordResetTokenHash, PasswordResetTokenExpiresAt) VALUES (N'Eski Pasif Hesap', N'legacy-disabled@profile.example', N'old-hash', N'Passenger', 0, 1, 4, {legacyCreated}, {legacyResetHash}, {DateTime.UtcNow.AddDays(1)})");
  await db.Database.MigrateAsync();
  var legacy=await db.Users.AsNoTracking().SingleAsync(u=>u.Email=="legacy@profile.example");
- Check(legacy.PhoneNumber==null&&!legacy.TripRemindersEnabled&&!legacy.CancellationNotificationsEnabled&&!legacy.RefundNotificationsEnabled&&legacy.PasswordHash=="old-hash"&&legacy.CreatedAt==legacyCreated,"Ek alanlar mevcut kullanıcıyı ve geçmişini korur; bildirimler kapalı başlar");
+ Check(legacy.IdentityNumber==null&&legacy.PhoneNumber==null&&!legacy.TripRemindersEnabled&&!legacy.CancellationNotificationsEnabled&&!legacy.RefundNotificationsEnabled&&legacy.PasswordHash=="old-hash"&&legacy.CreatedAt==legacyCreated,"Ek alanlar mevcut kullanıcıyı ve geçmişini korur; kimlik boş, bildirimler kapalı başlar");
  var user=NewUser("owner");var other=NewUser("other");var admin=NewUser("admin","Admin");var limited=NewUser("limited");
+ other.IdentityNumber="12345678950";
  var company=new Company{Name="Yolculuk Firması"};var bus=new Bus{Company=company,PlateNumber="34 PRF 1",NormalizedPlateNumber="34PRF1",SeatCapacity=40};
  var route=new Travela.Api.Models.Route{DepartureCity="İstanbul",ArrivalCity="Ankara",EstimatedDurationMinutes=360};
  db.AddRange(user,other,admin,limited,company,bus,route);await db.SaveChangesAsync();
@@ -62,7 +63,7 @@ try{
  var listener=new TcpListener(IPAddress.Loopback,0);listener.Start();var port=((IPEndPoint)listener.LocalEndpoint).Port;listener.Stop();
  var config=new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
  var start=new ProcessStartInfo("dotnet"){WorkingDirectory=Path.Combine(root,"backend"),UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};
- start.ArgumentList.Add(Path.Combine(root,"backend","bin",config,"net10.0","Travela.API.dll"));
+ start.ArgumentList.Add(Environment.GetEnvironmentVariable("TRAVELA_TEST_API_DLL") ?? Path.Combine(root,"backend","bin",config,"net10.0","Travela.API.dll"));
  start.Environment["ASPNETCORE_URLS"]=$"http://127.0.0.1:{port}";start.Environment["ASPNETCORE_ENVIRONMENT"]="Testing";start.Environment["ConnectionStrings__DefaultConnection"]=cs.ConnectionString;
  start.Environment["Jwt__Key"]=Guid.NewGuid().ToString("N")+Guid.NewGuid().ToString("N");start.Environment["Jwt__Issuer"]="ProfileTests";start.Environment["Jwt__Audience"]="ProfileTests";start.Environment["Payments__RecoveryEnabled"]="false";start.Environment["Notifications__WorkerEnabled"]="false";start.Environment["Logging__LogLevel__Default"]="Warning";
  start.Environment["AccountEmail__Worker__IdleIntervalSeconds"]="2";
@@ -84,6 +85,34 @@ try{
  var initialResponse=await Send("GET","/api/profile?userId="+other.Id,token);var initial=await Json(initialResponse);
  Check(initial.GetProperty("id").GetInt32()==user.Id&&initial.GetProperty("phoneNumber").ValueKind==JsonValueKind.Null,"Profil sahibini istemci parametresi değiştiremez");
  Check(initialResponse.Headers.CacheControl?.NoStore==true&&initial.GetProperty("createdAt").GetString()!.EndsWith('Z'),"Kişisel veriler önbelleğe alınmaz; tarih UTC olarak iletilir");
+ Check(initial.GetProperty("identityNumber").ValueKind==JsonValueKind.Null,"Başka kullanıcı parametresi kimlik numarasını açığa çıkarmaz");
+ var identityUpdate=await Json(await Send("PUT","/api/profile?userId="+other.Id,token,new{fullName="Güncel Yolcu",identityNumber="10000000146",userId=other.Id}));
+ Check(identityUpdate.GetProperty("identityNumber").GetString()=="10000000146"&&
+  (await Json(await Send("GET","/api/profile",token))).GetProperty("identityNumber").GetString()=="10000000146","Kimlik numarası metin olarak kaydedilir ve kendi profilinden yeniden okunur");
+ var otherProfile=await Json(await Send("GET","/api/profile?userId="+user.Id,otherToken));
+ Check(otherProfile.GetProperty("identityNumber").GetString()=="12345678950"&&
+  await db.Users.AsNoTracking().AnyAsync(u=>u.Id==other.Id&&u.IdentityNumber=="12345678950"),"Başka kullanıcının kimlik numarası okunamaz veya güncellenemez");
+ await Json(await Send("PUT","/api/profile",token,new{fullName="Güncel Yolcu"}));
+ Check((await Json(await Send("GET","/api/profile",token))).GetProperty("identityNumber").GetString()=="10000000146","Alanı göndermeyen mevcut istemci kayıtlı kimlik numarasını silmez");
+ foreach(var invalid in new[]{"1000000014","100000001460","00000000000","10000000136","10000000147","11111111111","1000000014a","１０００００００１４６"," 10000000146"}){
+  var rejected=await Send("PUT","/api/profile",token,new{fullName="Güncel Yolcu",identityNumber=invalid});
+  var rejectedBody=await rejected.Content.ReadFromJsonAsync<JsonElement>();
+  Check(rejected.StatusCode==HttpStatusCode.BadRequest&&rejectedBody.GetProperty("errors").GetProperty("IdentityNumber")[0].GetString()!.Contains("T.C. kimlik"),"Kimlik biçimi ve iki kontrol basamağı sunucuda alan hatasıyla denetlenir");
+ }
+ Check((await Json(await Send("GET","/api/profile",token))).GetProperty("identityNumber").GetString()=="10000000146","Hatalı kimlik girişi önceki kaydı değiştirmez");
+ foreach(string? cleared in new string?[]{null,""}){
+  await Json(await Send("PUT","/api/profile",token,new{fullName="Güncel Yolcu",identityNumber="10000000146"}));
+  var removed=await Json(await Send("PUT","/api/profile",token,new{fullName="Güncel Yolcu",identityNumber=cleared}));
+  Check(removed.GetProperty("identityNumber").ValueKind==JsonValueKind.Null&&
+   (await Json(await Send("GET","/api/profile",token))).GetProperty("identityNumber").ValueKind==JsonValueKind.Null&&
+   await db.Users.AsNoTracking().AnyAsync(u=>u.Id==user.Id&&u.IdentityNumber==null),"Açıkça boş veya null gönderilen kimlik numarası hesaptan kaldırılır");
+ }
+ var adminUsers=await Json(await Send("GET","/api/admin/users",adminToken));
+ var adminDetail=await Json(await Send("GET","/api/admin/users/"+other.Id,adminToken));
+ var loginResponse=await Json(await Send("POST","/api/auth/login",null,new{email=other.Email,password="TestPass123!"}));
+ Check(!adminUsers.GetRawText().Contains("identityNumber",StringComparison.OrdinalIgnoreCase)&&
+  !adminDetail.GetRawText().Contains("identityNumber",StringComparison.OrdinalIgnoreCase)&&
+  !loginResponse.GetRawText().Contains("identityNumber",StringComparison.OrdinalIgnoreCase),"Kimlik numarası yönetici listesi, kullanıcı detayı ve oturum yanıtına eklenmez");
  var update=await Send("PUT","/api/profile",token,new{fullName="Güncel Yolcu",phoneNumber="0532 123 45 67",userId=other.Id});var updated=await Json(update);
  Check(updated.GetProperty("phoneNumber").GetString()=="+905321234567","Telefon numarası normalize edilerek saklanır");
  Check((await Send("GET","/api/profile",token)).IsSuccessStatusCode&&await db.Users.AsNoTracking().AnyAsync(u=>u.Id==other.Id&&u.PhoneNumber==null),"Profil kaydı oturumu açık tutar ve başka kullanıcıyı değiştirmez");

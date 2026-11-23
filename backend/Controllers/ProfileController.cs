@@ -16,7 +16,15 @@ public sealed class UpdateUserProfileDto
 {
     [Required, MaxLength(120)] public string FullName { get; set; } = "";
     [MaxLength(32)] public string? PhoneNumber { get; set; }
-    [Travela.Api.Validation.TurkishIdentityNumber] public string? IdentityNumber { get; set; }
+    private string? identityNumber;
+    [Travela.Api.Validation.TurkishIdentityNumber]
+    public string? IdentityNumber
+    {
+        get => identityNumber;
+        set { identityNumber = value; IdentityNumberProvided = true; }
+    }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IdentityNumberProvided { get; private set; }
 }
 public sealed class ChangePasswordDto
 {
@@ -62,11 +70,15 @@ public partial class ProfileController(TravelaDbContext db, SessionTokenService 
         if (name.Length == 0) return BadRequest(new { message = "Ad soyad boş olamaz." });
         if (!TryPhone(dto.PhoneNumber, out var phone)) return BadRequest(new { message = "Geçerli bir telefon numarası girin. Örnek: 05xx xxx xx xx veya +ülke kodu ve numara." });
         var user = await CurrentUser(ct); if (user == null) return Unauthorized();
+        // Older clients may omit the field; an explicit null/empty value removes it.
+        var identityNumber = dto.IdentityNumberProvided
+            ? string.IsNullOrEmpty(dto.IdentityNumber) ? null : dto.IdentityNumber
+            : user.IdentityNumber;
         var affected = await db.Users.ForSession(User, db).Where(u => u.Id == user.Id && u.SecurityVersion == user.SecurityVersion)
             .ExecuteUpdateAsync(update => update.SetProperty(u => u.FullName, name).SetProperty(u => u.PhoneNumber, phone)
-                .SetProperty(u => u.IdentityNumber, dto.IdentityNumber ?? user.IdentityNumber).SetProperty(u => u.UpdatedAt, clock.GetUtcNow().UtcDateTime), ct);
+                .SetProperty(u => u.IdentityNumber, identityNumber).SetProperty(u => u.UpdatedAt, clock.GetUtcNow().UtcDateTime), ct);
         if (affected != 1) return Unauthorized();
-        return Ok(new { message = "Kişisel bilgilerin güncellendi.", fullName = name, phoneNumber = phone });
+        return Ok(new { message = "Kişisel bilgilerin güncellendi.", fullName = name, phoneNumber = phone, identityNumber });
     }
 
     [HttpPut("notification-preferences")]

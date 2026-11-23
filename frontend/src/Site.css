@@ -9,11 +9,11 @@
   z-index: 20;
   top: 0;
   display: flex;
-  min-height: 76px;
+  min-height: 64px;
   align-items: center;
   justify-content: space-between;
-  gap: 28px;
-  padding: 14px max(5vw, calc((100vw - 1200px) / 2));
+  gap: 20px;
+  padding: 10px max(24px, calc((100vw - 1200px) / 2));
   background: rgba(255, 255, 255, 0.96);
   border-bottom: 1px solid #e8edf5;
   backdrop-filter: blur(12px);
@@ -59,16 +59,18 @@
 
 .site-button {
   display: inline-flex;
-  min-height: 42px;
+  min-height: var(--ui-control-height);
   align-items: center;
   justify-content: center;
-  padding: 0 17px;
+  padding: 8px 14px;
   border: 1px solid transparent;
   border-radius: 10px;
   font-size: 14px;
   font-weight: 700;
   text-decoration: none;
   transition: background-color 0.18s, border-color 0.18s, transform 0.18s;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .site-button:hover:not(:disabled) {
@@ -144,7 +146,7 @@
   font-size: clamp(36px, 5vw, 58px);
   font-weight: 850;
   letter-spacing: -0.055em;
-  line-height: 1.08;
+  line-height: 1.18;
 }
 
 .hero-copy h1 span {
@@ -161,8 +163,8 @@
 
 .search-panel {
   width: min(1120px, 100%);
-  margin: 38px auto 0;
-  padding: 26px;
+  margin: 24px auto 0;
+  padding: var(--ui-panel-space);
   border: 1px solid rgba(226, 232, 240, 0.85);
   border-radius: 20px;
   background: #fff;
@@ -174,7 +176,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 .search-panel-heading .eyebrow {
@@ -207,7 +209,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 17px;
+  margin-bottom: 12px;
 }
 
 .trip-type-options {
@@ -506,8 +508,8 @@
 
 .site-empty-state,
 .site-status {
-  padding: 27px;
-  border: 1px dashed #cbd8e9;
+  padding: var(--ui-panel-space);
+  border: 1px solid #e5ebf4;
   border-radius: 14px;
   background: #fff;
   color: #64748b;
@@ -650,14 +652,14 @@
 .results-page,
 .trip-detail-page {
   width: min(1160px, calc(100% - 48px));
-  min-height: calc(100vh - 190px);
+  min-height: 0;
   margin: 0 auto;
-  padding: 38px 0 70px;
+  padding: 24px 0 36px;
 }
 
 .back-home {
   display: inline-block;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   color: #52657f;
   font-size: 13px;
   font-weight: 700;
@@ -669,7 +671,7 @@
 }
 
 .results-intro {
-  margin-bottom: 22px;
+  margin-bottom: 16px;
 }
 
 .results-intro .eyebrow {
@@ -682,6 +684,7 @@
   color: #10233f;
   font-size: clamp(27px, 4vw, 38px);
   letter-spacing: -0.04em;
+  margin-bottom: 16px;
 }
 
 .results-intro p {
@@ -691,34 +694,35 @@
 }
 
 .change-search-panel {
-  margin-bottom: 24px;
-  padding: 0 20px 18px;
+  margin-bottom: 16px;
+  padding: 0 16px;
   border: 1px solid #e3eaf3;
   border-radius: 15px;
   background: #fff;
 }
 
 .change-search-panel summary {
-  padding: 17px 0;
+  padding: 12px 0;
   color: #1d4ed8;
   font-size: 14px;
   font-weight: 750;
   cursor: pointer;
+  min-height: 44px;
 }
 
 .results-layout {
   display: grid;
-  grid-template-columns: 245px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
   align-items: start;
-  gap: 22px;
+  gap: 16px;
 }
 
 .search-filters {
   position: sticky;
-  top: 94px;
+  top: 80px;
   display: grid;
-  gap: 18px;
-  padding: 19px;
+  gap: 14px;
+  padding: 16px;
   border: 1px solid #e5ebf4;
   border-radius: 14px;
   background: #fff;
@@ -745,7 +749,7 @@
   font-weight: 700;
 }
 
-.search-filters > label {
+.search-filter-fields > label {
   display: grid;
   gap: 8px;
 }
@@ -819,10 +823,10 @@
 
 .result-card {
   display: grid;
-  grid-template-columns: minmax(115px, 0.7fr) minmax(255px, 1.6fr) minmax(130px, 0.8fr) auto;
+  grid-template-columns: minmax(100px, .8fr) minmax(220px, 1.6fr) minmax(110px, .8fr) auto;
   align-items: center;
-  gap: 17px;
-  padding: 18px;
+  gap: 12px;
+  padding: 16px;
   border: 1px solid #e4eaf3;
   border-radius: 14px;
   background: #fff;
@@ -840,6 +844,8 @@
   gap: 9px;
   color: #334155;
   font-size: 13px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .company-mark {
@@ -857,7 +863,7 @@
 
 .result-timeline {
   display: grid;
-  grid-template-columns: 1fr minmax(80px, 1.2fr) 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(55px, .8fr) minmax(0, 1fr);
   align-items: center;
   gap: 10px;
 }
@@ -934,9 +940,9 @@
 }
 
 .result-card-actions .site-button {
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 10px;
-  font-size: 11px;
+  font-size: 13px;
   white-space: nowrap;
 }
 
@@ -959,10 +965,11 @@
 }
 
 .results-message {
-  padding: 20px;
+  padding: 16px;
   border-radius: 12px;
   background: #fff;
   color: #52657f;
+  overflow-wrap: anywhere;
 }
 
 .results-message.error {
@@ -1063,25 +1070,27 @@
 }
 
 .trip-detail-card {
-  padding: clamp(20px, 4vw, 38px);
+  padding: var(--ui-panel-space);
   border: 1px solid #e4eaf3;
-  border-radius: 18px;
+  border-radius: var(--ui-radius);
   background: #fff;
-  box-shadow: 0 12px 35px rgba(25, 45, 80, 0.05);
+  box-shadow: none;
 }
 
 .trip-detail-stops {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 20px;
-  padding-bottom: 23px;
+  gap: 16px;
+  padding-bottom: 12px;
   border-bottom: 1px solid #eef2f7;
 }
 
 .trip-detail-stops > div {
   display: grid;
-  gap: 8px;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .trip-detail-stops > div:last-child {
@@ -1113,8 +1122,8 @@
 .trip-detail-facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 20px;
-  padding: 18px 0;
+  gap: 8px 16px;
+  padding: 12px 0;
   color: #52657f;
   font-size: 13px;
 }
@@ -1122,9 +1131,10 @@
 .trip-detail-price {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  padding: 17px 0;
+  justify-content: flex-start;
+  padding: 8px 0 12px;
   border-top: 1px solid #eef2f7;
+  gap: 12px;
 }
 
 .trip-detail-price span {
@@ -1472,11 +1482,12 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) clamp(320px, 25vw, 380px);
   gap: clamp(16px, 1.5vw, 24px);
-  margin: 28px 0;
-  padding: clamp(18px, 1.5vw, 28px);
+  margin: var(--ui-section-gap) 0 0;
+  padding: var(--ui-panel-space);
   background: #fff;
   border: 1px solid #e1e8f2;
-  border-radius: 20px;
+  border-radius: var(--ui-radius);
+  align-items: start;
 }
 .seat-booking > * { min-width: 0; }
 @media (max-width: 1100px) {
@@ -1512,18 +1523,31 @@
 .seat:disabled { cursor: not-allowed; }
 .seat:disabled:not(.occupied) { opacity: .55; }
 .seat:focus-visible { outline: 3px solid #0f172a; outline-offset: 3px; }
-.booking-summary { padding: 22px; border-radius: 16px; background: #f5f7fb; align-self: start; }
-.reservation-list { display: grid; gap: 22px; }
-.reservation-card { padding: 24px; background: #fff; border: 1px solid #e1e8f2; border-radius: 18px; }
+.booking-summary {
+  padding: 16px;
+  border-radius: var(--ui-radius); background: #f5f7fb; align-self: start;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.reservation-list { display: grid;
+  gap: 16px; }
+.reservation-card {
+  padding: var(--ui-panel-space); background: #fff; border: 1px solid #e1e8f2;
+  border-radius: var(--ui-radius); }
 .reservation-card h2 { font-size: 22px; }
-.reservation-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.reservation-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+  margin-block: 14px;
+}
 .reservation-facts dt { color: #60718b; font-size: 14px; }
 .reservation-facts dd { margin: 5px 0 0; font-weight: 600; overflow-wrap: anywhere; }
 .reservation-number { font-family: monospace; }
 .reservation-state.active { color: #166534; }
 .test-payment-badge { background: #fff8dc; color: #78520a; padding: 14px; border: 1px solid #e3c471; border-radius: 10px; font-weight: 700; }
-.ticket-document-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 24px; }
-.ticket-document { width: min(100%, 740px); box-sizing: border-box; padding: clamp(20px, 5vw, 40px); margin: 0 auto; background: #fff; border: 1px solid #e1e8f2; border-radius: 20px; overflow-wrap: anywhere; }
+.ticket-document-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  margin-bottom: 16px; }
+.ticket-document { width: min(100%, 740px); box-sizing: border-box;
+  padding: var(--ui-panel-space); margin: 0 auto; background: #fff; border: 1px solid #e1e8f2; border-radius: 20px; overflow-wrap: anywhere; }
 .ticket-document h1 { font-size: 26px; margin-top: 8px; }
 .ticket-document h2 { font-size: clamp(22px, 4vw, 30px); }
 .ticket-document-brand { color: #1d4ed8; font-size: 30px; font-weight: 850; }
@@ -1558,7 +1582,9 @@
 .reservation-confirm::backdrop { background: #172b4d99; }
 .reservation-confirm { border: 0; color: #172b4d; background: #fff; border-radius: 18px; padding: 24px; width: min(480px, calc(100% - 32px)); box-sizing: border-box; max-height: 90vh; overflow-y: auto; }
 .reservation-confirm-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
-.company-reservation-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+.company-reservation-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px; }
 .company-reservation-filters label { display: grid; gap: 8px; font-weight: 600; }
 .company-reservation-filters input, .company-reservation-filters select { width: 100%; min-width: 0; padding: 12px; box-sizing: border-box; border: 1px solid #cbd8eb; border-radius: 10px; font: inherit; }
 .company-reservation-filters .company-form-actions { grid-column: 1 / -1; }
@@ -1578,13 +1604,18 @@
 /* Company reporting: keep wide tables inside their own scroll area. */
 .company-reporting { min-width: 0; }
 .report-scope > strong { display: block; padding: 10px; line-height: 1.5; overflow-wrap: anywhere; }
-.report-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 16px; }
+.report-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 12px; }
 .report-filters label { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .report-filters input, .report-filters select { width: 100%; min-width: 0; box-sizing: border-box; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; font: inherit; }
 .report-filters small { font-size: 12px; color: #52647a; }
 .report-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 18px 0; }
-.report-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr)); gap: 18px; margin: 20px 0; }
-.report-card-grid .company-stat-card { min-width: 0; overflow-wrap: anywhere; }
+.report-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr));
+  gap: 14px;
+  margin: 16px 0; }
+.report-card-grid .company-stat-card { min-width: 0; overflow-wrap: anywhere;
+  padding: 16px;
+}
 .report-card-grid h2 { font-size: 18px; margin: 10px 0; }
 .report-card-grid p, .report-card-grid small { font-size: 13px; line-height: 1.55; }
 .report-card-value { display: block; font-size: 26px; }
@@ -1624,8 +1655,86 @@
 .company-panel > h2, .report-chart > h2 { font-size: 21px; margin: 0 0 16px; }
 @media print { .identifier-copy, .test-environment-notice { display: none !important; } .ticket-document .ui-details-content { display: block !important; } }
 .passenger-checkout-form, .passenger-checkout-form fieldset { display: grid; gap: 12px; min-width: 0; }
-.passenger-checkout-form fieldset { margin: 0; padding: 14px; border: 1px solid #d8e1ef; border-radius: 10px; }
+.passenger-checkout-form fieldset { margin: 0;
+  padding: 12px 0;
+  border: 0;
+  border-radius: 0;
+  border-top: 1px solid #d8e1ef;
+}
 .passenger-checkout-form legend { max-width: 100%; padding: 0 4px; font-weight: 600; overflow-wrap: anywhere; }
 .passenger-checkout-form label { display: grid; gap: 6px; font-size: 14px; }
 .passenger-checkout-form input:not([type="checkbox"]) { width: 100%; min-width: 0; box-sizing: border-box; padding: 10px; border: 1px solid #ccd8e8; border-radius: 6px; font: inherit; }
+
+/* Shared content rhythm; controls and the bus plan retain their usable size. */
+.site-nav a { display: inline-flex; align-items: center; min-height: 44px; }
+.search-filter-fields { display: grid; gap: 14px; min-width: 0; }
+.filter-toggle { display: none; }
+.campaign-grid:empty { display: none; }
+.round-trip-total { flex-wrap: wrap; }
+.round-trip-total > div { flex: 1 1 180px; }
+.round-trip-total > strong { white-space: nowrap; }
+.result-card-info { min-width: 0; }
+.result-card-note { margin: 6px 0 0; color: #64748b; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.result-card-company strong, .result-timeline span { overflow-wrap: anywhere; }
+.site-header > *, .results-intro > *, .result-timeline > *, .trip-summary-actions > * { min-width: 0; }
+.change-search-panel:not([open]) { padding-bottom: 0; }
+.change-search-panel[open] { padding-bottom: 16px; }
+.trip-summary-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.seat-booking h2, .booking-summary h2 { margin: 0 0 12px; font-size: 22px; }
+.seat-booking > div > p { margin: 8px 0; line-height: 1.6; }
+.booking-summary > p { margin: 8px 0; line-height: 1.6; }
+.booking-summary > .site-button + .site-button { margin-left: 8px; }
+.booking-summary { container-type: inline-size; }
+.trip-detail-page > .booking-summary + .booking-summary { margin-top: 16px; }
+.journey-stops { margin-block: 16px; }
+.journey-stops h3 { margin: 0 0 10px; font-size: 17px; }
+.journey-stops .reservation-facts { margin: 0; }
+.journey-stops dd p { margin: 6px 0; font-size: 13px; font-weight: 400; line-height: 1.6; }
+.journey-note { margin: 12px 0; color: #60718b; font-size: 13px; line-height: 1.6; }
+.passenger-checkout-form > h3, .passenger-checkout-form p { margin: 0; }
+.passenger-checkout-form p, .passenger-checkout-form small { line-height: 1.6; }
+.passenger-checkout-form > p, .passenger-checkout-form fieldset > p { font-size: 13px; }
+.passenger-checkout-form .checkout-confirmation { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; }
+.checkout-confirmation input { flex: 0 0 18px; width: 18px; height: 18px; margin: 3px 0 0; padding: 0; }
+.group-ticket-passenger > h2 { margin: 0 0 6px; font-size: 20px; }
+.group-ticket-passenger > p { margin: 6px 0; font-size: 14px; line-height: 1.6; }
+.group-ticket-passenger .reservation-card { margin-top: 12px; }
+.checkout-layout { display: grid; gap: 16px; align-items: start; }
+.checkout-layout > *, .checkout-payment { min-width: 0; }
+.checkout-layout .reservation-card > h2 { margin: 0 0 8px; }
+.checkout-payment { display: grid; gap: 16px; }
+@media (min-width: 900px) {
+  .checkout-layout { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+  .checkout-layout > .journey-stops, .checkout-layout > .journey-note { grid-column: 1 / -1; }
+}
+@container (min-width: 480px) {
+  .passenger-checkout-form .checkout-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .checkout-fields > :not(label), .checkout-fields > .checkout-field-wide { grid-column: 1 / -1; }
+}
+@media (min-width: 900px) {
+  .trip-summary-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 28px; }
+  .trip-summary-card .trip-detail-stops { grid-column: 1; border-bottom: 0; padding: 0; }
+  .trip-summary-card .trip-detail-price { grid-column: 2; grid-row: 1; align-self: center; justify-content: flex-end; border-top: 0; padding: 0; }
+  .trip-summary-card .trip-detail-facts { grid-column: 1; grid-row: 2; align-items: center; padding: 0; }
+  .trip-summary-card .trip-summary-actions { grid-column: 2; grid-row: 2; justify-content: flex-end; max-width: 340px; }
+}
+@media (max-width: 760px) {
+  .site-header { gap: 8px 12px; padding: 8px 16px; }
+  .site-nav { gap: 8px 18px; padding: 0; }
+  .site-nav a, .site-button, .text-link-button, .result-detail-link, .filter-heading button, .pagination button { min-height: 44px; }
+  .result-detail-link { display: inline-flex; align-items: center; justify-content: center; }
+  .site-button { font-size: 13px; }
+  .results-page, .trip-detail-page { padding: 18px 0 28px; }
+  .site-actions { max-width: 100%; }
+  .site-user-name { max-width: 160px; font-size: 13px; }
+  .search-filters { gap: 12px; }
+  .search-filters { grid-template-columns: minmax(0, 1fr); }
+  .search-filters .filter-toggle { display: inline-flex; align-items: center; padding-inline: 8px; }
+  .search-filters[data-expanded="false"] .search-filter-fields { display: none; }
+  .filter-heading { gap: 8px; flex-wrap: wrap; }
+  .result-card-info { grid-column: 1 / -1; }
+  .search-filters input, .search-filters select { min-height: 44px; }
+  .trip-detail-stops { gap: 12px; }
+  .trip-summary-actions .site-button { flex: 1 1 140px; }
+}
 .group-ticket-passenger { min-width: 0; overflow-wrap: anywhere; }

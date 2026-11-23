@@ -66,6 +66,7 @@ function durationLabel(minutes: number) {
 }
 
 function SearchResultsPage() {
+  const [showFilters, setShowFilters] = useState(false);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const departureCity = searchParams.get("from") ?? "";
@@ -298,8 +299,8 @@ function SearchResultsPage() {
         ) : loading ? (
           <div className="site-empty-state" aria-live="polite">Seferler aranıyor...</div>
         ) : leg.totalCount === 0 ? (
-          <div className="site-empty-state">
-            <h3>{direction === "outbound" ? "Bu yönde uygun sefer bulunamadı." : "Dönüş yönünde uygun sefer bulunamadı."}</h3>
+          <div className="site-empty-state" role="status">
+            <h3>Seçtiğiniz güzergâh ve tarih için sefer bulunamadı.</h3>
             <p>Tarih veya arama kriterlerini değiştirerek tekrar deneyin.</p>
             {!allTrips && <p className="empty-route">{from} → {to}</p>}
             {direction === "outbound" && <a className="site-button primary" href="/#sefer-ara">Aramayı değiştir</a>}
@@ -315,13 +316,10 @@ function SearchResultsPage() {
                 const isSelected = selectedId === String(trip.id);
                 return (
                   <article className={`result-card${isSelected ? " selected" : ""}`} key={trip.id}>
-                    <div className="result-card-company"><span className="company-mark" aria-hidden="true">{trip.companyName.slice(0, 1)}</span><strong>{trip.companyName}</strong></div>
-                    {options.length > 1 && <label className="result-journey-choice">Biniş ve iniş noktaları<select aria-label={`Biniş ve iniş noktaları · Sefer ${trip.id}`} value={journeyQuery(trip)} onChange={event => {
-                      const choice = options.find(option => journeyQuery(option) === event.target.value)!;
-                      setJourneyChoices(current => ({ ...current, [`${direction}:${baseTrip.id}`]: choice }));
-                    }}>{options.map(option => <option key={journeyQuery(option)} value={journeyQuery(option)}>{option.departureTerminalName ?? option.departureCity} → {option.arrivalTerminalName ?? option.arrivalCity} · {timeFormatter.format(new Date(option.departureTime))} · {currencyFormatter.format(option.price)}</option>)}</select></label>}
-                    {trip.mainDepartureCity && (trip.departureCity !== trip.mainDepartureCity || trip.arrivalCity !== trip.mainArrivalCity) && <p>Ana sefer: {trip.mainDepartureCity} → {trip.mainArrivalCity}</p>}
-                    {(trip.departureTerminalName || trip.arrivalTerminalName) && <p>{trip.departureTerminalName ?? "Terminal belirtilmemiş"} → {trip.arrivalTerminalName ?? "Terminal belirtilmemiş"}</p>}
+                    <div className="result-card-info"><div className="result-card-company"><span className="company-mark" aria-hidden="true">{trip.companyName.slice(0, 1)}</span><strong>{trip.companyName}</strong></div>
+                    {trip.mainDepartureCity && (trip.departureCity !== trip.mainDepartureCity || trip.arrivalCity !== trip.mainArrivalCity) && <p className="result-card-note">Ana sefer: {trip.mainDepartureCity} → {trip.mainArrivalCity}</p>}
+                    {(trip.departureTerminalName || trip.arrivalTerminalName) && <p className="result-card-note">{trip.departureTerminalName ?? "Terminal belirtilmemiş"} → {trip.arrivalTerminalName ?? "Terminal belirtilmemiş"}</p>}
+                    </div>
                     <div className="result-timeline">
                       <div><strong>{timeFormatter.format(new Date(trip.departureTime))}</strong><span>{trip.departureCity}</span><small>{dateFormatter.format(new Date(trip.departureTime))}</small></div>
                       <div className="timeline-duration"><span>{durationLabel(trip.durationMinutes)}</span><i /><small>{crossesDay ? `${arrivalDays} gün sonra varış` : "Aynı gün varış"}</small></div>
@@ -345,6 +343,10 @@ function SearchResultsPage() {
                         {isSelected && tripType === "round-trip" ? "Seçildi" : direction === "outbound" && tripType === "round-trip" ? "Gidişi seç" : direction === "inbound" ? "Dönüşü seç" : "Seferi incele / koltuk seç"}
                       </button>
                     </div>
+                    {options.length > 1 && <label className="result-journey-choice">Biniş ve iniş noktaları<select aria-label={`Biniş ve iniş noktaları · Sefer ${trip.id}`} value={journeyQuery(trip)} onChange={event => {
+                      const choice = options.find(option => journeyQuery(option) === event.target.value)!;
+                      setJourneyChoices(current => ({ ...current, [`${direction}:${baseTrip.id}`]: choice }));
+                    }}>{options.map(option => <option key={journeyQuery(option)} value={journeyQuery(option)}>{option.departureTerminalName ?? option.departureCity} → {option.arrivalTerminalName ?? option.arrivalCity} · {timeFormatter.format(new Date(option.departureTime))} · {currencyFormatter.format(option.price)}</option>)}</select></label>}
                   </article>
                 );
               })}
@@ -395,8 +397,9 @@ function SearchResultsPage() {
         ) : (
           <>
             <div className="results-layout">
-              <aside className="search-filters">
-                <div className="filter-heading"><h2>Filtrele</h2><button type="button" onClick={clearFilters}>Temizle</button></div>
+              <aside className="search-filters" data-expanded={showFilters}>
+                <div className="filter-heading"><h2>Filtrele</h2><button type="button" className="filter-toggle" aria-expanded={showFilters} aria-controls="search-filter-fields" onClick={() => setShowFilters(value => !value)}>{showFilters ? "Filtreleri gizle" : "Filtreleri göster"}</button><button type="button" onClick={clearFilters}>Temizle</button></div>
+                <div className="search-filter-fields" id="search-filter-fields">
                 <label>Firma
                   <select value={companyId} onChange={(event) => updateQuery("companyId", event.target.value)}>
                     <option value="">Tüm firmalar</option>
@@ -422,6 +425,7 @@ function SearchResultsPage() {
                     <option value="duration">En kısa yolculuk</option>
                   </select>
                 </label>
+                </div>
               </aside>
 
               <div className="results-content">

@@ -58,6 +58,11 @@ public partial class TripsController
         var bus = await _context.Buses.SingleOrDefaultAsync(b => b.Id == dto.BusId && b.CompanyId == trip.CompanyId && b.IsActive, ct);
         if (bus == null || !trip.Company.IsActive || !trip.Route.IsActive) return BadRequest(new { message = "Aktif ve firmaya ait bir otobüs gereklidir." });
         if (await HasBusOverlapAsync(dto.BusId, departure, arrival, trip.Id)) return Conflict(new { message = "Yeni araç/saat başka bir seferle çakışıyor." });
+        var previousDeparture = trip.DepartureTime; var previousArrival = trip.ArrivalTime;
+        trip.DepartureTime = departure; trip.ArrivalTime = arrival;
+        var crewError = await PrepareCrew(trip, null, ct: ct);
+        trip.DepartureTime = previousDeparture; trip.ArrivalTime = previousArrival;
+        if (crewError != null) return crewError;
         var reservations = await _context.Reservations.Include(r => r.Payment).Where(r => r.TripId == id && r.Status == "Active").ToListAsync(ct);
         var stable = reservations.Where(r => r.Kind != "Hold").ToList();
         var tickets = stable.Where(r => r.Kind == "Ticket" && r.Payment?.PaymentStatus == "Paid").ToList();

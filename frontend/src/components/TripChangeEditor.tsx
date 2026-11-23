@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { apiUrl } from "../api";
 import { turkeyInput } from "../tripScheduling";
 import { journeyDate } from "../notifications";
+import { fetchWithCrewConflict } from "../crewRequests";
 
 type Journey = { departureTime: string; arrivalTime: string; busPlateNumber: string };
 type Change = { id: string; reason: string; actorId: number; createdAt: string; beforeJson: string; afterJson: string; affectedTickets: number; releasedHolds: number };
@@ -15,7 +16,7 @@ export default function TripChangeEditor({ trip, buses, saved }: { trip: { id: n
   const submit = async (isPreview: boolean) => {
     if (busy) return; setBusy(true); setError(""); setMessage("");
     try {
-      const response = await fetch(apiUrl(`/api/trips/${trip.id}/changes`), { method: "POST", headers: { Authorization: `Bearer ${sessionStorage.getItem("travela_token")}`, "Content-Type": "application/json" }, body: JSON.stringify({ requestKey: key, expectedVersion: version, expectedAffectedTickets: preview?.affectedTickets, preview: isPreview, busId: Number(form.busId), departureTime: new Date(form.departure + "+03:00").toISOString(), arrivalTime: new Date(form.arrival + "+03:00").toISOString(), reason: form.reason }) });
+      const response = await fetchWithCrewConflict(apiUrl(`/api/trips/${trip.id}/changes`), { method: "POST", headers: { Authorization: `Bearer ${sessionStorage.getItem("travela_token")}`, "Content-Type": "application/json" }, body: JSON.stringify({ requestKey: key, expectedVersion: version, expectedAffectedTickets: preview?.affectedTickets, preview: isPreview, busId: Number(form.busId), departureTime: new Date(form.departure + "+03:00").toISOString(), arrivalTime: new Date(form.arrival + "+03:00").toISOString(), reason: form.reason }) });
       const data = await response.json(); if (!response.ok) { setPreview(null); throw new Error(data.message ?? "Değişiklik kaydedilemedi."); }
       if (isPreview) setPreview(data); else { setMessage(data.message); setPreview(null); setHistory(current => [data.change, ...current]); setVersion(data.change.version); setKey(crypto.randomUUID()); saved(); }
     } catch (cause) { setError(cause instanceof Error ? cause.message : "İşlem tamamlanamadı."); } finally { setBusy(false); }

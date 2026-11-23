@@ -82,10 +82,6 @@ function Admin() {
         ))}
       </div>
 
-      <section className="dashboard-section">
-        <h2>Son İşlemler</h2>
-        <p>Son işlemler modülü henüz geliştirilmedi.</p>
-      </section>
     </div>
   );
 }

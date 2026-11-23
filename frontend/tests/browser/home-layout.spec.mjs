@@ -1,10 +1,12 @@
 import { test, expect } from "@playwright/test";
+import { cities } from "../helpers/cities.mjs";
 
 // Layout fixtures stay inside intercepted browser requests; the application DB is never written.
 const trip = { id: 42, companyName: "Test Turizm", departureCity: "Diyarbakır", arrivalCity: "İstanbul",
   departureTime: "2099-01-02T07:30:00Z", arrivalTime: "2099-01-02T21:30:00Z", durationMinutes: 840, price: 1250, availableSeats: 17 };
 const route = { routeId: 9, departureCity: "Diyarbakır", arrivalCity: "İstanbul", upcomingTripCount: 1, startingPrice: 1250 };
 async function setup(page, count) {
+  await page.route("**/api/routes/city-options", r => r.fulfill({ json: cities }));
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.route("**/api/routes/public", r => r.fulfill({ json: [route] }));
   await page.route("**/api/trips/upcoming?count=6", r => r.fulfill({ json: Array.from({ length: count }, (_, i) => ({ ...trip, id: trip.id + i })) }));

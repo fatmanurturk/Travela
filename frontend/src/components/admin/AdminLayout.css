@@ -20,11 +20,11 @@
 /* SIDEBAR */
 
 .admin-sidebar {
-  width: 260px;
+  width: 236px;
   flex-shrink: 0;
   background: linear-gradient(180deg, #152443, #101b33);
   color: #ffffff;
-  padding: 28px 16px 20px;
+  padding: 20px 12px 16px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -34,7 +34,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 12px 35px;
+  padding: 0 10px 20px;
 }
 
 .admin-brand-icon {
@@ -153,13 +153,16 @@
 }
 
 .admin-header {
-  height: 84px;
+  height: auto;
   background: #ffffff;
   border-bottom: 1px solid var(--admin-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 36px;
+  padding: 12px 24px;
+  min-height: 68px;
+  gap: 12px 20px;
+  flex-wrap: wrap;
 }
 
 .admin-header-eyebrow {
@@ -218,15 +221,16 @@
 /* MAIN */
 
 .admin-main {
-  padding: 34px 38px;
+  padding: var(--ui-page-space);
   max-width: 1800px;
   margin: 0 auto;
+  min-width: 0;
 }
 
 /* PAGE HEADINGS */
 
 .admin-main .dashboard-heading {
-  margin-bottom: 28px;
+  margin-bottom: 16px;
 }
 
 .admin-main .dashboard-heading h1 {
@@ -250,9 +254,9 @@
   background: #ffffff;
   border: 1px solid var(--admin-border);
   border-radius: 16px;
-  padding: 26px;
-  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.035);
-  margin-bottom: 22px;
+  padding: var(--ui-panel-space);
+  box-shadow: none;
+  margin-bottom: 16px;
 }
 
 .admin-main .dashboard-section h2 {
@@ -261,6 +265,7 @@
   color: #0f172a;
   letter-spacing: -0.4px;
   margin: 0 0 22px;
+  margin-bottom: 14px;
 }
 
 /* FORMS */
@@ -274,10 +279,11 @@
   background: #ffffff;
   border: 1px solid #dce3ed;
   border-radius: 10px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   outline: none;
   max-width: 100%;
   transition: border-color 0.2s, box-shadow 0.2s;
+  min-width: 0;
 }
 
 .admin-main input:focus,
@@ -300,7 +306,7 @@
 
 /* BUTTONS */
 
-.admin-main button {
+.admin-main button:where(:not(.physical-seat, .sort-button, .link-button)) {
   font-family: inherit;
   background: #2563eb;
   color: white;
@@ -313,11 +319,11 @@
   transition: background 0.2s, transform 0.2s;
 }
 
-.admin-main button:hover:not(:disabled) {
+.admin-main button:where(:not(.physical-seat, .sort-button, .link-button)):hover:not(:disabled) {
   background: #1d4ed8;
 }
 
-.admin-main button:disabled {
+.admin-main button:where(:not(.physical-seat, .sort-button, .link-button)):disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -338,13 +344,13 @@
   font-weight: 700;
   letter-spacing: 0.3px;
   text-transform: uppercase;
-  padding: 15px 16px;
+  padding: 10px 12px;
   text-align: left;
   border-bottom: 1px solid #e5eaf2;
 }
 
 .admin-main table td {
-  padding: 17px 16px;
+  padding: 10px 12px;
   color: #334155;
   border-bottom: 1px solid #edf1f6;
   vertical-align: middle;
@@ -365,17 +371,37 @@
 
 /* RESPONSIVE */
 
+.admin-main .secondary-button, .admin-main .pagination-row button {
+  background: #fff; color: #31517d; border: 1px solid #cbd8e8;
+}
+.admin-main .secondary-button:hover:not(:disabled), .admin-main .pagination-row button:hover:not(:disabled) { background: #eff6ff; }
+.admin-main .link-button, .admin-main .sort-button { background: transparent; color: #2563eb; border: 0; }
+.admin-main .danger-button { background: #dc2626; border-color: #dc2626; }
+.admin-header-actions { flex-wrap: wrap; gap: 10px; }
+.admin-main :is(.primary-button, .secondary-button, .pagination-row button), .admin-menu-link { min-height: 44px; }
+.admin-main :is(input:not([type="checkbox"]):not([type="radio"]), select) { min-height: 44px; }
+
+@media (max-width: 960px) {
+  .admin-layout { flex-direction: column; }
+  .admin-sidebar { width: 100%; min-height: 0; padding: 12px 16px; }
+  .admin-brand { padding: 0 0 10px; }
+  .admin-menu-label, .admin-sidebar-footer { display: none; }
+  .admin-menu { flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 4px; }
+  .admin-menu .admin-menu-link { flex: 0 0 auto; white-space: nowrap; padding: 10px 12px; }
+  .admin-header { padding: 12px 16px; }
+}
+
 @media (max-width: 900px) {
   .admin-sidebar {
-    width: 215px;
+    width: 100%;
   }
 
   .admin-header {
-    padding: 0 22px;
+    padding: 12px 16px;
   }
 
   .admin-main {
-    padding: 24px;
+    padding: 20px;
   }
 }
 
@@ -410,8 +436,8 @@
   }
 
   .admin-header {
-    height: 70px;
-    padding: 0 16px;
+    height: auto;
+    padding: 10px 16px;
   }
 
   .admin-header-role,
@@ -424,7 +450,7 @@
   }
 
   .admin-main .dashboard-section {
-    padding: 18px;
+    padding: 16px;
   }
 
   .admin-main .dashboard-heading h1 {

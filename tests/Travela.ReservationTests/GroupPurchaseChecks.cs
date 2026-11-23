@@ -75,6 +75,15 @@ internal static class GroupPurchaseChecks
         group = await Json(await Send("POST", $"/api/purchases/{id}/local-complete", token, new { outcome = "Succeeded" }));
         var tickets = group.GetProperty("tickets").EnumerateArray().ToList(); var pnr = tickets[0].GetProperty("pnr").GetString()!; var lineId = tickets[0].GetProperty("id").GetGuid();
         check(tickets.All(t => t.GetProperty("kind").GetString() == "Ticket") && tickets.Select(t => t.GetProperty("pnr").GetString()).Distinct().Count() == 2 && tickets[0].GetProperty("passengerName").GetString() == "Başka Yolcu" && tickets[1].GetProperty("passengerName").GetString() == "İkinci Yolcu", "Tek ödeme her yolcu için ayrı PNR ve başkası adına değişmeyen yolcu bilgisi üretir");
+        await Json(await Send("PUT", "/api/profile", token, new { fullName = "Güncellenmiş Hesap Sahibi", phoneNumber = "+905551112233", identityNumber = "12345678950" }));
+        var afterProfileUpdate = await Json(await Send("GET", $"/api/purchases/{id}", token));
+        var savedPassengers = await db.Reservations.AsNoTracking().Where(r => r.Payment!.PurchaseGroupId == id)
+            .OrderBy(r => r.SeatNumber).Select(r => new { r.PassengerNameSnapshot, r.PassengerIdentityNumberSnapshot }).ToListAsync();
+        check(savedPassengers.Select(r => r.PassengerNameSnapshot).SequenceEqual(new[] { "Başka Yolcu", "İkinci Yolcu" }) &&
+            savedPassengers.All(r => r.PassengerIdentityNumberSnapshot == "10000000146") &&
+            afterProfileUpdate.GetProperty("tickets")[0].GetProperty("passengerName").GetString() == "Başka Yolcu" &&
+            afterProfileUpdate.GetProperty("tickets")[0].GetProperty("passengerPhone").GetString() == "+905321234567",
+            "Sonraki profil değişikliği onaylanan bilet adı, kimlik ve ortak iletişim bilgilerini değiştirmez");
         check(await db.TravelNotifications.CountAsync(n => n.Reservation.Payment!.PurchaseGroupId == id && n.Type == "Purchase" &&
             ((n.Channel == "Email" && n.Recipient == "contact@group.example") || (n.Channel == "Sms" && n.Recipient == "+905321234567"))) == 4,
             "Her iki biletin e-posta ve SMS bildirimleri ortak iletişim bilgilerine yönlenir");

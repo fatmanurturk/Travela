@@ -60,6 +60,62 @@
 .sun-exposure { margin: 20px 0 8px; border: 1px solid #ecdba7; border-radius: 12px; background: #fffbef; padding: 14px; color: #6b551f; font-size: 13px; }
 .sun-exposure p { margin: 8px 0; font-size: 12px; line-height: 1.6; }
 .physical-seat-grid.layout-legacy { grid-template-columns: repeat(4, minmax(0, 48px)); grid-template-rows: auto; justify-content: center; }.layout-legacy .seat-front { grid-column: 1 / -1; grid-row: auto; }.layout-legacy .physical-seat { height: 48px; }
+/* The 41-seat coach keeps its geometry even inside a narrow booking panel. */
+.bus-scroll:has(.layout-coach41) { overflow-x: auto; max-width: 100%; }
+.physical-seat-grid.layout-coach41 {
+  --seat-size: 48px;
+  --seat-gap: 10px;
+  --front-size: 70px;
+  --tail-size: 10px;
+  --bus-padding: 16px;
+  width: max-content;
+  min-width: 0;
+  grid-template-columns: var(--front-size) repeat(14, var(--seat-size)) var(--tail-size);
+  grid-template-rows: var(--seat-size) var(--seat-size) 84px var(--seat-size);
+  border-radius: 48px 20px 20px 48px;
+}
+.layout-coach41 .seat-front { padding-bottom: 8px; }
+.layout-coach41 .driver-wheel { width: 36px; }
+.layout-coach41 .seat-corridor { font-size: 11px; }
+.layout-coach41 .physical-seat {
+  align-self: center;
+  height: var(--seat-size);
+  border-left-width: 1.5px;
+  border-right-width: 6px;
+  border-radius: 5px 9px 9px 5px;
+}
+.layout-coach41 .seat-number { font-size: 16px; }
+.layout-coach41 .physical-seat small { display: block; font-size: 8px; }
+.bus-door {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding-top: 10px;
+  border-inline: 2px solid #bdcbdc;
+  background: repeating-linear-gradient(to bottom, #eaf0f6 0 16px, #cbd5e1 17px 18px, #eaf0f6 19px 25px);
+  color: #526781;
+  font-size: 10px;
+  pointer-events: none;
+}
+.bus-door::before {
+  content: "";
+  position: absolute;
+  top: -25px;
+  left: -2px;
+  right: -2px;
+  height: 25px;
+  border-inline: 2px solid #9baec6;
+  background: #f6f9fc;
+}
+.bus-door span { padding: 3px 1px; background: #f6f9fc; white-space: nowrap; }
+.bus-door i { margin-top: auto; font-size: 20px; font-style: normal; }
+.bus-door-front { grid-column: 1; grid-row: 1 / 3; margin-inline: 8px; }
+.bus-door-middle { grid-column: 9; grid-row: 1 / 3; }
+.bus-door-middle::after { content: ""; position: absolute; bottom: -12px; left: 0; right: 0; height: 12px; background: #f6f9fc; }
 .seat-compatibility-error {
   color: #9f1239;
   font-size: 13px;

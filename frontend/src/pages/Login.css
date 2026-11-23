@@ -1,51 +1,60 @@
 /* Giriş sayfasının genel görünümü */
 .login-page {
-  min-height: 100vh;
+  min-height: 0;
   display: flex;
   justify-content: center;
-  align-items: center;
-  padding: 24px;
+  align-items: flex-start;
+  padding: clamp(20px, 4vw, 40px) 16px;
   background: linear-gradient(135deg, #eaf2ff, #f8fafc);
 }
 
 /* Giriş kartı */
 .login-card {
   width: 100%;
-  max-width: 420px;
-  padding: 40px;
+  max-width: 480px;
+  padding: 24px;
   background-color: white;
-  border-radius: 16px;
+  border-radius: var(--ui-radius);
   box-shadow: 0 12px 35px rgba(15, 23, 42, 0.1);
   text-align: center;
 }
 
 .login-card h1 {
   color: #2563eb;
-  font-size: 32px;
+  font-size: 28px;
   margin-bottom: 12px;
+  margin: 0 0 8px;
 }
 
 .login-card h2 {
   color: #0f172a;
   font-size: 23px;
   margin-bottom: 10px;
+  margin: 0 0 8px;
 }
 
 .login-card p {
   color: #64748b;
   font-size: 14px;
-  margin-bottom: 24px;
+  margin-block: 8px 16px;
+  line-height: 1.6;
 }
 
 /* Form alanları */
+@media (min-width: 600px) {
+  .register-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+  .register-form > :not(.form-group) { grid-column: 1 / -1; }
+}
+
 .login-card .form-group {
   text-align: left;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
+  gap: 6px;
 }
 
 .login-card label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 0;
   color: #334155;
   font-weight: 500;
 }
@@ -68,7 +77,7 @@
 /* Giriş butonu */
 .login-submit-btn {
   width: 100%;
-  padding: 14px;
+  padding: 11px 14px;
   background-color: #2563eb;
   color: white;
   border: none;
@@ -76,7 +85,8 @@
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+  min-height: 44px;
 }
 
 .login-submit-btn:hover {

@@ -94,6 +94,7 @@ test("Tek yolcuda eksik/geçersiz bilgiler gönderilmez; düzeltilen bilgilerle 
   await page.route(`**/api/purchases/${id}/local-complete`, r => r.fulfill({ json: { ...single, paymentStatus: "Paid", tickets: [{ ...ticket, kind: "Ticket", pnr: "A".repeat(32), paymentStatus: "Paid" }] } }));
   await page.goto("/trips/12");
   await chooseSeat(page, 2);
+  await page.getByRole("button", { name: "Başka yolcu için bilgileri temizle · Koltuk 2", exact: true }).click();
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
   await page.getByRole("checkbox", { name: /Mesafeli satış sözleşmesini ve ön bilgilendirme/ }).check();
   const submit = page.getByRole("button", { name: "Ödemeye geç", exact: true });

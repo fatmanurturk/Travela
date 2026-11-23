@@ -4,6 +4,8 @@ namespace Travela.Api.Routes;
 
 public static class TurkishCities
 {
+    // Province names: https://www.icisleri.gov.tr/valilikler (verified 2026-11-23).
+    // Shared by /api/routes/city-options and trip/stop searches; IDs are NOT license plate codes.
     // Stable catalog IDs. Keep the existing catalog order when adding new metadata.
     public static int? Id(string? name) { var city = Normalize(name); return city == null ? null : All.ToList().IndexOf(city) + 1; }
     public static string? Name(int? id) => id is >= 1 and <= 81 ? All[id.Value - 1] : null;

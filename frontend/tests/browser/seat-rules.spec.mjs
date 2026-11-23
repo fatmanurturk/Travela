@@ -2,12 +2,16 @@ import { test, expect } from "@playwright/test";
 import { buildSeats } from "../../src/seatPlans.ts";
 import { chooseSeat, releaseSeat } from "./helpers/seat-selection.mjs";
 
-async function setup(page, layout = "2+2", capacity = 40) {
+async function setup(page, layout = "2+2", capacity = 40, legacyCoach = false) {
   await page.addInitScript(() => { sessionStorage.setItem("travela_token", "seat-test"); sessionStorage.setItem("travela_user", JSON.stringify({ role: "Passenger", fullName: "Hesap Yolcusu" })); });
   await page.route("**/api/profile", r => r.fulfill({ json: { fullName: "Hesap Yolcusu", email: "account@example.test", phoneNumber: "+905321234567" } }));
   await page.route("**/api/purchases/options", r => r.fulfill({ json: { provider: "LocalTest", requiresBuyer: false } }));
   await page.route("**/api/campaigns/quote", r => { const count = r.request().postDataJSON().passengerCount; return r.fulfill({ json: { amount: 400 * count, originalAmount: 400 * count, discountAmount: 0 } }); });
   const seats = buildSeats(layout, capacity, [capacity]);
+  if (legacyCoach) seats.forEach(s => {
+    const index = (s.number - 1) % 3;
+    Object.assign(s, { row: Math.floor((s.number - 1) / 3) + 1, column: [1, 2, 4][index], isWindow: index !== 1, isAisle: index !== 0 });
+  });
   // A verified custom plan can number its physical positions in a different order.
   if (layout === "Custom") [seats[1].number, seats[capacity - 2].number] = [seats[capacity - 2].number, seats[1].number];
   const data = { id: 21, companyName: "Travela Test", departureCity: "İstanbul", arrivalCity: "Ankara", departureTime: "2099-06-21T06:00:00Z", arrivalTime: "2099-06-21T12:00:00Z", durationMinutes: 360, price: 400, availableSeats: capacity - 4, seatCapacity: capacity, seatLayout: layout, seats, occupiedSeats: [1, 5, 9], seatOccupancies: [{ seatNumber: 1, gender: "Female", kind: "Ticket", expiresAt: null }, { seatNumber: 5, gender: "Male", kind: "Ticket", expiresAt: null }, { seatNumber: 9, gender: "Female", kind: "Hold", expiresAt: "2099-06-21T05:00:00Z" }], canReserve: true, seatPlanAvailable: true, status: "Scheduled", sunExposure: { side: "Left", message: "Bu seferde güneşin çoğunlukla otobüsün sol tarafından gelmesi bekleniyor.", leftMinutes: 300, rightMinutes: 20, nightMinutes: 40 } };
@@ -15,6 +19,62 @@ async function setup(page, layout = "2+2", capacity = 40) {
   await page.goto("/trips/21");
   return data;
 }
+
+for (const width of [390, 1440]) for (const legacyCoach of [false, true]) test(`41-seat 2+1 reference coach: doors, rear seat and booking ${width}px legacy=${legacyCoach}`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
+  await setup(page, "2+1", 41, legacyCoach);
+  const map = page.locator(".layout-coach41");
+  await expect(map.locator("button")).toHaveCount(41);
+  const geometry = await map.evaluate(element => {
+    const buttons = [...element.querySelectorAll("button")];
+    const bounds = buttons.map(b => b.getBoundingClientRect());
+    const doors = [...element.querySelectorAll(".bus-door")];
+    const middle = element.querySelector(".bus-door-middle").getBoundingClientRect();
+    const seat = n => buttons.find(b => b.querySelector(".seat-number").textContent === String(n)).getBoundingClientRect();
+    const scroll = element.parentElement;
+    const overlap = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    return {
+      numbers: buttons.map(b => Number(b.querySelector(".seat-number").textContent)).sort((a, b) => a - b),
+      positions: buttons.map(b => ({ number: Number(b.querySelector(".seat-number").textContent), row: Number(b.style.gridColumn) - 1, column: Number(b.style.gridRow) })),
+      doorSeatOverlap: doors.some(d => bounds.some(b => overlap(d.getBoundingClientRect(), b))),
+      seatOverlap: bounds.some((a, i) => bounds.some((b, j) => i < j && overlap(a, b))),
+      doorBetweenGroups: seat(21).right < middle.left && middle.right < seat(25).left,
+      rear: seat(41).top < seat(40).top && seat(40).bottom < seat(39).top && seat(39).bottom < seat(38).top,
+      lowerSeats: seat(22).left === middle.left && seat(23).left === seat(25).left,
+      seatWidth: seat(1).width, canScroll: scroll.scrollWidth > scroll.clientWidth,
+      pageFits: document.documentElement.scrollWidth <= innerWidth + 1,
+    };
+  });
+  expect(geometry.numbers).toEqual(Array.from({ length: 41 }, (_, i) => i + 1));
+  expect(geometry.positions).toEqual(buildSeats("2+1", 41).map(({ number, row, column }) => ({ number, row, column })));
+  expect(geometry.doorSeatOverlap).toBe(false);
+  expect(geometry.seatOverlap).toBe(false);
+  expect(geometry.doorBetweenGroups).toBe(true);
+  expect(geometry.rear).toBe(true);
+  expect(geometry.lowerSeats).toBe(true);
+  expect(geometry.seatWidth).toBe(48);
+  expect(geometry.pageFits).toBe(true);
+  if (width === 390) expect(geometry.canScroll).toBe(true);
+  await expect(map.locator(".bus-door button, .bus-door input, .bus-door [tabindex]")).toHaveCount(0);
+  await map.locator(".bus-door").evaluateAll(doors => doors.forEach(door => door.click()));
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(map.locator(".physical-seat.selected")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Koltuk 41,/ })).toBeDisabled();
+  await page.getByRole("button", { name: /^Koltuk 6,/ }).click();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Kadın", exact: true })).toBeDisabled();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Erkek", exact: true })).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await page.screenshot({ path: `../tmp/ticket-qa/coach41-${width}-legacy-${legacyCoach}.png`, fullPage: true });
+  const quote = page.waitForRequest(request => request.url().includes("/api/campaigns/quote") && request.postDataJSON().passengerCount === 2);
+  await chooseSeat(page, 22, "Kadın");
+  await chooseSeat(page, 39, "Erkek");
+  await quote;
+  await expect(page.getByRole("button", { name: /^Koltuk 22,/ })).toHaveClass(/selected female/);
+  await expect(page.getByRole("button", { name: /^Koltuk 39,/ })).toHaveClass(/selected male/);
+  await expect(page.locator(".booking-summary")).toContainText("800");
+  await expect(page.getByLabel("Ad soyad · Koltuk 22")).toBeVisible();
+  await expect(page.getByLabel("Ad soyad · Koltuk 39")).toBeVisible();
+});
 for (const width of [390, 768, 1024, 1366, 1440, 1920]) for (const [layout, capacity] of [["2+1", 46], ["2+2", 54], ["Custom", 46]]) test(`${layout} ${capacity} koltuk duyarlı plan ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 1000 }); const data = await setup(page, layout, capacity);
   await expect(page.getByRole("button", { name: /^Koltuk 1,/ })).toBeDisabled();
@@ -264,8 +324,9 @@ test("10 koltuk sınırı korunur; sınırdayken mevcut cinsiyet düzenlenebilir
   await expect(edited).toHaveClass(/selected male/);
   await expect(page.locator(".physical-seat.selected")).toHaveCount(10);
   await page.getByRole("button", { name: "Koltuk planını yenile" }).click();
-  await expect(page.locator(".physical-seat.selected")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Koltuk planını yenile" })).toBeEnabled();
+  await expect(page.locator(".physical-seat.selected")).toHaveCount(10);
   await page.getByRole("button", { name: /^Koltuk 15,/ }).click();
   await expect(page.getByRole("dialog").getByRole("button", { name: "Erkek", exact: true }))
-    .toHaveAttribute("aria-pressed", "false");
+    .toHaveAttribute("aria-pressed", "true");
 });

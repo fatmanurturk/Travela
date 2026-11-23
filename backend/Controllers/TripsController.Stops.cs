@@ -40,6 +40,8 @@ public partial class TripsController
             if (departure <= DateTime.UtcNow || arrival <= departure) return BadRequest(new { message = "Seferin kalkış ve varış tarihlerini kontrol ediniz." });
             if (await HasBusOverlapAsync(trip.BusId, departure, arrival, id)) return Conflict(new { message = "Bu saatlerde otobüs başka bir sefere atanmış." });
             trip.DepartureTime = departure; trip.ArrivalTime = arrival;
+            var crewError = await PrepareCrew(trip, null, ct: ct);
+            if (crewError != null) return crewError;
             if (dto.FullPrice.HasValue) trip.Price = dto.FullPrice.Value;
             await TripJourneyManagement.SetJourney(_context, trip, dto.Stops, dto.Fares, ct);
             trip.ChangeVersion++; trip.UpdatedAt = DateTime.UtcNow;

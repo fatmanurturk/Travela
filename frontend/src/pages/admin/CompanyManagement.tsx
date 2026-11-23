@@ -272,7 +272,7 @@ function CompanyManagement() {
       </div>
 
       {/* Yeni firma butonu */}
-      <div style={{ marginBottom: 20 }}>
+      <div className="toolbar-row">
         <button
           type="button"
           onClick={handleNewCompany}
@@ -307,8 +307,7 @@ function CompanyManagement() {
       {/* Firma ekleme / düzenleme formu */}
       {showForm && (
         <section
-          className="dashboard-section"
-          style={{ marginBottom: 24 }}
+          className="dashboard-section form-section"
         >
           <h2>
             {editingCompany
@@ -316,7 +315,7 @@ function CompanyManagement() {
               : "Yeni Firma Oluştur"}
           </h2>
 
-          <form
+          <form className="compact-company-form"
             onSubmit={
               editingCompany
                 ? handleUpdateCompany
@@ -325,11 +324,10 @@ function CompanyManagement() {
           >
 
             {/* Firma adı */}
-            <div style={{ marginBottom: 12 }}>
+            <div className="company-form-field company-form-wide">
               <label htmlFor="company-name">
                 Firma Adı *
               </label>
-              <br />
               <input
                 id="company-name"
                 type="text"
@@ -344,11 +342,10 @@ function CompanyManagement() {
             </div>
 
             {/* E-posta */}
-            <div style={{ marginBottom: 12 }}>
+            <div className="company-form-field">
               <label htmlFor="company-email">
                 E-posta
               </label>
-              <br />
               <input
                 id="company-email"
                 type="email"
@@ -361,11 +358,10 @@ function CompanyManagement() {
             </div>
 
             {/* Telefon */}
-            <div style={{ marginBottom: 12 }}>
+            <div className="company-form-field">
               <label htmlFor="company-phone">
                 Telefon
               </label>
-              <br />
               <input
                 id="company-phone"
                 type="tel"
@@ -378,11 +374,10 @@ function CompanyManagement() {
             </div>
 
             {/* Adres */}
-            <div style={{ marginBottom: 16 }}>
+            <div className="company-form-field company-form-wide">
               <label htmlFor="company-address">
                 Adres
               </label>
-              <br />
               <textarea
                 id="company-address"
                 value={address}
@@ -396,7 +391,7 @@ function CompanyManagement() {
 
 {/* Firma durumu - yalnızca düzenleme sırasında */}
 {editingCompany && (
-  <div style={{ marginBottom: 16 }}>
+  <div className="company-form-field company-form-wide">
     <label htmlFor="company-status">
       Firma Durumu
     </label>
@@ -408,15 +403,6 @@ function CompanyManagement() {
         setIsActive(e.target.value === "active")
       }
       disabled={saving}
-      style={{
-        display: "block",
-        width: "100%",
-        padding: "12px",
-        marginTop: "6px",
-        borderRadius: "8px",
-        border: "1px solid #d1d5db",
-        boxSizing: "border-box",
-      }}
     >
       <option value="active">Aktif</option>
       <option value="passive">Pasif</option>
@@ -424,15 +410,9 @@ function CompanyManagement() {
   </div>
 )}
             {/* Form butonları */}
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                flexWrap: "wrap",
-              }}
-            >
+            <div className="detail-actions company-form-wide">
               <button
-                type="submit"
+                type="submit" className="primary-button"
                 disabled={saving}
               >
                 {saving
@@ -443,7 +423,7 @@ function CompanyManagement() {
               </button>
 
               <button
-                type="button"
+                type="button" className="secondary-button"
                 onClick={handleCloseForm}
                 disabled={saving}
               >
@@ -476,7 +456,7 @@ function CompanyManagement() {
           )}
 
         {!loading && companies.length > 0 && (
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-wrap">
             <table
               style={{
                 width: "100%",

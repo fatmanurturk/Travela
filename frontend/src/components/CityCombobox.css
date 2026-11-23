@@ -1,0 +1,24 @@
+.city-popup {
+  position: fixed;
+  z-index: 1000;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #172b4d;
+  box-shadow: 0 10px 26px rgb(15 23 42 / 16%);
+  text-align: left;
+}
+.city-option { padding: 12px; min-height: 44px; box-sizing: border-box; cursor: pointer; font-size: 14px; overflow-wrap: anywhere; }
+.city-option:hover, .city-option.active, .city-option:focus-visible { background: #eff6ff; color: #1d4ed8; outline: 2px solid #2563eb; outline-offset: -2px; }
+.city-option[aria-selected="true"] { font-weight: 750; }
+.city-suggestion-heading, .city-suggestion-empty { margin: 0; padding: 12px; font-size: 12px; color: #475569; overflow-wrap: anywhere; }
+.city-suggestion-heading { border-top: 1px solid #e2e8f0; font-weight: 700; }
+.city-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.trip-search-form button:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+@media (max-width: 760px) {
+  .trip-search-form .swap-cities-button { display: grid; grid-column: 1 / -1; justify-self: center; }
+  .trip-search-form .city-combobox { grid-column: 1 / -1; }
+}

@@ -39,4 +39,5 @@
   .ticket-compact-facts .ticket-compact-price { font-size: 16px; }
   .ticket-extra { flex-basis: 100%; }
   .ticket-compact-actions { width: 100%; justify-content: flex-start; }
+  .ticket-compact .ticket-compact-actions .site-button, .ticket-extra summary { min-height: 44px; }
 }

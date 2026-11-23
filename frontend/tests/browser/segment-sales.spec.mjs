@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { cities } from "../helpers/cities.mjs";
 import { buildSeats } from "../../src/seatPlans.ts";
 import { chooseSeat } from "./helpers/seat-selection.mjs";
 
@@ -6,6 +7,7 @@ const id = "12345678-1234-1234-1234-123456789012";
 const base = { id: 12, companyId: 1, companyName: "Kesim Firması", departureCity: "Ankara", arrivalCity: "İstanbul", mainDepartureCity: "Diyarbakır", mainArrivalCity: "İstanbul", departureTime: "2099-12-17T06:00:00Z", arrivalTime: "2099-12-17T12:00:00Z", departureTerminalName: "Ankara AŞTİ", arrivalTerminalName: "İstanbul Esenler", price: 200, availableSeats: 6, durationMinutes: 360, boardingStopOrder: 3, alightingStopOrder: 5 };
 const alternative = { ...base, boardingStopOrder: 4, departureTerminalName: "Ankara ikinci terminal", departureTime: "2099-12-17T07:00:00Z", price: 150, durationMinutes: 300 };
 async function setup(page, signedIn = true) {
+  await page.route("**/api/routes/city-options", r => r.fulfill({ json: cities }));
   if (signedIn) await page.addInitScript(() => { sessionStorage.setItem("travela_token","segment-ui"); sessionStorage.setItem("travela_user",JSON.stringify({ role:"Passenger", fullName:"Kesim Yolcusu" })); });
   await page.route("**/api/profile", r => r.fulfill({ json: { fullName:"Kesim Yolcusu", identityNumber:"10000000146", email:"shared@example.test", phoneNumber:"+905321234567" } }));
   await page.route("**/api/routes/public", r => r.fulfill({ json:[{ departureCity:"Ankara", arrivalCity:"İstanbul", departureCityId:7, arrivalCityId:42 }] }));
@@ -51,6 +53,7 @@ test("Girişe yönlendirmede gerçek durak seçimi saklanır", async ({ page }) 
 });
 
 test("Firma durak ve kesim fiyatlarını mobil sefer yönetiminden kaydeder", async ({ page }) => {
+  await page.route("**/api/trips/*/crew", r => r.fulfill({ json: { crew: [], changeVersion: 0 } }));
   await page.setViewportSize({ width:390,height:1000 });
   await page.addInitScript(() => { sessionStorage.setItem("travela_token","manager-segment"); sessionStorage.setItem("travela_user",JSON.stringify({ role:"Company",fullName:"Firma Test" })); });
   const trip = { id:21,companyId:1,companyName:"Test Firma",busId:2,busPlateNumber:"34 TEST",busCapacity:6,routeId:1,departureCity:"İstanbul",arrivalCity:"Ankara",departureTime:"2099-12-17T06:00:00Z",arrivalTime:"2099-12-17T18:00:00Z",price:500,availableSeats:6,status:"Scheduled",companyIsActive:true,busIsActive:true,createdAt:"2026-01-01T00:00:00Z",changeVersion:0 };

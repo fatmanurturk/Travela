@@ -12,6 +12,10 @@ import TripChangeEditor from "../../components/TripChangeEditor";
 import TripStopsEditor, { JourneyFields, serializeJourney } from "../../components/TripStopsEditor";
 import type { JourneyDraft } from "../../components/TripStopsEditor";
 import type { Journey } from "../../seatPlans";
+import TripCrewFields from "../../components/TripCrewFields";
+import type { CrewSelection } from "../../components/TripCrewFields";
+import TripCrewPanel from "../../components/TripCrewPanel";
+import { fetchWithCrewConflict } from "../../crewRequests";
 
 const API_URL = apiUrl("/api/trips");
 const BUSES_API_URL = apiUrl("/api/buses");
@@ -202,6 +206,7 @@ function TripManagement() {
   const [showTripForm, setShowTripForm] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const [tripForm, setTripForm] = useState<TripForm>(createEmptyTripForm);
+  const [crew, setCrew] = useState<CrewSelection | null>(null);
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("single");
   const [repeatUntil, setRepeatUntil] = useState("");
   const [repeatDays, setRepeatDays] = useState<number[]>([]);
@@ -379,6 +384,7 @@ function TripManagement() {
   };
 
   const createTrip = () => {
+    setCrew(null);
     setJourneyDraft(null);
     resetSchedule();
     setEditingTrip(null);
@@ -389,6 +395,7 @@ function TripManagement() {
   };
 
   const editTrip = (trip: Trip) => {
+    setCrew(null);
     setJourneyDraft(null);
     resetSchedule();
     setEditingTrip(trip);
@@ -407,6 +414,7 @@ function TripManagement() {
   };
 
   const copyTrip = (trip: Trip) => {
+    setCrew(null);
     setJourneyDraft(null);
     resetSchedule(); setEditingTrip(null); setCopiedFrom(trip.id);
     setTripForm({ companyId: String(trip.companyId), busId: String(trip.busId), routeId: String(trip.routeId), departureTime: "", arrivalTime: "", price: String(trip.price), departureTerminalId: String(trip.departureTerminalId ?? ""), arrivalTerminalId: String(trip.arrivalTerminalId ?? ""), boardingInstructions: trip.boardingInstructions ?? "" });
@@ -451,13 +459,14 @@ function TripManagement() {
         busId: Number(tripForm.busId), routeId: Number(tripForm.routeId), price: Number(tripForm.price), ...time
         , ...(journeyDraft ? serializeJourney(journeyDraft, new Date(time.departureTime).getTime() - new Date(`${tripForm.departureTime}+03:00`).getTime()) : {}),
         departureTerminalId: tripForm.departureTerminalId ? Number(tripForm.departureTerminalId) : null,
-        arrivalTerminalId: tripForm.arrivalTerminalId ? Number(tripForm.arrivalTerminalId) : null, boardingInstructions: tripForm.boardingInstructions.trim() || null
+        arrivalTerminalId: tripForm.arrivalTerminalId ? Number(tripForm.arrivalTerminalId) : null, boardingInstructions: tripForm.boardingInstructions.trim() || null,
+        ...(!isAdmin && crew ? { crew } : {})
       }));
       const batch = !editingTrip && scheduleMode !== "single";
-      const response = await request(editingTrip ? `${API_URL}/${editingTrip.id}` : batch ? `${API_URL}/batch` : API_URL, {
+      const response = await fetchWithCrewConflict(editingTrip ? `${API_URL}/${editingTrip.id}` : batch ? `${API_URL}/batch` : API_URL, {
         method: editingTrip ? "PUT" : "POST", headers: requestHeaders(true),
         body: JSON.stringify(batch ? { trips: payload } : payload[0])
-      });
+      }, request);
       if (!response.ok) throw new Error(await readError(response, "Sefer kaydedilemedi"));
       const data = (await response.json().catch(() => null)) as { message?: string } | null;
       resetTripForm();
@@ -704,6 +713,7 @@ function TripManagement() {
                 } catch (e) { setError((e as Error).message); }
               }}>Sefere özel durakları düzenle</button> : <><JourneyFields value={journeyDraft} onChange={setJourneyDraft} disabled={saving} fullPrice={Number(tripForm.price)} /><button type="button" className="secondary-button" onClick={() => setJourneyDraft(null)}>Güzergâh şablonunu kullan</button></>}
             </details>}
+            {!isAdmin && <TripCrewFields key={`crew:${editingTrip?.id ?? "new"}`} tripId={editingTrip?.id} value={crew} onChange={setCrew} disabled={saving} />}
             {!editingTrip && scheduleMode !== "single" && <section className="trip-repeat" aria-labelledby="trip-repeat-title">
               <h3 id="trip-repeat-title">Sefer takvimi</h3>
               <p>Kalkış ve varış alanları ilk seferin saatini ve yolculuk süresini belirler. Aynı otobüs, güzergâh, terminal ve fiyat seçilen tarihlere uygulanır. Bir işlemde en fazla 100 sefer kaydedilir.</p>
@@ -851,6 +861,7 @@ function TripManagement() {
               </div>
               <p className="trip-helper">Boş koltuk sayısı ödeme tutmaları ve satılmış biletlerle güncellenir. Eski ücretsiz kayıtlar korunur; ödenmiş bilet sayılmaz.</p>
               <JourneyStops journey={detail} />
+              {!isAdmin && <TripCrewPanel key={`crew:${detail.id}:${detail.updatedAt}`} tripId={detail.id} editable={["Scheduled", "InProgress"].includes(normalizeStatus(detail.status))} saved={() => { void openDetail(detail.id, true); void loadTrips(); }} />}
               <TripStopsEditor key={`stops:${detail.id}`} id={detail.id} fullPrice={detail.price} saved={() => { void openDetail(detail.id, true); void loadTrips(); }} />
               {normalizeStatus(detail.status) === "Scheduled" && <TripChangeEditor key={detail.id} trip={detail} buses={buses.filter(bus => bus.companyId === detail.companyId && bus.isActive)} saved={() => { void openDetail(detail.id, true); void loadTrips(); void loadSummary(); }} />}
               {normalizeStatus(detail.status) === "Scheduled" && <TripSeatEditor key={`${detail.id}:${detail.updatedAt}`} id={detail.id} saved={() => { void openDetail(detail.id, true); void loadTrips(); void loadSummary(); }} />}

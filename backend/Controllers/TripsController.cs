@@ -483,6 +483,8 @@ namespace Travela.Api.Controllers
 
             var journeyError = await PrepareJourney(trip, bus!, route!, dto);
             if (journeyError != null) return journeyError;
+            var crewError = await PrepareCrew(trip, dto.Crew);
+            if (crewError != null) return crewError;
             _context.Trips.Add(trip);
             try
             {
@@ -614,6 +616,9 @@ namespace Travela.Api.Controllers
             if (trip.AvailableSeats < existingPassengerCount) return Conflict(new { message = "Satışa açık kapasite mevcut kontenjanın altına düşemez." });
             trip.UpdatedAt = now;
             trip.ChangeVersion++;
+
+            var crewError = await PrepareCrew(trip, dto.Crew);
+            if (crewError != null) return crewError;
 
             try
             {

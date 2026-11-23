@@ -56,6 +56,9 @@ public partial class TripsController
                 };
                 var journeyError = await PrepareJourney(trip, bus, route!, item);
                 if (journeyError != null) return journeyError;
+                trip.Route = route!;
+                var crewError = await PrepareCrew(trip, item.Crew, planned, index, ct);
+                if (crewError != null) return crewError;
                 planned.Add(trip);
             }
             _context.Trips.AddRange(planned);

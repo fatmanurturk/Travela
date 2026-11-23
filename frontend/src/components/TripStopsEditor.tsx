@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiUrl } from "../api";
 import { turkeyInput } from "../tripScheduling";
+import { fetchWithCrewConflict } from "../crewRequests";
 import "./TripStopsEditor.css";
 
 export type StopDraft = { cityId: number; terminalId: number; arrivalTime: string; departureTime: string; canBoard: boolean; canAlight: boolean; distanceFromStartKm?: number | null };
@@ -59,7 +60,7 @@ export default function TripStopsEditor({ id, fullPrice, saved }: { id: number; 
     if (!draft || busy) return; setBusy(true); setError(""); setMessage("");
     try {
       if (!suggest && draft.stops.some(s => !s.terminalId || !s.arrivalTime || !s.departureTime)) throw Error("Durak şehir, terminal ve saatlerini tamamlayınız.");
-      const r = await fetch(apiUrl(`/api/trips/${id}/${suggest ? "fares/suggest" : locked ? "fares" : "stops"}`), { method: suggest ? "POST" : "PUT", headers: headers(), ...(!suggest ? { body: JSON.stringify({ ...serializeJourney({ ...draft, fares: draft.fares.filter(f => f.amount > 0) }), fullPrice: price, expectedVersion: version }) } : {}) });
+      const r = await fetchWithCrewConflict(apiUrl(`/api/trips/${id}/${suggest ? "fares/suggest" : locked ? "fares" : "stops"}`), { method: suggest ? "POST" : "PUT", headers: headers(), ...(!suggest ? { body: JSON.stringify({ ...serializeJourney({ ...draft, fares: draft.fares.filter(f => f.amount > 0) }), fullPrice: price, expectedVersion: version }) } : {}) });
       const data = await r.json(); if (!r.ok) throw Error(data.message ?? "Duraklar kaydedilemedi."); setMessage(data.message); setRevision(v => v + 1); saved();
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }

@@ -1545,6 +1545,44 @@ namespace Travela.API.Migrations
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
+            modelBuilder.Entity("Travela.Models.CompanyStaff", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Duty")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "IsActive", "Duty");
+
+                    b.ToTable("CompanyStaff", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CompanyStaff_Duty", "[Duty] IN ('Driver','Attendant')");
+                        });
+                });
+
             modelBuilder.Entity("Travela.Models.Permission", b =>
                 {
                     b.Property<int>("Id")
@@ -1609,6 +1647,32 @@ namespace Travela.API.Migrations
                         .IsUnique();
 
                     b.ToTable("RolePermissions");
+                });
+
+            modelBuilder.Entity("Travela.Models.TripCrew", b =>
+                {
+                    b.Property<int>("TripId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StaffId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Duty")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.HasKey("TripId", "StaffId");
+
+                    b.HasIndex("StaffId", "CompanyId");
+
+                    b.ToTable("TripCrews", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TripCrews_Duty", "[Duty] IN ('Driver','Attendant')");
+                        });
                 });
 
             modelBuilder.Entity("Travela.Models.User", b =>
@@ -2056,6 +2120,15 @@ namespace Travela.API.Migrations
                     b.Navigation("Trip");
                 });
 
+            modelBuilder.Entity("Travela.Models.CompanyStaff", b =>
+                {
+                    b.HasOne("Travela.Api.Models.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Travela.Models.RolePermission", b =>
                 {
                     b.HasOne("Travela.Models.Permission", "Permission")
@@ -2073,6 +2146,26 @@ namespace Travela.API.Migrations
                     b.Navigation("Permission");
 
                     b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("Travela.Models.TripCrew", b =>
+                {
+                    b.HasOne("Travela.Api.Models.Trip", "Trip")
+                        .WithMany()
+                        .HasForeignKey("TripId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Travela.Models.CompanyStaff", "Staff")
+                        .WithMany()
+                        .HasForeignKey("StaffId", "CompanyId")
+                        .HasPrincipalKey("Id", "CompanyId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Staff");
+
+                    b.Navigation("Trip");
                 });
 
             modelBuilder.Entity("Travela.Models.User", b =>

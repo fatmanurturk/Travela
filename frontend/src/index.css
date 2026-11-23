@@ -1,4 +1,10 @@
 :root {
+  --ui-page-space: clamp(16px, 2vw, 28px);
+  --ui-panel-space: clamp(16px, 1.5vw, 20px);
+  --ui-section-gap: 20px;
+  --ui-field-gap: 12px;
+  --ui-control-height: 44px;
+  --ui-radius: 12px;
   font-family: Inter, "Segoe UI", Arial, sans-serif;
   color: #172b4d;
   background: #f5f7fb;
@@ -18,7 +24,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 

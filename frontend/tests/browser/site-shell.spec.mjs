@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { cities } from "../helpers/cities.mjs";
 
 const footerLinks = [
   ["Hakkımızda", "/hakkimizda"],
@@ -13,6 +14,7 @@ const footerLinks = [
 async function mockPublicApi(page) {
   await page.route("**/api/**", route => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/routes/city-options") return route.fulfill({ json: cities });
     const arrays = [
       "/api/routes/public",
       "/api/trips/upcoming",

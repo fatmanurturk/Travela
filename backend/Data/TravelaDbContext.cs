@@ -40,6 +40,7 @@ namespace Travela.Data
 {
     base.OnModelCreating(modelBuilder);
     ConfigureSegments(modelBuilder);
+    ConfigureStaff(modelBuilder);
     modelBuilder.Entity<LegalAcceptance>(entity =>
     {
         entity.Property(a => a.DocumentType).HasMaxLength(40);

@@ -3,10 +3,11 @@ import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiUrl } from "../api";
 import SiteHeader from "../components/SiteHeader";
+import { isValidIdentityNumber } from "../identityNumber";
 import "./Profile.css";
 
 type Preferences = { tripReminders: boolean; cancellations: boolean; refundUpdates: boolean; email: boolean; sms: boolean };
-type UserProfile = { id: number; fullName: string; email: string; phoneNumber: string | null; role: string; createdAt: string; lastLoginAt: string | null; notificationPreferences: Preferences };
+type UserProfile = { id: number; fullName: string; email: string; phoneNumber: string | null; identityNumber: string | null; role: string; createdAt: string; lastLoginAt: string | null; notificationPreferences: Preferences };
 type TravelSummary = {
   upcomingCount: number;
   upcomingTrip: { tripId: number; pnr: string; companyName: string; departureCity: string; arrivalCity: string; departureTime: string; arrivalTime: string; seatNumber: number; amount: number; currency: string } | null;
@@ -33,6 +34,11 @@ export default function Profile() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true); const [loadError, setLoadError] = useState(""); const [revision, setRevision] = useState(0);
   const [fullName, setFullName] = useState(""); const [phone, setPhone] = useState("");
+  const [identityNumber, setIdentityNumber] = useState("");
+  const [identityServerError, setIdentityServerError] = useState("");
+  const identityError = identityNumber && !isValidIdentityNumber(identityNumber)
+    ? "T.C. kimlik numarası 11 rakam olmalı, sıfırla başlamamalı ve kontrol basamakları geçerli olmalıdır."
+    : identityServerError;
   const [preferences, setPreferences] = useState<Preferences>(emptyPreferences);
   const [pending, setPending] = useState<"profile" | "preferences" | "password" | "sessions" | null>(null);
   const [personalMessage, setPersonalMessage] = useState(""); const [personalError, setPersonalError] = useState("");
@@ -48,14 +54,14 @@ export default function Profile() {
     const response = await fetch(apiUrl(path), { ...options, cache: "no-store", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
     const data = await response.json().catch(() => null);
     if (response.status === 401) { expire(); throw new Error("Oturumun sona erdi. Lütfen yeniden giriş yap."); }
-    if (!response.ok) throw new Error(data?.message ?? (response.status === 400 ? "Bilgileri kontrol edip yeniden dene." : "İşlem tamamlanamadı. Lütfen tekrar dene."));
+    if (!response.ok) throw Object.assign(new Error(data?.message ?? (response.status === 400 ? "Bilgileri kontrol edip yeniden dene." : "İşlem tamamlanamadı. Lütfen tekrar dene.")), { fieldErrors: data?.errors });
     return data as T;
   }, [expire]);
 
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setLoadError("");
     request<UserProfile>("/api/profile", { signal: controller.signal }).then(data => {
-      if (!controller.signal.aborted) { data.notificationPreferences = { ...emptyPreferences, ...data.notificationPreferences }; setProfile(data); setFullName(data.fullName); setPhone(data.phoneNumber ?? ""); setPreferences(data.notificationPreferences); }
+      if (!controller.signal.aborted) { data.notificationPreferences = { ...emptyPreferences, ...data.notificationPreferences }; setProfile(data); setFullName(data.fullName); setPhone(data.phoneNumber ?? ""); setIdentityNumber(data.identityNumber ?? ""); setIdentityServerError(""); setPreferences(data.notificationPreferences); }
     }).catch(error => { if (!controller.signal.aborted) setLoadError(error instanceof TypeError ? "Sunucuya bağlanılamadı." : error.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [request, revision]);
@@ -75,19 +81,29 @@ export default function Profile() {
   }, []);
 
   const busy = pending !== null;
-  const changed = profile && (fullName.trim() !== profile.fullName || phone.trim() !== (profile.phoneNumber ?? ""));
+  useEffect(() => {
+    if (identityServerError && !busy) document.getElementById("profile-identity")?.focus();
+  }, [identityServerError, busy]);
+  const changed = profile && (fullName.trim() !== profile.fullName || phone.trim() !== (profile.phoneNumber ?? "") || identityNumber !== (profile.identityNumber ?? ""));
   const preferencesChanged = profile && preferenceFields.some(({ key }) => preferences[key] !== profile.notificationPreferences[key]);
   const passwordChecks = [newPassword.length >= 8 && newPassword.length <= 128, Boolean(newPassword && newPassword !== currentPassword), Boolean(confirmPassword && newPassword === confirmPassword)];
   const applySession = (token: string) => { if (!token) { expire(); throw new Error("Lütfen yeniden giriş yap."); } sessionStorage.setItem("travela_token", token); };
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy || !changed || !profile) return;
+    if (identityNumber && !isValidIdentityNumber(identityNumber)) { document.getElementById("profile-identity")?.focus(); return; }
     setPending("profile"); setPersonalError(""); setPersonalMessage("");
+    setIdentityServerError("");
     try {
-      const data = await request<{ fullName: string; phoneNumber: string | null; message: string }>("/api/profile", { method: "PUT", body: JSON.stringify({ fullName: fullName.trim(), phoneNumber: phone.trim() || null }) });
-      setProfile({ ...profile, fullName: data.fullName, phoneNumber: data.phoneNumber }); setFullName(data.fullName); setPhone(data.phoneNumber ?? "");
+      const data = await request<{ fullName: string; phoneNumber: string | null; identityNumber: string | null; message: string }>("/api/profile", { method: "PUT", body: JSON.stringify({ fullName: fullName.trim(), phoneNumber: phone.trim() || null, identityNumber: identityNumber || null }) });
+      setProfile({ ...profile, fullName: data.fullName, phoneNumber: data.phoneNumber, identityNumber: data.identityNumber }); setFullName(data.fullName); setPhone(data.phoneNumber ?? ""); setIdentityNumber(data.identityNumber ?? "");
       const stored = JSON.parse(sessionStorage.getItem("travela_user") ?? "{}"); sessionStorage.setItem("travela_user", JSON.stringify({ ...stored, fullName: data.fullName })); setPersonalMessage(data.message);
-    } catch (error) { setPersonalError(error instanceof Error ? error.message : "Bilgiler kaydedilemedi."); }
+    } catch (error) {
+      const fields = error instanceof Error && "fieldErrors" in error ? error.fieldErrors as Record<string, string[]> | undefined : undefined;
+      const identityMessage = fields?.IdentityNumber?.[0] ?? fields?.identityNumber?.[0];
+      if (identityMessage) setIdentityServerError(identityMessage);
+      else setPersonalError(error instanceof Error ? error.message : "Bilgiler kaydedilemedi.");
+    }
     finally { setPending(null); }
   }
   async function savePreferences(event: FormEvent<HTMLFormElement>) {
@@ -126,7 +142,20 @@ export default function Profile() {
       <aside className="account-sidebar"><div className="account-avatar" aria-hidden="true">{profile.fullName.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toLocaleUpperCase("tr-TR")}</div><h2>{profile.fullName}</h2><p>{profile.email}</p><span className="account-member">Üyelik: {dates.format(new Date(profile.createdAt))}</span><nav aria-label="Profil bölümleri"><a href="#kisisel-bilgiler">Kişisel bilgiler</a><a href="#yaklasan-yolculuk">Yaklaşan yolculuk</a><a href="#bildirim-tercihleri">Bildirim tercihleri</a><a href="#hesap-guvenligi">Hesap güvenliği</a></nav></aside>
       <div className="account-content">
         <section className="account-card" id="kisisel-bilgiler" aria-labelledby="personal-title"><span className="account-kicker">Sana ait bilgiler</span><h2 id="personal-title">Kişisel bilgiler</h2><p>Adını ve iletişim numaranı buradan güncelleyebilirsin.</p>
-          <form onSubmit={saveProfile}><div className="account-form-grid"><div className="account-field"><label htmlFor="profile-name">Ad soyad</label><input id="profile-name" autoComplete="name" value={fullName} onChange={e => setFullName(e.target.value)} required maxLength={120} disabled={busy} /></div><div className="account-field"><label htmlFor="profile-phone">Telefon numarası <span>(isteğe bağlı)</span></label><input id="profile-phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="05xx xxx xx xx" maxLength={32} value={phone} onChange={e => setPhone(e.target.value)} disabled={busy} /><small>Türkiye numarası veya +ülke koduyla bir numara girebilirsin.</small></div><div className="account-field account-full"><label htmlFor="profile-email">E-posta</label><input id="profile-email" type="email" value={profile.email} readOnly /><small>E-posta adresi bu ekrandan değiştirilemez.</small></div></div>
+          <form onSubmit={saveProfile}><div className="account-form-grid">
+            <div className="account-field"><label htmlFor="profile-name">Ad soyad</label><input id="profile-name" autoComplete="name" value={fullName} onChange={e => setFullName(e.target.value)} required maxLength={120} disabled={busy} /></div>
+            <div className="account-field"><label htmlFor="profile-phone">Telefon numarası <span>(isteğe bağlı)</span></label><input id="profile-phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="05xx xxx xx xx" maxLength={32} value={phone} onChange={e => setPhone(e.target.value)} disabled={busy} /><small>Türkiye numarası veya +ülke koduyla bir numara girebilirsin.</small></div>
+            <div className="account-field account-full">
+              <label htmlFor="profile-identity">T.C. Kimlik No <span>(isteğe bağlı)</span></label>
+              <input id="profile-identity" type="text" inputMode="numeric" maxLength={11} autoComplete="off"
+                value={identityNumber} disabled={busy} aria-invalid={Boolean(identityError)}
+                aria-describedby={`profile-identity-help${identityError ? " profile-identity-error" : ""}`}
+                onChange={event => { setIdentityNumber(event.target.value); setIdentityServerError(""); setPersonalMessage(""); }} />
+              <small id="profile-identity-help">Bilet alırken yolcu bilgilerini otomatik doldurmak için kullanılır.</small>
+              {identityError && <small id="profile-identity-error" className="account-field-error" role="alert">{identityError}</small>}
+            </div>
+            <div className="account-field account-full"><label htmlFor="profile-email">E-posta</label><input id="profile-email" type="email" value={profile.email} readOnly /><small>E-posta adresi bu ekrandan değiştirilemez.</small></div>
+          </div>
             {personalError && <p role="alert" className="account-error">{personalError}</p>}{personalMessage && <p role="status" className="account-success">{personalMessage}</p>}<div className="account-actions"><button type="submit" className="site-button primary" disabled={busy || !changed || !fullName.trim()}>{pending === "profile" ? "Kaydediliyor..." : "Bilgileri kaydet"}</button></div>
           </form>
         </section>

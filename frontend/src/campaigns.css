@@ -1,12 +1,21 @@
-.campaign-hero { padding: clamp(24px, 5vw, 56px); margin-bottom: 30px; background: linear-gradient(125deg, #ecfdf5, #eff6ff); border: 1px solid #d7e8e3; border-radius: 24px; }
-.campaign-hero h1 { max-width: 620px; margin: 12px 0; font-size: clamp(32px, 5vw, 52px); line-height: 1.12; color: #123d35; }
+.campaign-hero {
+  padding: var(--ui-panel-space);
+  margin-bottom: 20px; background: linear-gradient(125deg, #ecfdf5, #eff6ff); border: 1px solid #d7e8e3;
+  border-radius: var(--ui-radius); }
+.campaign-hero h1 { max-width: 620px; margin: 12px 0;
+  font-size: clamp(28px, 4vw, 38px); line-height: 1.12; color: #123d35; }
 .campaign-hero p { max-width: 600px; color: #48645e; line-height: 1.7; }
 .campaign-toolbar, .campaign-card-top, .coupon-input-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.campaign-toolbar { margin: 24px 0; }
+.campaign-toolbar {
+  margin: 16px 0; }
 .campaign-toolbar label { display: flex; gap: 10px; align-items: center; }
 .campaign-toolbar input, .campaign-toolbar select, .campaign-form input, .campaign-form select, .campaign-form textarea, .coupon-input-row input { padding: 11px 13px; border: 1px solid #cbd5e1; border-radius: 10px; background: white; color: #172b4d; font: inherit; min-width: 0; max-width: 100%; }
-.campaign-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr)); gap: 22px; margin: 20px 0 28px; }
-.campaign-card { border: 1px solid #dce6ec; border-radius: 18px; background: white; padding: 24px; box-shadow: 0 6px 24px #172b4d06; display: flex; flex-direction: column; gap: 12px; overflow-wrap: anywhere; }
+.campaign-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
+  gap: 16px;
+  margin: 16px 0 20px; }
+.campaign-card { border: 1px solid #dce6ec; border-radius: 18px; background: white;
+  padding: var(--ui-panel-space);
+  box-shadow: none; display: flex; flex-direction: column; gap: 12px; overflow-wrap: anywhere; }
 .campaign-card h2, .campaign-card p { margin: 0; }
 .campaign-card p { line-height: 1.6; color: #526177; white-space: pre-line; }
 .campaign-card-top { color: #53657c; font-size: 13px; font-weight: 600; }
@@ -21,7 +30,13 @@
 .campaign-auto { color: #13755b !important; font-weight: 600; }
 .campaign-card > .site-button:last-child { margin-top: auto; text-align: center; }
 .campaign-muted { color: #64748b; font-size: 13px; line-height: 1.7; }
-.coupon-checkout { border: 1px solid #d2e7df; border-radius: 14px; padding: 18px; margin: 18px 0; min-width: 0; }
+.coupon-checkout {
+  border: 0;
+  border-radius: 0;
+  padding: 12px 0;
+  margin: 8px 0; min-width: 0;
+  border-top: 1px solid #d2e7df;
+}
 .coupon-checkout legend { font-weight: 700; color: #176b53; padding: 0 6px; }
 .coupon-input-row { justify-content: flex-start; margin: 8px 0; }
 .coupon-input-row input { flex: 1; width: 120px; }
@@ -30,8 +45,11 @@
 .campaign-total { font-size: 18px; font-weight: 750; border-top: 1px solid #dce6ec; margin-top: 6px; padding-top: 14px !important; }
 .campaign-total dd { font-size: 21px; }
 .campaign-price small { color: #64748b; line-height: 1.6; display: block; }
-.campaign-form { border: 1px solid #dce6ec; background: white; border-radius: 18px; padding: 24px; margin: 20px 0; }
-.campaign-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.campaign-form { border: 1px solid #dce6ec; background: white; border-radius: 18px;
+  padding: var(--ui-panel-space);
+  margin: 16px 0; }
+.campaign-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 16px; }
 .campaign-form label { display: flex; flex-direction: column; gap: 7px; font-size: 14px; color: #334155; }
 .campaign-form .campaign-check { flex-direction: row; align-items: center; }
 .campaign-form .campaign-wide { grid-column: 1 / -1; }

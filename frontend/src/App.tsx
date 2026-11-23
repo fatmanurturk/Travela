@@ -17,6 +17,7 @@ const NotificationManagement = lazy(() => import("./pages/admin/NotificationMana
 const BusManagement = lazy(() => import("./pages/admin/BusManagement"));
 import TripManagement from "./pages/admin/TripManagement";
 const RouteManagement = lazy(() => import("./pages/company/RouteManagement"));
+const StaffManagement = lazy(() => import("./pages/company/StaffManagement"));
 import CompanyLayout from "./components/company/CompanyLayout";
 import CompanyOverview from "./pages/company/CompanyOverview";
 import CompanyReservations from "./pages/company/CompanyReservations";
@@ -49,6 +50,7 @@ function App() {
         }
       >
         <Route index element={<CompanyOverview />} />
+        <Route path="staff" element={<Suspense fallback={<p role="status">Personeller yükleniyor...</p>}><StaffManagement /></Suspense>} />
         <Route path="buses" element={<Suspense fallback={<p role="status">Otobüsler yükleniyor...</p>}><BusManagement /></Suspense>} />
         <Route path="trips" element={<TripManagement />} />
         <Route path="routes" element={<Suspense fallback={<p role="status">Güzergâhlar yükleniyor...</p>}><RouteManagement /></Suspense>} />

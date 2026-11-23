@@ -91,7 +91,7 @@ try
     var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start(); var port = ((IPEndPoint)listener.LocalEndpoint).Port; listener.Stop();
     var config = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
     var start = new ProcessStartInfo("dotnet") { WorkingDirectory = Path.Combine(root, "backend"), UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-    start.ArgumentList.Add(Path.Combine(root, "backend", "bin", config, "net10.0", "Travela.API.dll"));
+    start.ArgumentList.Add(Environment.GetEnvironmentVariable("TRAVELA_TEST_API_DLL") ?? Path.Combine(root, "backend", "bin", config, "net10.0", "Travela.API.dll"));
     start.Environment["ASPNETCORE_URLS"] = $"http://127.0.0.1:{port}";
     start.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
     start.Environment["ConnectionStrings__DefaultConnection"] = cs.ConnectionString;
@@ -242,6 +242,7 @@ try
     await SegmentSalesChecks.Run(db, http, Check);
     await SeatRulesChecks.Integration(db, http, Check);
     await BusSeatPlanChecks.Run(db, http, Check);
+    await StaffChecks.Run(db, http, Check);
     Console.WriteLine($"SONUÇ: {passed} ödeme/bilet/iade/yönetici kontrolü başarılı.");
 
     async Task<string> Login(User u)

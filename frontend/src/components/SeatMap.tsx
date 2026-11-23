@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import type { SeatPosition } from "../seatPlans";
+import { isCoach41Plan, normalizeSeatPlan } from "../seatPlans";
 import { seatConflict } from "../seatCompatibility";
 import type { Gender, SeatOccupancy, SunExposure } from "../seatCompatibility";
 import "./SeatMap.css";
@@ -8,7 +9,9 @@ export default function SeatMap({ seats, layout, occupied = [], selected = null,
   seats: SeatPosition[]; layout: string; occupied?: number[]; selected?: number | number[] | null; mode?: "select" | "block" | "readonly" | "edit"; disabled?: boolean; onChoose?: (number: number, anchor: HTMLButtonElement) => void;
   occupancies?: SeatOccupancy[]; genders?: Record<number, Gender | "">; selectionGender?: Gender | ""; sun?: SunExposure; onIncompatible?: (message: string) => void;
 }) {
+  seats = normalizeSeatPlan(seats, layout);
   const known = ["2+1", "2+2", "Custom"].includes(layout);
+  const coach41 = isCoach41Plan(seats, layout);
   const dimensions = {
     "--seat-rows": Math.max(1, ...seats.map(seat => seat.row)),
     "--lower-rows": seats.some(seat => seat.column === 5) ? 2 : 1,
@@ -16,9 +19,13 @@ export default function SeatMap({ seats, layout, occupied = [], selected = null,
   return <div className="physical-seat-map" style={dimensions}>
     <p>{known ? (layout === "Custom" ? "Özel" : layout) + " koltuk düzeni · Ön taraf solda ←" : "Eski sefer: fiziksel koltuk yerleşimi doğrulanmamış."}</p>
     <div className="bus-scroll" tabIndex={0} aria-label="Otobüs koltuk planı">
-    <div className={"physical-seat-grid " + (known ? "layout-known" : "layout-legacy")} role="group" aria-label="Numaralı koltuk planı">
+    <div className={"physical-seat-grid " + (known ? "layout-known" : "layout-legacy") + (coach41 ? " layout-coach41" : "")} role="group" aria-label="Numaralı koltuk planı">
       <div className="seat-front"><span className="driver-wheel" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="20" cy="20" r="17" /><circle cx="20" cy="20" r="4" /><path d="M4 15 16 19M36 15 24 19M20 24V37" /></svg></span><span>Şoför</span><b>← Ön</b></div>
-      {known && <span className="seat-corridor" style={{ gridColumn: '2 / -2', gridRow: 3 }} aria-hidden="true">← Hareket yönü · Koridor</span>}
+      {known && <span className="seat-corridor" style={{ gridColumn: coach41 ? '2 / 15' : '2 / -2', gridRow: 3 }} aria-hidden="true">← Hareket yönü · Koridor</span>}
+      {coach41 && <>
+        <div className="bus-door bus-door-front" role="img" aria-label="Ön kapı"><span>Ön kapı</span></div>
+        <div className="bus-door bus-door-middle" role="img" aria-label="Orta kapı · Koridora geçiş"><span>Orta kapı</span><i aria-hidden="true">↓</i></div>
+      </>}
       {known && (sun?.side === "Left" || sun?.side === "Right") && <span className={"bus-sun sun-" + sun.side.toLowerCase()} title={"Güneş: otobüsün " + (sun.side === "Left" ? "sol" : "sağ") + " tarafı"}>☀</span>}
       {seats.map(seat => {
         const occupancy = occupancies.find(s => s.seatNumber === seat.number);

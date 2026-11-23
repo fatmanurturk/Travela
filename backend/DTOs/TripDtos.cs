@@ -60,6 +60,7 @@ namespace Travela.DTOs
 
     public class CreateTripDto
     {
+        public CrewSelectionDto? Crew { get; set; }
         [MinLength(2), MaxLength(81)] public List<TripStopInputDto>? Stops { get; set; }
         [MaxLength(3240)] public List<SegmentFareInputDto>? Fares { get; set; }
         public int? CompanyId { get; set; }

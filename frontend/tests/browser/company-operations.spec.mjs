@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
 const trip = { id: 12, companyId: 1, companyName: "Travela Turizm", busId: 4, busPlateNumber: "34 ABC 123", busCapacity: 40, routeId: 3, departureTerminalId:1, arrivalTerminalId:2, departureCity: "İstanbul", arrivalCity: "Ankara", departureTime: "2099-01-01T07:00:00Z", arrivalTime: "2099-01-01T13:00:00Z", price: 550, availableSeats: 35, status: "Scheduled" };
 async function setup(page, width=1440) {
+ await page.route("**/api/company/staff", r => r.fulfill({json:[]}));
+ await page.route("**/api/trips/*/crew", r => r.fulfill({json:{crew:[],changeVersion:0}}));
  await page.setViewportSize({ width, height: 1000 });
  await page.addInitScript(() => { sessionStorage.setItem("travela_token", "operations-token"); sessionStorage.setItem("travela_user", JSON.stringify({ role: "Company", name: "Firma Kullanıcısı", companyName: "Travela Turizm" })); });
  await page.route("**/api/company/profile", r => r.fulfill({json:{name:"Travela Turizm"}}));

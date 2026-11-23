@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiUrl } from "../api";
 import { getTodayInTurkey } from "../dateUtils";
 
-type RouteOption = {
-  departureCityId?: number;
-  arrivalCityId?: number;
-  departureCity: string;
-  arrivalCity: string;
-};
+import CityCombobox from "./CityCombobox";
+import { compareCityNames } from "../citySearch";
+import type { CityOption } from "../citySearch";
+
+type CitySelection = { text: string; selected?: CityOption };
 
 type TripSearchFormProps = {
   initialDeparture?: string;
@@ -19,8 +18,6 @@ type TripSearchFormProps = {
   initialReturnDate?: string;
 };
 
-const normalizeCity = (city: string) => city.trim().toLocaleLowerCase("tr-TR");
-
 function TripSearchForm({
   initialDeparture = "",
   initialArrival = "",
@@ -30,63 +27,70 @@ function TripSearchForm({
   initialReturnDate = "",
 }: TripSearchFormProps) {
   const navigate = useNavigate();
-  const [routes, setRoutes] = useState<RouteOption[]>([]);
-  const [departureCity, setDepartureCity] = useState(initialDeparture);
-  const [arrivalCity, setArrivalCity] = useState(initialArrival);
+  const [cities, setCities] = useState<CityOption[]>([]);
+  const [departure, setDeparture] = useState<CitySelection>({ text: initialDeparture });
+  const [arrival, setArrival] = useState<CitySelection>({ text: initialArrival });
+  const editedCities = useRef({ departureCity: false, arrivalCity: false });
   const [date, setDate] = useState(initialDate);
   const [passengers, setPassengers] = useState(String(initialPassengers));
   const [tripType, setTripType] = useState<"one-way" | "round-trip">(initialTripType);
   const [returnDate, setReturnDate] = useState(initialReturnDate);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [routesError, setRoutesError] = useState("");
+  const [citiesError, setCitiesError] = useState("");
+  const [loadingCities, setLoadingCities] = useState(true);
+  const [retryCities, setRetryCities] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
-    const loadRoutes = async () => {
+    const loadCities = async () => {
+      setLoadingCities(true);
+      setCitiesError("");
       try {
-        const response = await fetch(apiUrl("/api/routes/public"), { signal: controller.signal });
-        if (!response.ok) {
-          throw new Error("Şehir seçenekleri şu anda yüklenemiyor.");
+        const response = await fetch(apiUrl("/api/routes/city-options"), { signal: controller.signal });
+        if (!response.ok) throw new Error("İl listesi yüklenemedi. Yeniden deneyin.");
+        const data = await response.json() as CityOption[];
+        if (!Array.isArray(data) || data.length !== 81 ||
+          data.some(city => !Number.isInteger(city?.id) || city.id < 1 || city.id > 81 || typeof city.name !== "string" || !city.name.trim()) ||
+          new Set(data.map(city => city.id)).size !== 81 || new Set(data.map(city => city.name)).size !== 81) {
+          throw new Error("İl listesi eksik veya geçersiz. Yeniden deneyin.");
         }
-        const data = (await response.json()) as RouteOption[];
-        if (!Array.isArray(data)) {
-          throw new Error("Güzergâh verileri beklenen biçimde alınamadı.");
-        }
-        setRoutes(data);
+        if (controller.signal.aborted) return;
+        setCities([...data].sort(compareCityNames));
+        // Restore canonical selections from existing URLs, never from edited input.
+        setDeparture(current => !editedCities.current.departureCity && current.text === initialDeparture
+          ? { ...current, selected: data.find(city => city.name === initialDeparture) } : current);
+        setArrival(current => !editedCities.current.arrivalCity && current.text === initialArrival
+          ? { ...current, selected: data.find(city => city.name === initialArrival) } : current);
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setRoutesError(error instanceof Error ? error.message : "Şehir seçenekleri yüklenemedi.");
+        if (controller.signal.aborted) return;
+        setCitiesError(error instanceof Error ? error.message : "İl listesi yüklenemedi.");
+      } finally {
+        if (!controller.signal.aborted) setLoadingCities(false);
       }
     };
 
-    void loadRoutes();
+    void loadCities();
     return () => controller.abort();
-  }, []);
+  }, [initialDeparture, initialArrival, retryCities]);
 
-  const departureCities = useMemo(
-    () => [...new Set(routes.map((route) => route.departureCity))],
-    [routes],
-  );
-  const arrivalCities = useMemo(
-    () => [...new Set(routes
-      .filter((route) => !departureCity || normalizeCity(route.departureCity) === normalizeCity(departureCity))
-      .map((route) => route.arrivalCity))],
-    [departureCity, routes],
-  );
+  const updateCity = (field: "departureCity" | "arrivalCity", value: CitySelection) => {
+    editedCities.current[field] = true;
+    if (field === "departureCity") setDeparture(value);
+    else setArrival(value);
+    setErrors(current => ({ ...current, [field]: "", ...(field === "departureCity" ? { arrivalCity: "" } : {}) }));
+  };
 
   const validate = () => {
     const nextErrors: Record<string, string> = {};
-    const knownDeparture = departureCities.some((city) => normalizeCity(city) === normalizeCity(departureCity));
-    const knownArrival = arrivalCities.some((city) => normalizeCity(city) === normalizeCity(arrivalCity));
     const passengerCount = Number(passengers);
     const earliestDate = getTodayInTurkey();
 
-    if (!departureCity.trim()) nextErrors.departureCity = "Kalkış şehrini seçin.";
-    else if (!knownDeparture) nextErrors.departureCity = "Listeden geçerli bir kalkış şehri seçin.";
-    if (!arrivalCity.trim()) nextErrors.arrivalCity = "Varış şehrini seçin.";
-    else if (!knownArrival) nextErrors.arrivalCity = "Seçilen kalkış şehrine uygun bir varış seçin.";
-    else if (normalizeCity(departureCity) === normalizeCity(arrivalCity)) {
+    if (!departure.text.trim()) nextErrors.departureCity = "Kalkış şehrini seçin.";
+    else if (!departure.selected) nextErrors.departureCity = "Öneri listesinden bir kalkış ili seçin.";
+    if (!arrival.text.trim()) nextErrors.arrivalCity = "Varış şehrini seçin.";
+    else if (!arrival.selected) nextErrors.arrivalCity = "Öneri listesinden bir varış ili seçin.";
+    else if (departure.selected?.id === arrival.selected.id) {
       nextErrors.arrivalCity = "Kalkış ve varış şehirleri aynı olamaz.";
     }
     if (!date) nextErrors.date = "Gidiş tarihi zorunludur.";
@@ -104,25 +108,27 @@ function TripSearchForm({
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!validate()) return;
+    if (!validate() || !departure.selected || !arrival.selected) return;
     setSubmitting(true);
 
     const params = new URLSearchParams({
-      from: departureCities.find((city) => normalizeCity(city) === normalizeCity(departureCity)) ?? departureCity.trim(),
-      to: arrivalCities.find((city) => normalizeCity(city) === normalizeCity(arrivalCity)) ?? arrivalCity.trim(),
+      from: departure.selected.name,
+      to: arrival.selected.name,
+      fromId: String(departure.selected.id),
+      toId: String(arrival.selected.id),
       date,
       passengers,
       tripType,
     });
-    const route = routes.find(route => normalizeCity(route.departureCity) === normalizeCity(departureCity) && normalizeCity(route.arrivalCity) === normalizeCity(arrivalCity));
-    if (route?.departureCityId && route.arrivalCityId) { params.set("fromId", String(route.departureCityId)); params.set("toId", String(route.arrivalCityId)); }
     if (tripType === "round-trip") params.set("returnDate", returnDate);
     navigate(`/search?${params.toString()}`);
+    setSubmitting(false);
   };
 
   const swapCities = () => {
-    setDepartureCity(arrivalCity);
-    setArrivalCity(departureCity);
+    editedCities.current = { departureCity: true, arrivalCity: true };
+    setDeparture(arrival);
+    setArrival(departure);
     setErrors({});
   };
 
@@ -150,46 +156,20 @@ function TripSearchForm({
       </div>
 
       <div className="trip-search-fields">
-        <div className="trip-search-field">
-          <label htmlFor="departure-city">Nereden</label>
-          <input
-            id="departure-city"
-            list="departure-cities"
-            value={departureCity}
-            onChange={(event) => {
-              setDepartureCity(event.target.value);
-              setArrivalCity("");
-            }}
-            placeholder="Kalkış şehri"
-            autoComplete="off"
-            aria-invalid={Boolean(errors.departureCity)}
-            aria-describedby={errors.departureCity ? "departure-error" : undefined}
-          />
-          <datalist id="departure-cities">
-            {departureCities.map((city) => <option value={city} key={city} />)}
-          </datalist>
-          {errors.departureCity && <span className="field-error" id="departure-error">{errors.departureCity}</span>}
-        </div>
+        <CityCombobox label="Nereden" placeholder="Kalkış şehri" cities={cities}
+          text={departure.text} selectedId={departure.selected?.id} loading={loadingCities}
+          onTextChange={text => updateCity("departureCity", { text })}
+          onSelect={city => updateCity("departureCity", { text: city.name, selected: city })}
+          error={errors.departureCity} />
 
         <button type="button" className="swap-cities-button" onClick={swapCities} aria-label="Kalkış ve varış şehirlerini değiştir">⇄</button>
 
-        <div className="trip-search-field">
-          <label htmlFor="arrival-city">Nereye</label>
-          <input
-            id="arrival-city"
-            list="arrival-cities"
-            value={arrivalCity}
-            onChange={(event) => setArrivalCity(event.target.value)}
-            placeholder="Varış şehri"
-            autoComplete="off"
-            aria-invalid={Boolean(errors.arrivalCity)}
-            aria-describedby={errors.arrivalCity ? "arrival-error" : undefined}
-          />
-          <datalist id="arrival-cities">
-            {arrivalCities.map((city) => <option value={city} key={city} />)}
-          </datalist>
-          {errors.arrivalCity && <span className="field-error" id="arrival-error">{errors.arrivalCity}</span>}
-        </div>
+        <CityCombobox label="Nereye" placeholder="Varış şehri" cities={cities}
+          text={arrival.text} selectedId={arrival.selected?.id} loading={loadingCities}
+          onTextChange={text => updateCity("arrivalCity", { text })}
+          onSelect={city => updateCity("arrivalCity", { text: city.name, selected: city })}
+          error={errors.arrivalCity || (departure.selected && departure.selected.id === arrival.selected?.id
+            ? "Kalkış ve varış şehirleri aynı olamaz." : undefined)} />
 
         <div className="trip-search-field">
           <label htmlFor="departure-date">Gidiş tarihi</label>
@@ -224,7 +204,7 @@ function TripSearchForm({
         <button type="submit" className="trip-search-submit" disabled={submitting}>{submitting ? "Yönlendiriliyor..." : <>Sefer Ara <span aria-hidden="true">→</span></>}</button>
       </div>
       {errors.passengers && <span className="field-error passenger-error" id="passengers-error">{errors.passengers}</span>}
-      {routesError && <p className="form-message-error" role="alert">{routesError}</p>}
+      {citiesError && <div className="form-message-error" role="alert">{citiesError} <button type="button" className="site-button secondary" onClick={() => setRetryCities(value => value + 1)}>İlleri yeniden yükle</button></div>}
     </form>
   );
 }

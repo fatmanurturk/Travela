@@ -1,12 +1,13 @@
 .not-found-page {
   display: grid;
   place-items: center;
-  padding: clamp(32px, 6vw, 72px) 20px;
+  padding: 28px 20px;
+  align-content: start;
 }
 
 .not-found-card {
   width: min(100%, 640px);
-  padding: clamp(24px, 5vw, 48px);
+  padding: var(--ui-panel-space);
   border: 1px solid #e5ebf4;
   border-radius: 20px;
   background: #fff;

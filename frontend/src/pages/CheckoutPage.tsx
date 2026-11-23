@@ -39,7 +39,8 @@ export default function CheckoutPage() {
   };
   return <div className="travela-site"><SiteHeader /><main className="trip-detail-page"><h1>Ödeme</h1>
     {error && <p role="alert" className="results-message error">{error}</p>}
-    {!item && !error ? <p role="status">Sipariş yükleniyor...</p> : item && <><TicketCard item={item} showCheckout={false} />
+    {!item && !error ? <p role="status">Sipariş yükleniyor...</p> : item && <div className="checkout-layout"><TicketCard item={item} showCheckout={false} />
+      <div className="checkout-payment">
       <section className="booking-summary" aria-label="Bilette kayıtlı yolcu"><h2>Yolcu bilgileri</h2><dl className="reservation-facts">
         <div><dt>Ad soyad</dt><dd>{item.passengerName}</dd></div>{item.passengerEmail && <div><dt>İletişim e-postası</dt><dd>{item.passengerEmail}</dd></div>}
         {item.passengerPhone && <div><dt>İletişim telefonu</dt><dd>{item.passengerPhone}</dd></div>}
@@ -55,8 +56,8 @@ export default function CheckoutPage() {
       )}
       {item.legalAccepted && item.isTest && (!item.provider || item.provider === "LocalTest") && !item.purchaseGroupId && item.paymentStatus === "Pending" && item.checkoutUrl && <section className="booking-summary"><h2>Ödeme işlemleri</h2><label>İade sonucu <select value={refund} onChange={e => setRefund(e.target.value)}><option value="Succeeded">Başarılı</option><option value="Pending">Bekleyen</option><option value="Failed">Başarısız</option></select></label><div className="reservation-confirm-actions"><button className="site-button primary" disabled={busy} onClick={() => void simulate("Succeeded")}>Ödemeyi başarılı yap</button><button className="site-button secondary" disabled={busy} onClick={() => void simulate("Failed")}>Ödemeyi başarısız yap</button></div><p>Ödeme tamamlanmazsa bilet oluşmaz. Ayrılan koltuk süre sonunda boşalır.</p></section>}
       {item.isTest && (!item.provider || item.provider === "LocalTest") && item.refundStatus !== "None" && item.refundStatus !== "Succeeded" && <section className="booking-summary"><h2>İade işlemleri</h2><div className="reservation-confirm-actions">{["Succeeded", "Pending", "Failed"].map(value => <button key={value} className="site-button secondary" disabled={busy} onClick={() => void simulate(value, true)}>{value === "Succeeded" ? "İadeyi tamamla" : value === "Pending" ? "İadeyi beklet" : "İadeyi başarısız yap"}</button>)}</div></section>}
-      <JourneyStops journey={item} />
-    </>}
+      </div><JourneyStops journey={item} />
+    </div>}
     <div className="reservation-confirm-actions"><button className="site-button secondary" disabled={busy} onClick={() => { setError(""); setRevision(v => v + 1); }}>Durumu yenile</button><Link to="/tickets" className="site-button secondary">Biletlerim</Link></div>
   </main></div>;
 }

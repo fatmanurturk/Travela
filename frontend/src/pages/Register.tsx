@@ -66,7 +66,7 @@ function Register() {
         <h1>Travela</h1>
         <h2>Yolculuğa katıl</h2>
         <p>Seferleri kolayca bulmak için yolcu hesabını oluştur.</p>
-        <form onSubmit={handleSubmit}>
+        <form className="register-form" onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="full-name">Ad soyad</label>
             <input id="full-name" value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" required maxLength={120} />
