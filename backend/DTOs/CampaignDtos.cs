@@ -24,7 +24,7 @@ public decimal? MaximumDiscount { get; set; }
 
 
     [Range(1, 1000000)] public int? UsageLimit { get; set; }
-    [Range(1, 1000000)] public int PerUserLimit { get; set; } = 1;
+    [Range(1, 1000000)] public int? PerUserLimit { get; set; } = 1;
     public DateTimeOffset StartsAt { get; set; }
     public DateTimeOffset EndsAt { get; set; }
     public DateTimeOffset? DepartureFrom { get; set; }

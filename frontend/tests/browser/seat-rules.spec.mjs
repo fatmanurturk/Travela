@@ -179,7 +179,7 @@ for (const width of [390, 1440]) for (const gender of ["Kadın", "Erkek"]) {
     await expect(page.locator("dialog, .seat-gender-dialog")).toHaveCount(0);
     await expect(seat).toHaveAttribute("aria-pressed", "false");
     await expect(page.getByLabel("Ad soyad · Koltuk 3")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Ödemeye geç", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Ödemeye devam et", exact: true })).toBeDisabled();
     const bounds = await dialog.boundingBox();
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
@@ -256,14 +256,17 @@ test("Popover mobilde yön değiştirir, kaydırmayı ve yeniden boyutlandırmay
   await page.setViewportSize({ width: 390, height: 700 });
   await setup(page);
   const seat = page.getByRole("button", { name: /^Koltuk 3,/ });
+  // Open before placing the anchor near the top: the sticky mobile navigation may cover it there.
+  await seat.click();
   await seat.evaluate(element => {
     document.body.style.minHeight = "2500px";
-    window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - 120);
+    window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - 120, behavior: "instant" });
   });
-  await seat.click();
   const popover = page.getByRole("dialog");
-  const seatBounds = await seat.boundingBox();
-  expect((await popover.boundingBox()).y).toBeCloseTo(seatBounds.y + seatBounds.height + 8, 0);
+  await expect.poll(async () => {
+    const s = await seat.boundingBox(); const p = await popover.boundingBox();
+    return Math.abs(p.y - s.y - s.height - 8);
+  }).toBeLessThan(1);
   await page.evaluate(() => window.scrollBy(0, -100));
   await expect.poll(async () => {
     const s = await seat.boundingBox();

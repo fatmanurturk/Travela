@@ -7,7 +7,7 @@ public class PaymentOrder
     public PurchaseGroup? PurchaseGroup { get; set; }
     public int ReservationId { get; set; }
     public Reservation Reservation { get; set; } = null!;
-    public int PassengerId { get; set; }
+    public int? PassengerId { get; set; }
     public Guid RequestKey { get; set; }
     public decimal Amount { get; set; }
     public decimal OriginalAmount { get; set; }

@@ -10,16 +10,16 @@ public static class TravelNotifications
     // Queue in the same transaction as issuance/cancellation/change/refund. No network calls here.
     public static async Task Queue(TravelaDbContext db, Reservation reservation, string type, string key, DateTime now, string? details = null, CancellationToken ct = default)
     {
-        var user = await db.Users.SingleAsync(u => u.Id == reservation.PassengerId, ct);
+        var user = await db.Users.SingleOrDefaultAsync(u => u.Id == reservation.PassengerId, ct);
         var trip = await db.Trips.Include(t => t.Route).Include(t => t.Company).Include(t => t.Bus).SingleAsync(t => t.Id == reservation.TripId, ct);
         var journey = await new TripSegmentService(db, TimeProvider.System).Journey(trip, reservation, ct);
         var subject = type switch { "Purchase" => "Biletiniz hazır", "Reminder" => "Yolculuğunuz yaklaşıyor", "Cancellation" => "Seferiniz iptal edildi", "RefundSucceeded" => "İadeniz tamamlandı", "RefundFailed" => "İadeniz henüz tamamlanamadı", _ => "Seferinizde değişiklik var" };
-        var enabled = type switch { "Reminder" => user.TripRemindersEnabled, "Cancellation" => user.CancellationNotificationsEnabled, "RefundSucceeded" or "RefundFailed" => user.RefundNotificationsEnabled, _ => true };
+        var enabled = type switch { "Reminder" => (user?.TripRemindersEnabled ?? true), "Cancellation" => (user?.CancellationNotificationsEnabled ?? true), "RefundSucceeded" or "RefundFailed" => (user?.RefundNotificationsEnabled ?? true), _ => true };
         var body = $"Travela — {subject}. PNR: {reservation.Pnr ?? "Düzenlenmedi"}. {journey.DepartureCity} → {journey.ArrivalCity}. Kalkış: {journey.DepartureTime.AddHours(3):dd.MM.yyyy HH:mm} (Türkiye). Koltuk: {reservation.SeatNumber}. " +
             $"Biniş: {journey.DepartureTerminalName} {journey.DepartureTerminalAddress}. {journey.BoardingInstructions} {details}";
         var contact = await db.PaymentOrders.Where(p => p.ReservationId == reservation.Id && p.PurchaseGroupId != null)
             .Select(p => new { p.PurchaseGroup!.ContactEmail, p.PurchaseGroup.ContactPhone }).SingleOrDefaultAsync(ct);
-        var channels = new[] { ("Email", contact?.ContactEmail ?? reservation.PassengerEmailSnapshot ?? user.Email, user.EmailNotificationsEnabled), ("Sms", contact?.ContactPhone ?? reservation.PassengerPhoneSnapshot ?? user.PhoneNumber ?? "", user.SmsNotificationsEnabled) };
+        var channels = new[] { ("Email", contact?.ContactEmail ?? reservation.PassengerEmailSnapshot ?? user?.Email ?? "", (user?.EmailNotificationsEnabled ?? true)), ("Sms", contact?.ContactPhone ?? reservation.PassengerPhoneSnapshot ?? user?.PhoneNumber ?? "", (user?.SmsNotificationsEnabled ?? true)) };
         foreach (var (channel, recipient, channelEnabled) in channels)
         {
             if (db.TravelNotifications.Local.Any(n => n.ReservationId == reservation.Id && n.EventKey == key && n.Channel == channel) ||

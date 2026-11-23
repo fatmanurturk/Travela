@@ -7,7 +7,7 @@ import "./AdminTickets.css";
 
 type Ticket = {
   id: number; orderId: string | null; reservationNumber: string; pnr: string | null; kind: string; tripId: number;
-  companyId: number; companyName: string; passengerId: number; accountName: string; passengerName: string;
+  companyId: number; companyName: string; passengerId: number | null; accountName: string; passengerName: string;
   passengerEmail: string | null; passengerPhone: string | null; passengerSnapshotSource: string | null; passengerCapturedAt: string | null;
   departureCity: string; arrivalCity: string; departureTime: string; seatNumber: number; amount: number;
   originalAmount?: number; discountAmount?: number; campaignName?: string | null; couponCode?: string | null;
@@ -141,7 +141,7 @@ function TicketDetail({ id, request, changed, close }: { id: number; request: Re
     {error && <p role="alert" className="form-alert error">{error}</p>}{message && <p role="status" className="form-alert success">{message}</p>}
     {!data ? <p>İşlem detayları yükleniyor...</p> : <>
       <dl className="admin-ticket-facts"><div><dt>PNR</dt><dd>{data.ticket.pnr ?? "Düzenlenmedi"}</dd></div><div><dt>Sipariş</dt><dd>{data.ticket.orderId ?? "Ödeme kaydı yok"}</dd></div>
-        <div><dt>Bilette kayıtlı yolcu</dt><dd>{data.ticket.passengerName}</dd></div><div><dt>Güncel hesap sahibi</dt><dd>{data.ticket.accountName} · #{data.ticket.passengerId}</dd></div>
+        <div><dt>Bilette kayıtlı yolcu</dt><dd>{data.ticket.passengerName}</dd></div><div><dt>Güncel hesap sahibi</dt><dd>{data.ticket.passengerId == null ? "Misafir satın alma · Hesap yok" : `${data.ticket.accountName} · #${data.ticket.passengerId}`}</dd></div>
         <div><dt>Bilet iletişim e-postası</dt><dd>{data.ticket.passengerEmail ?? "Kaydedilmemiş"}</dd></div><div><dt>Bilet iletişim telefonu</dt><dd>{data.ticket.passengerPhone ?? "Kaydedilmemiş"}</dd></div>
         <div><dt>Firma</dt><dd>{data.ticket.companyName}</dd></div><div><dt>Tutar</dt><dd>{money.format(data.ticket.amount)}{data.ticket.isTest ? " · TEST" : ""}</dd></div>
         {!!data.ticket.discountAmount && <><div><dt>İndirim öncesi</dt><dd>{money.format(data.ticket.originalAmount ?? data.ticket.amount + data.ticket.discountAmount)}</dd></div><div><dt>Kampanya</dt><dd>{data.ticket.campaignName} · −{money.format(data.ticket.discountAmount)}{data.ticket.couponCode && ` · ${data.ticket.couponCode}`}</dd></div></>}

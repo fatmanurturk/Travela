@@ -1,0 +1,14 @@
+.ticket-lookup-page { width: min(840px, calc(100% - 32px)); margin: 36px auto; color: #173253; }
+.ticket-lookup-page h1 { font-size: clamp(1.6rem, 5vw, 2.2rem); }
+.ticket-lookup-form, .ticket-cancel-code { display: grid; gap: 16px; padding: 24px; border: 1px solid #dbe3ee; border-radius: 16px; background: #fff; margin: 24px 0; }
+.ticket-lookup-form label, .ticket-cancel-code label { display: grid; gap: 8px; font-weight: 600; }
+.ticket-lookup-form input, .ticket-cancel-code input { width: 100%; min-width: 0; box-sizing: border-box; padding: 12px; border: 1px solid #9baec5; border-radius: 8px; font: inherit; }
+.ticket-lookup-page button:focus-visible, .ticket-lookup-page input:focus-visible, .checkout-login-dialog button:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+.ticket-lookup-page .reservation-card, .group-ticket-passenger { min-width: 0; overflow-wrap: anywhere; }
+.ticket-lookup-page .reservation-card h2 { font-size: 1.4rem; }
+.guest-ticket-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.checkout-login-dialog { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 16px; box-sizing: border-box; overflow: auto; border: 1px solid #dbe3ee; border-radius: 16px; }
+.checkout-login-dialog::backdrop { background: rgb(15 23 42 / 55%); }
+.checkout-login-dialog .login-page { min-height: 0; padding: 20px 0 0; background: transparent; }
+.checkout-login-dialog .login-card { box-sizing: border-box; width: 100%; padding: 20px 12px; box-shadow: none; }
+@media (max-width: 500px) { .ticket-lookup-form, .ticket-cancel-code { padding: 16px; } .ticket-lookup-page .reservation-facts { grid-template-columns: minmax(0, 1fr); } }

@@ -28,7 +28,7 @@ public class StartGroupPurchaseDto
     public int? AlightingStopOrder { get; set; }
     [Required(ErrorMessage = "E-posta zorunludur."), EmailAddress(ErrorMessage = "Geçerli bir e-posta giriniz."), MaxLength(320)]
     public string ContactEmail { get; set; } = "";
-    [Required(ErrorMessage = "Telefon zorunludur."), RegularExpression(@"^\+[1-9][0-9]{7,14}$", ErrorMessage = "Telefonu +905xxxxxxxxx biçiminde giriniz.")]
+    [Required(ErrorMessage = "Telefon zorunludur."), Travela.Api.Validation.BookingPhone]
     public string ContactPhone { get; set; } = "";
     [MaxLength(8)]
     public List<LegalAcceptanceDto>? LegalAcceptances { get; set; }

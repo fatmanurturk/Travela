@@ -27,6 +27,7 @@ import HomePage from "./pages/HomePage";
 import SearchResultsPage from "./pages/SearchResultsPage";
 import PublicTripDetailsPage from "./pages/PublicTripDetailsPage";
 import CheckoutPage from "./pages/CheckoutPage";
+const TicketLookupPage = lazy(() => import("./pages/TicketLookupPage"));
 const GroupCheckoutPage = lazy(() => import("./pages/GroupCheckoutPage"));
 const CampaignManagement = lazy(() => import("./pages/admin/CampaignManagement"));
 const CampaignsPage = lazy(() => import("./pages/CampaignsPage"));
@@ -119,16 +120,8 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/purchase/:id"
-          element={
-            <ProtectedRoute allowedRole="Passenger">
-              <Suspense fallback={<p role="status">Sipariş yükleniyor...</p>}>
-                <GroupCheckoutPage />
-              </Suspense>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/purchase/:id" element={<Suspense fallback={<p role="status">Sipariş yükleniyor...</p>}><GroupCheckoutPage /></Suspense>} />
+        <Route path="/bilet-sorgula" element={<Suspense fallback={<p role="status">Bilet sorgulama yükleniyor...</p>}><TicketLookupPage /></Suspense>} />
         <Route
           path="/test-payment/:id"
           element={

@@ -32,8 +32,10 @@ export function statusTone(status: string): string {
 export function safeCheckoutPath(path: string | null): string | null {
   return path && /^\/(?:payment|test-payment|purchase)\/[a-f0-9-]{36}$/i.test(path) ? path : null;
 }
-export function safeProviderCheckout(value: string | null): string | null {
-  if (!value) return null;
-  try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password && (!url.port || url.port === "443") &&
-    ((url.hostname === "sandbox-api.iyzipay.com" && url.pathname.startsWith("/checkoutform/")) || (url.hostname === "sandbox-cpp.iyzipay.com" && url.pathname === "/" && url.searchParams.has("token"))) ? url.href : null; } catch { return null; }
+export function safeProviderCheckout(value: string | null, provider = "IyzicoSandbox"): string | null {
+  if (!value || !["IyzicoSandbox", "Iyzico"].includes(provider)) return null;
+  const apiHost = provider === "Iyzico" ? "api.iyzipay.com" : "sandbox-api.iyzipay.com";
+  const checkoutHost = provider === "Iyzico" ? "cpp.iyzipay.com" : "sandbox-cpp.iyzipay.com";
+  try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password && !url.hash && (!url.port || url.port === "443") &&
+    ((url.hostname === apiHost && url.pathname.startsWith("/checkoutform/")) || (url.hostname === checkoutHost && url.pathname === "/" && url.searchParams.has("token"))) ? url.href : null; } catch { return null; }
 }

@@ -3,7 +3,8 @@ namespace Travela.Api.Models;
 public class PurchaseGroup
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public int PassengerId { get; set; }
+    public int? PassengerId { get; set; }
+    public Guid? GuestSessionId { get; set; }
     public int TripId { get; set; }
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }

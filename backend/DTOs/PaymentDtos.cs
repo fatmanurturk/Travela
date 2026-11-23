@@ -23,6 +23,7 @@ public class PurchaseDto : JourneyDto
     public int SeatNumber { get; set; }
     public string CompanyName { get; set; } = "";
     public string PassengerName { get; set; } = "";
+    public string? PassengerIdentityNumber { get; set; }
     public string? PassengerEmail { get; set; }
     public string? PassengerPhone { get; set; }
     public string? PassengerGender { get; set; }

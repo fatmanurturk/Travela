@@ -79,7 +79,7 @@ for (const width of [390, 1440]) test(`İlk koltuk otomatik dolar; form düzenle
   expect(await page.evaluate(() => [...Object.values(localStorage), ...Object.values(sessionStorage)].some(value => value.includes("12345678950") || value.includes("10000000146")))).toBe(false);
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
   await page.getByRole("checkbox", { name: /Mesafeli satış sözleşmesini ve ön bilgilendirme/ }).check();
-  await page.getByRole("button", { name: "Ödemeye geç", exact: true }).click();
+  await page.getByRole("button", { name: "Ödemeye devam et", exact: true }).click();
   await expect(page).toHaveURL(`/purchase/${id}`);
   expect(calls.purchases[0]).toMatchObject({ contactEmail: "other@example.test", contactPhone: "+905551112233",
     passengers: [{ seatNumber: 8, fullName: "Başka Yolcu", identityNumber: "12345678950", gender: "Male" }] });
@@ -141,10 +141,10 @@ for (const mode of ["missing", "failed"]) test(`Eksik veya alınamayan profil ko
   await expect(identity(page, 8)).toHaveValue(""); await expect(page.getByLabel("İletişim telefon")).toHaveValue("");
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
   await page.getByRole("checkbox", { name: /Mesafeli satış sözleşmesini ve ön bilgilendirme/ }).check();
-  await page.getByRole("button", { name: "Ödemeye geç", exact: true }).click(); expect(calls.purchases).toHaveLength(0);
+  await page.getByRole("button", { name: "Ödemeye devam et", exact: true }).click(); expect(calls.purchases).toHaveLength(0);
   await name(page, 8).fill("Elle Tamamlanan Yolcu"); await identity(page, 8).fill("12345678950");
   await page.getByLabel("İletişim e-posta").fill("manual@example.test"); await page.getByLabel("İletişim telefon").fill("+905551112233");
-  await page.getByRole("button", { name: "Ödemeye geç", exact: true }).click();
+  await page.getByRole("button", { name: "Ödemeye devam et", exact: true }).click();
   await expect(page).toHaveURL(`/purchase/${id}`); expect(calls.profileWrites).toBe(0);
 });
 
@@ -158,7 +158,7 @@ test("Plan yenileme, yenileme hatası ve dolan koltuk mevcut formu korur; uygun 
   calls.failRefresh = true; await refresh.click();
   await expect(page.getByText("Sefer bilgileri şu anda alınamıyor.")).toBeVisible();
   await expect(name(page, 8)).toHaveValue("Düzenlenen Yolcu");
-  await expect(page.getByRole("button", { name: "Ödemeye geç", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Ödemeye devam et", exact: true })).toBeDisabled();
   calls.failRefresh = false; calls.occupied = [8]; await refresh.click(); await expect(refresh).toBeEnabled();
   await expect(page.getByText("Koltuk başka biri tarafından alınmış veya geçici olarak rezerve edilmiş. Koltuğu çıkarınız.")).toBeVisible();
   await expect(name(page, 8)).toHaveValue("Düzenlenen Yolcu");

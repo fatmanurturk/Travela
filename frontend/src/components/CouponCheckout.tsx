@@ -12,21 +12,22 @@ export default function CouponCheckout({ tripId, count, code, disabled, onCode, 
 }) {
   const [input, setInput] = useState(""); const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<{ key: string; price: CampaignPrice | null; error: string } | null>(null);
-  const requestKey = `${tripId}:${boardingStopOrder}:${alightingStopOrder}:${count}:${code}:${revision}`;
+  const token = sessionStorage.getItem("travela_token");
+  const requestKey = `${token ? "member" : "guest"}:${tripId}:${boardingStopOrder}:${alightingStopOrder}:${count}:${code}:${revision}`;
   const current = result?.key === requestKey ? result : null;
   const price = count ? current?.price : null; const error = count ? current?.error : "";
   const loading = count > 0 && current == null;
   useEffect(() => {
     const abort = new AbortController(); onQuote(null);
     if (!count) return;
-    void fetch(apiUrl("/api/campaigns/quote"), { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionStorage.getItem("travela_token")}` }, signal: abort.signal,
+    void fetch(apiUrl(token ? "/api/campaigns/quote" : "/api/guest/purchases/quote"), { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, signal: abort.signal,
       body: JSON.stringify({ tripId, boardingStopOrder, alightingStopOrder, passengerCount: count, couponCode: code || null }) }).then(async response => {
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.message ?? "İndirim ve güncel fiyat alınamadı.");
       if (!abort.signal.aborted) { setResult({ key: requestKey, price: data, error: "" }); onQuote(data); }
     }).catch(cause => { if (!abort.signal.aborted) setResult({ key: requestKey, price: null, error: cause instanceof TypeError ? "Fiyat için sunucuya bağlanılamadı." : cause.message }); });
     return () => abort.abort();
-  }, [tripId, boardingStopOrder, alightingStopOrder, count, code, onQuote, revision, requestKey]);
+  }, [tripId, boardingStopOrder, alightingStopOrder, count, code, onQuote, revision, requestKey, token]);
   return <fieldset className="coupon-checkout" disabled={disabled || !count}>
     <legend>Kupon ve kampanya</legend>
     <label htmlFor={`coupon-${tripId}`}>Kupon kodunuz var mı?</label>

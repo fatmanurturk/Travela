@@ -7,7 +7,7 @@ public class Reservation
     public int Id { get; set; }
     public string ReservationNumber { get; set; } = Guid.NewGuid().ToString("N").ToUpperInvariant();
     public int TripId { get; set; }
-    public int PassengerId { get; set; }
+    public int? PassengerId { get; set; }
     public string? PassengerNameSnapshot { get; set; }
     public string? PassengerIdentityNumberSnapshot { get; set; }
     public string? PassengerEmailSnapshot { get; set; }
@@ -33,5 +33,5 @@ public class Reservation
     public DateTime? CancelledAt { get; set; }
     public string? CancellationReason { get; set; }
     public Trip Trip { get; set; } = null!;
-    public User Passenger { get; set; } = null!;
+    public User? Passenger { get; set; } = null!;
 }

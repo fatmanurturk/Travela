@@ -121,6 +121,7 @@ public sealed class NotificationDelivery(TravelaDbContext db, EmailTransport ema
     {
         var r = await db.Reservations.AsNoTracking().Include(r => r.Trip).Include(r => r.Passenger).SingleAsync(r => r.Id == n.ReservationId, ct);
         var u = r.Passenger;
+        if (u == null) return n.Type != "Reminder" || r.Status == "Active" && r.Trip.Status == "Scheduled" && r.Trip.DepartureTime > clock.GetUtcNow().UtcDateTime;
         if (!(n.Channel == "Email" ? u.EmailNotificationsEnabled : u.SmsNotificationsEnabled)) return false;
         return n.Type switch { "Reminder" => u.TripRemindersEnabled && r.Status == "Active" && r.Trip.Status == "Scheduled" && r.Trip.DepartureTime > clock.GetUtcNow().UtcDateTime && n.EventKey == "reminder:" + r.Trip.ChangeVersion,
             "Cancellation" => u.CancellationNotificationsEnabled, "RefundSucceeded" or "RefundFailed" => u.RefundNotificationsEnabled, _ => true };

@@ -20,7 +20,7 @@ public class PurchasesController(TravelaDbContext db, PaymentService payments, I
 {
     private Task<Travela.Models.User?> Current(CancellationToken ct) => db.Users.AsNoTracking().ForSession(User, db).SingleOrDefaultAsync(u => u.Role == "Passenger", ct);
     [HttpGet("options"), AllowAnonymous]
-    public IActionResult Options() => Ok(new { provider = provider.Name, isSandbox = provider.IsTest, requiresBuyer = provider.Name == "IyzicoSandbox", maxPassengers = 10 });
+    public IActionResult Options() => Ok(new { provider = provider.Name, isSandbox = provider.IsTest, requiresBuyer = provider.Name is "IyzicoSandbox" or "Iyzico", maxPassengers = 10 });
     private async Task<IActionResult> Run(Func<Travela.Models.User, Task<IActionResult>> action, CancellationToken ct)
     {
         var user = await Current(ct); if (user == null) return Unauthorized();
@@ -79,11 +79,12 @@ public class PurchasesController(TravelaDbContext db, PaymentService payments, I
 }
 
 [ApiController, Route("api/payments/iyzico"), AllowAnonymous, RequestSizeLimit(16384)]
-public class IyzicoNotificationsController(TravelaDbContext db, IyzicoSandboxProvider iyzico, PaymentService payments, IOptions<AccountEmailOptions> urls) : ControllerBase
+public class IyzicoNotificationsController(TravelaDbContext db, IPaymentProvider provider, PaymentService payments, IOptions<AccountEmailOptions> urls, IConfiguration configuration) : ControllerBase
 {
     [HttpPost("webhook")]
     public async Task<IActionResult> Webhook(IyzicoNotice notice, [FromHeader(Name = "X-IYZ-SIGNATURE-V3")] string? signature, CancellationToken ct)
     {
+        if (provider is not IyzicoProviderBase iyzico) return BadRequest();
         if (string.IsNullOrWhiteSpace(signature) || !iyzico.VerifyWebhook(notice, signature) || !Guid.TryParse(notice.PaymentConversationId, out var id)) return BadRequest();
         var group = await db.PurchaseGroups.AsNoTracking().SingleOrDefaultAsync(g => g.Id == id && g.Provider == iyzico.Name && g.ProviderToken == notice.Token, ct);
         if (group == null) return NotFound();
@@ -94,11 +95,13 @@ public class IyzicoNotificationsController(TravelaDbContext db, IyzicoSandboxPro
     [HttpPost("callback/{id:guid}")]
     public async Task<IActionResult> Callback(Guid id, [FromForm] string token, CancellationToken ct)
     {
+        if (provider is not IyzicoProviderBase iyzico) return BadRequest();
         var group = await db.PurchaseGroups.AsNoTracking().SingleOrDefaultAsync(g => g.Id == id && g.Provider == iyzico.Name && g.ProviderToken == token, ct);
         if (group == null) return BadRequest();
         // A callback only triggers a signed server inquiry; its token/status cannot issue a ticket by itself.
         try { await payments.ReconcileGroup(id, ct); }
         catch (Exception e) when (e is not OperationCanceledException) { /* Keep pending and let durable recovery retry. */ }
-        return Redirect(urls.Value.FrontendBaseUrl.TrimEnd('/') + "/purchase/" + id);
+        var frontend = provider.Name == "Iyzico" ? configuration["Iyzico:Live:FrontendBaseUrl"]! : urls.Value.FrontendBaseUrl;
+        return Redirect(frontend.TrimEnd('/') + "/purchase/" + id);
     }
 }

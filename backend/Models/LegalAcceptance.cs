@@ -5,8 +5,8 @@ namespace Travela.Api.Models;
 public class LegalAcceptance
 {
     public long Id { get; set; }
-    public int UserId { get; set; }
-    public User User { get; set; } = null!;
+    public int? UserId { get; set; }
+    public User? User { get; set; } = null!;
     public string DocumentType { get; set; } = "";
     public string DocumentVersion { get; set; } = "";
     public string DocumentHash { get; set; } = "";

@@ -10,7 +10,7 @@ namespace Travela.Api.Payments;
 public partial class PaymentService
 {
     private LegalAcceptance PurchaseAcceptance(
-        int userId, Trip trip, Guid requestKey, string ip, object financial)
+        int? userId, Trip trip, Guid requestKey, string ip, object financial)
     {
         var acceptance = LegalDocuments.Record(LegalDocuments.Sales, Now, ip);
         acceptance.UserId = userId;
@@ -31,7 +31,7 @@ public partial class PaymentService
         return acceptance;
     }
 
-    public Task<bool> HasLegalAcceptance(int userId, Guid id, bool group, CancellationToken ct) =>
+    public Task<bool> HasLegalAcceptance(int? userId, Guid id, bool group, CancellationToken ct) =>
         db.LegalAcceptances.AsNoTracking().AnyAsync(a => a.UserId == userId &&
             a.DocumentType == LegalDocuments.Sales &&
             (group ? a.PurchaseGroupId == id : a.PaymentOrderId == id), ct);

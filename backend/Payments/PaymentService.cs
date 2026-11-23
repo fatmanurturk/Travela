@@ -196,12 +196,33 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
 
     public async Task CancelTicket(int userId, string pnr, CancellationToken ct)
     {
+        var id = await db.PaymentOrders.Where(p => p.Reservation.Pnr == pnr && p.PassengerId == userId && p.Reservation.Kind == "Ticket").Select(p => (Guid?)p.Id).SingleOrDefaultAsync(ct);
+        if (id == null) throw new PaymentFlowException("Bilet bulunamadı.", 404);
+        await CancelOrder(id.Value, ct);
+    }
+
+    public Task CancelTicketWithCode(Guid id, Guid challengeId, string grantHash, string codeHash, CancellationToken ct) => CancelOrder(id, ct, challengeId, grantHash, codeHash);
+
+    private async Task CancelOrder(Guid id, CancellationToken ct, Guid? challengeId = null, string? grantHash = null, string? codeHash = null)
+    {
         db.ChangeTracker.Clear();
-        var tripId = await db.Reservations.Where(r => r.Pnr == pnr && r.PassengerId == userId && r.Kind == "Ticket").Select(r => (int?)r.TripId).SingleOrDefaultAsync(ct);
-        if (tripId == null) throw new PaymentFlowException("Bilet bulunamadı.", 404);
+        var tripId = await db.PaymentOrders.Where(p => p.Id == id && p.Reservation.Kind == "Ticket" && p.PaymentStatus == "Paid").Select(p => p.Reservation.TripId).SingleAsync(ct);
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        var trip = await LockTrip(tripId.Value, ct);
-        var order = await db.PaymentOrders.Include(p => p.Reservation).SingleAsync(p => p.Reservation.Pnr == pnr && p.PassengerId == userId, ct);
+        var trip = await LockTrip(tripId, ct);
+        var order = await db.PaymentOrders.Include(p => p.Reservation).SingleAsync(p => p.Id == id, ct);
+        if (challengeId.HasValue)
+        {
+            var challenge = await db.TicketCancellationChallenges.FromSqlInterpolated($"SELECT * FROM TicketCancellationChallenges WITH (UPDLOCK, HOLDLOCK) WHERE Id = {challengeId.Value}").SingleOrDefaultAsync(ct);
+            if (challenge == null || challenge.PaymentOrderId != id || challenge.GrantHash != grantHash || !challenge.Delivered || challenge.UsedAt != null || challenge.ExpiresAt <= Now || challenge.Attempts >= 5)
+                throw new PaymentFlowException("Kod geçersiz veya süresi dolmuş. Yeni kod isteyin.", 400);
+            challenge.Attempts++;
+            if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(System.Text.Encoding.UTF8.GetBytes(challenge.CodeHash), System.Text.Encoding.UTF8.GetBytes(codeHash ?? "")))
+            {
+                await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+                throw new PaymentFlowException("Kod geçersiz veya süresi dolmuş. Yeni kod isteyin.", 400);
+            }
+            challenge.UsedAt = Now;
+        }
         if (order.Reservation.Status == "Active")
         {
             var journey = await Segments.Journey(trip, order.Reservation, ct);
@@ -214,7 +235,7 @@ public partial class PaymentService(TravelaDbContext db, IPaymentProvider provid
             RequestRefund(order, Now, db);
             await Segments.SaveInventory(trip, ct);
         }
-        await tx.CommitAsync(ct);
+        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
     }
 
     private Task ExpireLocked(Trip trip, CancellationToken ct) => Segments.ExpireLocked(trip, ct);

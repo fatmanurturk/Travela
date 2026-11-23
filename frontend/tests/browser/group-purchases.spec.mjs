@@ -32,7 +32,7 @@ for (const width of [390,1440]) test(`İki yolcu kendi bilgileriyle ortak sipari
   await page.screenshot({ path: `../tmp/ticket-qa/shared-contact-form-${width}.png`, fullPage: true });
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
   await page.getByRole("checkbox", { name: /Mesafeli satış sözleşmesini ve ön bilgilendirme/ }).check();
-  await page.getByRole("button", { name: "Ödemeye geç", exact: true }).click();
+  await page.getByRole("button", { name: "Ödemeye devam et", exact: true }).click();
   await expect(page).toHaveURL(`/purchase/${id}`);
   expect(sent.contactEmail).toBe("buyer@example.com"); expect(sent.contactPhone).toBe("+905321234567");
   expect(sent.passengers.every(p => p.identityNumber === "10000000146" && !("email" in p) && !("phone" in p))).toBe(true);
@@ -53,7 +53,7 @@ test("iyzico sandbox akışı alıcı bilgilerini toplar ve yalnızca sağlayıc
   for (const [field,value] of Object.entries({ name:"Alıcı", surname:"Test", identityNumber:"11111111111", address:"Sandbox adresi", city:"İzmir", country:"Türkiye", zipCode:"35000" })) await page.getByLabel(`Alıcı ${field}`, { exact: true }).fill(value);
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
   await page.getByRole("checkbox", { name: /Mesafeli satış sözleşmesini ve ön bilgilendirme/ }).check();
-  await page.getByRole("button", { name: "Ödemeye geç", exact: true }).click();
+  await page.getByRole("button", { name: "Ödemeye devam et", exact: true }).click();
   await expect(page).toHaveURL(`/purchase/${id}`);
   expect(sent.buyer.identityNumber).toBe("11111111111"); expect(sent.passengers[0].gender).toBe("Female"); await expect(page.getByRole("link", { name: "iyzico sandbox ödeme sayfasına git" })).toHaveAttribute("href", sandboxGroup.checkoutUrl);
   expect(sent.buyer.phone).toBe(sent.contactPhone);
@@ -97,7 +97,7 @@ test("Tek yolcuda eksik/geçersiz bilgiler gönderilmez; düzeltilen bilgilerle 
   await page.getByRole("button", { name: "Başka yolcu için bilgileri temizle · Koltuk 2", exact: true }).click();
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
   await page.getByRole("checkbox", { name: /Mesafeli satış sözleşmesini ve ön bilgilendirme/ }).check();
-  const submit = page.getByRole("button", { name: "Ödemeye geç", exact: true });
+  const submit = page.getByRole("button", { name: "Ödemeye devam et", exact: true });
   await submit.click(); expect(sent).toBeUndefined();
   await page.getByLabel("Ad soyad · Koltuk 2").fill("Tek Yolcu");
   for (const invalid of ["1000000014", "00000000000", "11111111111", "10000000147"]) {

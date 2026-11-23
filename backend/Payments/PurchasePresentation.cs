@@ -7,7 +7,7 @@ using Travela.Api.Legal;
 namespace Travela.Api.Payments;
 public static class PurchasePresentation
 {
-    public static async Task<PurchaseDto> Detail(TravelaDbContext db, int userId, Guid id, TimeProvider clock, CancellationToken ct)
+    public static async Task<PurchaseDto> Detail(TravelaDbContext db, int? userId, Guid id, TimeProvider clock, CancellationToken ct)
     {
         var p = await db.PaymentOrders.AsNoTracking().Include(p => p.PurchaseGroup).Include(p => p.Reservation).ThenInclude(r => r.Trip).ThenInclude(t => t.Route)
             .Include(p => p.Reservation).ThenInclude(r => r.Trip).ThenInclude(t => t.Company)

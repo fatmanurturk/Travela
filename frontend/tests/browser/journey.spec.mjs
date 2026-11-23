@@ -33,7 +33,7 @@ for (const width of [390, 1440]) test(`Yolcu gerçek plandan seçer ve terminal 
   await page.getByRole("button", { name: "Hesap bilgilerimi kullan · Koltuk 6" }).click();
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
   await page.getByRole("checkbox", { name: /Mesafeli satış sözleşmesini ve ön bilgilendirme/ }).check();
-  await page.getByRole("button", { name: "Ödemeye geç", exact: true }).click();
+  await page.getByRole("button", { name: "Ödemeye devam et", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Test sırasında koltuk tutuldu"); expect(sent.passengers[0].seatNumber).toBe(6); expect(sent.tripId).toBe(12);
 });
 

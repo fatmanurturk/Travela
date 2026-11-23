@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiUrl } from "../api";
 import { passengerReturnTo } from "../reservations";
 
-function Login() {
+function Login({ onPassengerLogin }: { onPassengerLogin?: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -14,6 +14,7 @@ function Login() {
 
   const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
+    e.stopPropagation();
     setError("");
     setLoading(true);
 
@@ -55,7 +56,8 @@ function Login() {
       } else if (data.user.role === "Company") {
         navigate("/company", { replace: true });
       } else if (data.user.role === "Passenger") {
-        navigate(passengerReturnTo(searchParams.get("returnTo")), { replace: true });
+        if (onPassengerLogin) onPassengerLogin();
+        else navigate(passengerReturnTo(searchParams.get("returnTo")), { replace: true });
       } else {
         navigate("/", { replace: true });
       }

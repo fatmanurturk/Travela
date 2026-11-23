@@ -30,7 +30,7 @@ export default function CampaignsPage() {
       <strong className="campaign-discount">{discountLabel(c)}</strong><h2>{c.name}</h2><p>{c.description}</p>
       <dl><div><dt>Güzergâh</dt><dd>{c.routeName ?? "Firmanın tüm güzergâhları"}</dd></div><div><dt>Minimum sepet</dt><dd>{money.format(c.minimumSubtotal)}</dd></div>
         {c.maximumDiscount != null && <div><dt>İndirim tavanı</dt><dd>{money.format(c.maximumDiscount)}</dd></div>}
-        <div><dt>Son kullanım (Türkiye)</dt><dd>{dateTime.format(new Date(c.endsAt))}</dd></div><div><dt>Hesap başına</dt><dd>{c.perUserLimit} sipariş</dd></div>
+        <div><dt>Son kullanım (Türkiye)</dt><dd>{dateTime.format(new Date(c.endsAt))}</dd></div><div><dt>Hesap başına</dt><dd>{c.perUserLimit == null ? "Sınırsız · Misafir alımına uygun" : `${c.perUserLimit} sipariş · Giriş gerekli`}</dd></div>
         {c.departureFrom && <div><dt>İlk kalkış</dt><dd>{dateTime.format(new Date(c.departureFrom))}</dd></div>}
         {c.departureUntil && <div><dt>Son kalkış sınırı</dt><dd>{dateTime.format(new Date(c.departureUntil))} öncesi</dd></div>}</dl>
       {c.code ? <button type="button" className="campaign-code" onClick={async () => { try { await navigator.clipboard.writeText(c.code!); setMessage(`${c.code} kopyalandı. Sefer detayındaki kupon alanında kullanabilirsiniz.`); } catch { setMessage(`Kupon kodunuz: ${c.code}`); } }}><span>{c.code}</span><small>Kodu kopyala</small></button> : <p className="campaign-auto">Uygun sepete otomatik uygulanır</p>}

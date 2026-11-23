@@ -15,21 +15,22 @@ namespace Travela.Api.Payments;
 public partial class PaymentService
 {
     public async Task<PurchaseGroup> StartGroup(
-        int userId, StartGroupPurchaseDto dto, string? protectedBuyer,
-        CancellationToken ct, string? clientIp = null)
+        int? userId, StartGroupPurchaseDto dto, string? protectedBuyer,
+        CancellationToken ct, string? clientIp = null, Guid? guestSessionId = null)
     {
         LegalDocuments.Validate(dto.LegalAcceptances, LegalDocuments.Sales);
         var consentIp = LegalDocuments.RequireIp(clientIp);
+        if (userId.HasValue == guestSessionId.HasValue) throw new PaymentFlowException("Sipariş oturumu doğrulanamadı.", 403);
         if (dto.RequestKey == Guid.Empty || dto.Passengers is not { Count: >= 1 and <= 10 } || dto.Passengers.Any(p => p == null || string.IsNullOrWhiteSpace(p.FullName) || p.FullName.Trim().Length < 2) || dto.Passengers.Select(p => p.SeatNumber).Distinct().Count() != dto.Passengers.Count)
             throw new PaymentFlowException("1–10 farklı koltuk ve her yolcu için geçerli bilgiler gereklidir.", 400);
         if (!System.ComponentModel.DataAnnotations.Validator.TryValidateObject(dto, new(dto), [], true))
             throw new PaymentFlowException("Ortak iletişim bilgileri eksik veya geçersiz. E-posta ve telefonu kontrol ediniz.", 400);
-        if (provider.Name == "IyzicoSandbox" && dto.Buyer == null) throw new PaymentFlowException("Ödeme için alıcı bilgileri gereklidir.", 400);
+        if (provider.Name is "IyzicoSandbox" or "Iyzico" && dto.Buyer == null) throw new PaymentFlowException("Ödeme için alıcı bilgileri gereklidir.", 400);
         if (dto.Passengers.Any(p => !System.ComponentModel.DataAnnotations.Validator.TryValidateObject(p, new(p), [], true)))
             throw new PaymentFlowException("Yolcu bilgileri eksik veya geçersiz. Her yolcu için ad soyad, geçerli T.C. kimlik numarası ve cinsiyet seçiniz.", 400);
         var passengers = dto.Passengers.OrderBy(p => p.SeatNumber).Select(p => new { p.SeatNumber, name = p.FullName.Trim(), identityNumber = p.IdentityNumber, gender = p.Gender }).ToList();
-        var contactEmail = dto.ContactEmail.Trim().ToLowerInvariant();
-        var contactPhone = dto.ContactPhone.Trim();
+        var contactEmail = BookingContact.Email(dto.ContactEmail);
+        var contactPhone = BookingContact.Phone(dto.ContactPhone) ?? throw new PaymentFlowException("Geçerli bir cep telefonu giriniz.", 400);
         var couponCode = CampaignPricing.NormalizeCode(dto.CouponCode);
         var fingerprint = JsonSerializer.Serialize(new { dto.TripId, passengers, contactEmail, contactPhone, dto.Buyer, couponCode, dto.BoardingStopOrder, dto.AlightingStopOrder });
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fingerprint)));
@@ -38,7 +39,7 @@ public partial class PaymentService
         await using (var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct))
         {
             var trip = await LockTrip(dto.TripId, ct);
-            var existing = await db.PurchaseGroups.SingleOrDefaultAsync(g => g.PassengerId == userId && g.RequestKey == dto.RequestKey, ct);
+            var existing = await db.PurchaseGroups.SingleOrDefaultAsync(g => g.PassengerId == userId && g.GuestSessionId == guestSessionId && g.RequestKey == dto.RequestKey, ct);
             if (existing != null)
             {
                 if (existing.RequestHash != hash) throw new PaymentFlowException("İşlem anahtarı farklı yolcu veya koltuk bilgileriyle kullanılmış.");
@@ -58,11 +59,11 @@ public partial class PaymentService
             var available = await Segments.AvailableSeatNumbers(trip, segment.From.StopOrder, segment.To.StopOrder, ct);
             if (passengers.Any(p => !available.Contains(p.SeatNumber)))
                 throw new PaymentFlowException("Seçilen koltuklardan biri artık alınamıyor. Hiçbir koltuk ayrılmadı; planı yenileyin.");
-            if (!await db.Users.SessionAccounts(db).AnyAsync(u => u.Id == userId && u.Role == "Passenger", ct)) throw new PaymentFlowException("Aktif yolcu hesabı gereklidir.", 401);
+            if (userId.HasValue && !await db.Users.SessionAccounts(db).AnyAsync(u => u.Id == userId && u.Role == "Passenger", ct)) throw new PaymentFlowException("Aktif yolcu hesabı gereklidir.", 401);
             var price = await CampaignPricing.Quote(db, trip, userId, passengers.Count, couponCode, Now, true, ct, segment.Price, segment.From.DepartureTime);
             if (dto.ExpectedAmount.HasValue && dto.ExpectedAmount.Value != price.Amount)
                 throw new PaymentFlowException("Fiyat veya kampanya koşulları değişti. Güncel toplamı kontrol edip tekrar deneyin.");
-            group = new() { PassengerId = userId, TripId = trip.Id, RequestKey = dto.RequestKey, RequestHash = hash, Amount = price.Amount,
+            group = new() { PassengerId = userId, GuestSessionId = guestSessionId, TripId = trip.Id, RequestKey = dto.RequestKey, RequestHash = hash, Amount = price.Amount,
                 ContactEmail = contactEmail, ContactPhone = contactPhone,
                 BoardingStopOrder = segment.From.StopOrder, AlightingStopOrder = segment.To.StopOrder,
                 OriginalAmount = price.OriginalAmount, DiscountAmount = price.DiscountAmount, CampaignId = price.CampaignId, CampaignName = price.CampaignName, CouponCode = price.CouponCode,

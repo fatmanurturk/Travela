@@ -78,7 +78,7 @@ for (const width of [360, 390, 1440]) {
   await expect(page.getByRole("button", { name: "Koltuk 1, dolu", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Koltuk 2, boş", exact: true }).click();
   await expect(page.locator(".booking-summary")).toContainText("Koltuk 2");
-  await expect(page.getByRole("button", { name: "Ödemeye geç", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Ödemeye devam et", exact: true })).toBeEnabled();
   await expect(page.locator("main")).not.toContainText("dahili tutma");
   await verifyLayout(page, "trip", width);
  });

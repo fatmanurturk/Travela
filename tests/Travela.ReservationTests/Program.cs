@@ -18,6 +18,7 @@ using Travela.Tests;
 
 var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
 Directory.SetCurrentDirectory(root);
+if (args.Contains("--guest-unit")) { GuestPurchaseChecks.Unit(); return; }
 if (args.Contains("--identity-unit")) { IdentityNumberChecks.Run(); return; }
 if (args.Contains("--seat-unit")) { SeatRulesChecks.Unit(); return; }
 if (args.Contains("--test-db-unit")) { SqlTestDatabaseChecks.Run(); return; }
@@ -103,6 +104,14 @@ try
     start.Environment["Iyzico__SecretKey"] = "sandbox-test-secret";
     start.Environment["Iyzico__CallbackBaseUrl"] = "https://example.test";
     start.Environment["Logging__LogLevel__Default"] = "Warning";
+    if (args.Contains("--guest-tests") || args.Contains("--guest-disabled"))
+    {
+        var pickup = Path.Combine(root, "tmp", "guest-ticket-tests", cs.InitialCatalog);
+        Environment.SetEnvironmentVariable("TRAVELA_GUEST_TEST_PICKUP", pickup);
+        start.Environment["AccountEmail__PickupDirectory"] = pickup;
+        start.Environment["GuestTickets__CancellationDelivery"] = args.Contains("--guest-disabled") ? "Disabled" : "Email";
+        foreach (var policy in new[] { "guest-create", "guest-checkout", "ticket-lookup", "ticket-code", "ticket-verify" }) start.Environment["GuestTickets__RateLimit__" + policy] = "1000";
+    }
     server = Process.Start(start)!;
     server.OutputDataReceived += (_, e) => { lock (log) log.AppendLine(e.Data); };
     server.ErrorDataReceived += (_, e) => { lock (log) log.AppendLine(e.Data); };
@@ -111,6 +120,26 @@ try
     var ready = false;
     for (var i = 0; i < 60; i++) { try { ready = (await http.GetAsync("/api/test")).IsSuccessStatusCode; if (ready) break; } catch (HttpRequestException) { } if (server.HasExited) throw new Exception(log.ToString()); await Task.Delay(200); }
     Check(ready, "Test API çalışıyor");
+    if (args.Contains("--guest-rate"))
+    {
+        for (var request = 0; request < 21; request++)
+        {
+            var response = await http.PostAsJsonAsync("/api/ticket-lookup", new { pnr = "UNKNOWN", contact = "nobody@example.test" });
+            Check(response.StatusCode == (request < 20 ? HttpStatusCode.NotFound : HttpStatusCode.TooManyRequests), "Bilet sorgulama istek sınırı uygulanır");
+        }
+        foreach (var (path, limit) in new[] { ("/api/guest/purchases/session", 10), ("/api/ticket-lookup/cancellation-code", 3), ("/api/ticket-lookup/cancel", 10) })
+        {
+            HttpResponseMessage? response = null;
+            for (var i = 0; i <= limit; i++) response = await http.PostAsJsonAsync(path, new { challengeId = Guid.NewGuid(), code = "123456" });
+            Check(response!.StatusCode == HttpStatusCode.TooManyRequests, "Misafir oluşturma, kod gönderimi ve doğrulama sınırı uygulanır");
+        }
+        Console.WriteLine($"Guest rate-limit checks: {passed} passed."); return;
+    }
+    if (args.Contains("--guest-tests") || args.Contains("--guest-disabled"))
+    {
+        await GuestPurchaseChecks.Run(db, http, Check, root, args.Contains("--guest-disabled"));
+        Console.WriteLine($"Guest integration checks: {passed} passed."); return;
+    }
     if (args.Contains("--notification-tests")) { await JourneyChecks.Run(db, http, Check); await NotificationChangeChecks.Run(db, http, Check, root); return; }
     if (args.Contains("--segment-sales")) { await SegmentSalesChecks.Run(db, http, Check); return; }
     var token1 = await Login(u1); var token2 = await Login(u2); var adminToken = await Login(admin); var companyToken = await Login(c1); var otherToken = await Login(c2);

@@ -35,7 +35,7 @@ public static class CampaignPricing
 
     // Reserve capacity in the same serializable transaction as the seat holds.
     // Campaign locks are always taken by ID, after the trip lock, including automatic selection.
-    public static async Task<CampaignPrice> Quote(TravelaDbContext db, Trip trip, int userId, int passengers,
+    public static async Task<CampaignPrice> Quote(TravelaDbContext db, Trip trip, int? userId, int passengers,
         string? couponCode, DateTime now, bool reserve, CancellationToken ct, decimal? segmentPrice = null, DateTime? segmentDeparture = null)
     {
         if (passengers is < 1 or > 10) throw new PaymentFlowException("1–10 yolcu seçilmelidir.", 400);
@@ -57,9 +57,10 @@ public static class CampaignPricing
             // Recheck after locking: management may have changed the campaign meanwhile.
             if (!c.IsActive || c.StartsAt > now || c.EndsAt <= now || c.Code != code || c.CompanyId != trip.CompanyId ||
                 c.RouteId.HasValue && c.RouteId != trip.RouteId || c.DepartureFrom > departure || c.DepartureUntil <= departure) continue;
+            if (userId == null && c.PerUserLimit.HasValue) { if (code != null) throw new PaymentFlowException("Bu kampanya için giriş yapmalısınız.", 400); continue; }
             var uses = Uses(db, id, now);
             if (c.UsageLimit.HasValue && await uses.CountAsync(ct) >= c.UsageLimit.Value ||
-                await uses.CountAsync(g => g.PassengerId == userId, ct) >= c.PerUserLimit) continue;
+                c.PerUserLimit.HasValue && await uses.CountAsync(g => g.PassengerId == userId, ct) >= c.PerUserLimit.Value) continue;
             var discount = Discount(c, subtotal, passengers);
             if (discount > best.DiscountAmount) best = new(subtotal, discount, subtotal - discount, c.Id, c.Name, c.Code);
         }

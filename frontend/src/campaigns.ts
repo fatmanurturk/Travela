@@ -3,7 +3,7 @@ import { money } from "./reservations";
 export type Campaign = {
   id: number; companyId: number; companyName: string; routeId: number | null; routeName: string | null;
   name: string; description: string; code: string | null; discountType: "Percentage" | "Fixed"; value: number;
-  minimumSubtotal: number; maximumDiscount: number | null; usageLimit: number | null; perUserLimit: number;
+  minimumSubtotal: number; maximumDiscount: number | null; usageLimit: number | null; perUserLimit: number | null;
   startsAt: string; endsAt: string; departureFrom: string | null; departureUntil: string | null;
   isActive: boolean; isPublic: boolean; version: string; used: number; reserved: number; totalDiscount: number;
 };

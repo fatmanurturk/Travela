@@ -128,6 +128,10 @@ builder.Services.AddRateLimiter(options =>
         context.HttpContext.Response.Headers.RetryAfter = "60";
         await context.HttpContext.Response.WriteAsJsonAsync(new { message = "Çok fazla bağlantı isteği gönderildi. Bir dakika sonra tekrar deneyin." }, cancellationToken: ct);
     };
+    foreach (var (name, limit) in new[] { ("guest-checkout", 90), ("guest-create", 10), ("ticket-lookup", 20), ("ticket-code", 3), ("ticket-verify", 10) })
+        options.AddPolicy(name, context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = builder.Configuration.GetValue("GuestTickets:RateLimit:" + name, limit), Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     options.AddPolicy("account-links", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = builder.Configuration.GetValue("AccountEmail:RequestLimitPerMinute", 20),
@@ -135,6 +139,7 @@ builder.Services.AddRateLimiter(options =>
 });
 builder.Services.AddScoped<Travela.Api.Security.SessionTokenService>();
 builder.Services.AddScoped<PaymentService>();
+builder.Services.AddScoped<GuestTicketAccess>();
 if (builder.Configuration["Payments:RecoveryEnabled"] != "false") builder.Services.AddHostedService<PaymentRecoveryWorker>();
 
 builder.Services.AddDbContext<TravelaDbContext>(options =>
@@ -150,10 +155,11 @@ builder.Services.AddCors(options =>
         policy.SetIsOriginAllowed(origin =>
         {
             if (string.IsNullOrWhiteSpace(origin)) return false;
-            return origin.Contains("localhost") || origin.Contains("127.0.0.1");
+            return Uri.TryCreate(origin, UriKind.Absolute, out var uri) && (origin == builder.Configuration["AccountEmail:FrontendBaseUrl"]?.TrimEnd('/') ||
+                (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing")) && uri.IsLoopback);
         })
         .AllowAnyHeader()
-        .AllowAnyMethod();
+        .AllowAnyMethod().AllowCredentials();
     });
 });
 
@@ -169,6 +175,20 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors("TravelaFrontend");
 app.UseRateLimiter();
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api/guest") || context.Request.Path.StartsWithSegments("/api/ticket-lookup"))
+    {
+        context.Response.Headers.CacheControl = "private, no-store";
+        if (context.Request.Method != "GET" && context.Request.Headers["Sec-Fetch-Site"] == "cross-site") { context.Response.StatusCode = 403; return; }
+        var origin = context.Request.Headers.Origin.ToString();
+        if (context.Request.Method != "GET" && origin.Length > 0 && origin != $"{context.Request.Scheme}://{context.Request.Host}" &&
+            origin != builder.Configuration["AccountEmail:FrontendBaseUrl"]?.TrimEnd('/') &&
+            !((app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing")) && Uri.TryCreate(origin, UriKind.Absolute, out var uri) && uri.IsLoopback))
+        { context.Response.StatusCode = 403; return; }
+    }
+    await next();
+});
 
 app.MapGet("/weatherforecast", () =>
 {

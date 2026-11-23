@@ -41,6 +41,7 @@ namespace Travela.Data
     base.OnModelCreating(modelBuilder);
     ConfigureSegments(modelBuilder);
     ConfigureStaff(modelBuilder);
+    ConfigureGuestCheckout(modelBuilder);
     modelBuilder.Entity<LegalAcceptance>(entity =>
     {
         entity.Property(a => a.DocumentType).HasMaxLength(40);
@@ -55,7 +56,7 @@ namespace Travela.Data
         entity.HasOne<PaymentOrder>().WithMany().HasForeignKey(a => a.PaymentOrderId)
             .OnDelete(DeleteBehavior.NoAction);
         entity.HasIndex(a => new { a.UserId, a.Context, a.RequestKey, a.DocumentType })
-            .IsUnique().HasFilter(null);
+            .IsUnique().HasFilter("[UserId] IS NOT NULL");
     });
     modelBuilder.Entity<Campaign>(e =>
     {
@@ -67,7 +68,7 @@ namespace Travela.Data
         e.HasIndex(c => new { c.CompanyId, c.IsActive, c.StartsAt, c.EndsAt });
         e.HasOne<Company>().WithMany().HasForeignKey(c => c.CompanyId).OnDelete(DeleteBehavior.NoAction);
         e.HasOne<Travela.Api.Models.Route>().WithMany().HasForeignKey(c => c.RouteId).OnDelete(DeleteBehavior.NoAction);
-        e.ToTable(t => t.HasCheckConstraint("CK_Campaigns_Rules", "[EndsAt] > [StartsAt] AND [Value] > 0 AND ([DiscountType] = N'Fixed' OR ([DiscountType] = N'Percentage' AND [Value] <= 99)) AND [MinimumSubtotal] >= 0 AND ([MaximumDiscount] IS NULL OR [MaximumDiscount] > 0) AND ([UsageLimit] IS NULL OR [UsageLimit] > 0) AND [PerUserLimit] > 0 AND ([DepartureFrom] IS NULL OR [DepartureUntil] IS NULL OR [DepartureUntil] > [DepartureFrom])"));
+        e.ToTable(t => t.HasCheckConstraint("CK_Campaigns_Rules", "[EndsAt] > [StartsAt] AND [Value] > 0 AND ([DiscountType] = N'Fixed' OR ([DiscountType] = N'Percentage' AND [Value] <= 99)) AND [MinimumSubtotal] >= 0 AND ([MaximumDiscount] IS NULL OR [MaximumDiscount] > 0) AND ([UsageLimit] IS NULL OR [UsageLimit] > 0) AND ([PerUserLimit] IS NULL OR [PerUserLimit] > 0) AND ([DepartureFrom] IS NULL OR [DepartureUntil] IS NULL OR [DepartureUntil] > [DepartureFrom])"));
     });
     modelBuilder.Entity<PurchaseGroup>(e =>
     {

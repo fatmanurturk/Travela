@@ -7,7 +7,6 @@ export default function TravelAnimation() {
   const container = useRef<HTMLDivElement>(null);
   const animation = useRef<AnimationItem | null>(null);
   const [ready, setReady] = useState(false);
-  const [paused, setPaused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
   useEffect(() => {
@@ -43,14 +42,10 @@ export default function TravelAnimation() {
   useEffect(() => {
     if (!ready || !animation.current) return;
     if (reducedMotion) animation.current.goToAndStop(60, true);
-    else if (paused) animation.current.pause();
     else animation.current.play();
-  }, [ready, paused, reducedMotion]);
+  }, [ready, reducedMotion]);
 
   return <div className="hero-animation">
     <div className="hero-animation-art" ref={container} aria-hidden="true" />
-    {ready && !reducedMotion && <button className="hero-animation-control" type="button" aria-pressed={paused} onClick={() => setPaused(value => !value)}>
-      <span aria-hidden="true">{paused ? "▶" : "Ⅱ"}</span> {paused ? "Animasyonu oynat" : "Animasyonu duraklat"}
-    </button>}
   </div>;
 }

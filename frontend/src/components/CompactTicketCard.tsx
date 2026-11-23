@@ -4,7 +4,7 @@ import { isIssuedTicket, paymentLabel, refundLabel, refundMessage, safeCheckoutP
 import type { Purchase } from "../payments";
 import "./CompactTicketCard.css";
 
-export type TicketCardProps = { item: Purchase; onCancel?: (item: Purchase) => void; busy?: boolean; showCheckout?: boolean };
+export type TicketCardProps = { item: Purchase; onCancel?: (item: Purchase) => void; busy?: boolean; showCheckout?: boolean; publicAccess?: boolean };
 const shortDate = new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Istanbul" });
 
 export default function CompactTicketCard({ item, onCancel, busy = false, showCheckout = true }: TicketCardProps) {

@@ -29,7 +29,7 @@ public sealed class AdminTicketRow
     public int TripId { get; set; }
     public int CompanyId { get; set; }
     public string CompanyName { get; set; } = "";
-    public int PassengerId { get; set; }
+    public int? PassengerId { get; set; }
     public string AccountName { get; set; } = "";
     public string PassengerName { get; set; } = "";
     public string? PassengerEmail { get; set; }
@@ -79,8 +79,9 @@ public sealed class AdminTicketsController(TravelaDbContext db, TimeProvider clo
                 (r.Payment != null && r.Payment.PurchaseGroup != null &&
                     ((r.Payment.PurchaseGroup.ContactEmail != null && r.Payment.PurchaseGroup.ContactEmail.Contains(term)) ||
                      (r.Payment.PurchaseGroup.ContactPhone != null && r.Payment.PurchaseGroup.ContactPhone.Contains(term)))) ||
-                (r.PassengerPhoneSnapshot != null && r.PassengerPhoneSnapshot.Contains(term)) || r.Passenger.FullName.Contains(term) ||
-                r.Passenger.Email.Contains(term) || r.Trip.Company.Name.Contains(term) || (r.Payment != null && (r.Payment.Id == orderId || r.Payment.PurchaseGroupId == orderId)));
+                (r.PassengerPhoneSnapshot != null && r.PassengerPhoneSnapshot.Contains(term)) ||
+                (r.Passenger != null && (r.Passenger.FullName.Contains(term) || r.Passenger.Email.Contains(term))) ||
+                r.Trip.Company.Name.Contains(term) || (r.Payment != null && (r.Payment.Id == orderId || r.Payment.PurchaseGroupId == orderId)));
         }
         if (companyId.HasValue) query = query.Where(r => r.Trip.CompanyId == companyId);
         if (passengerId.HasValue) query = query.Where(r => r.PassengerId == passengerId);
@@ -187,7 +188,7 @@ public sealed class AdminTicketsController(TravelaDbContext db, TimeProvider clo
     {
         Id = r.Id, OrderId = r.Payment == null ? null : r.Payment.Id, PurchaseGroupId = r.Payment == null ? null : r.Payment.PurchaseGroupId, ReservationNumber = r.ReservationNumber, Pnr = r.Pnr, Kind = r.Kind, TicketJourneyJson = r.TicketJourneyJson,
         TripId = r.TripId, CompanyId = r.Trip.CompanyId, CompanyName = r.Trip.Company.Name, PassengerId = r.PassengerId,
-        AccountName = r.Passenger.FullName, PassengerName = r.PassengerNameSnapshot ?? "Yolcu bilgisi kaydedilmemiş",
+        AccountName = r.Passenger == null ? "Misafir" : r.Passenger.FullName, PassengerName = r.PassengerNameSnapshot ?? "Yolcu bilgisi kaydedilmemiş",
         PassengerEmail = r.Payment != null && r.Payment.PurchaseGroup != null ? r.Payment.PurchaseGroup.ContactEmail ?? r.PassengerEmailSnapshot : r.PassengerEmailSnapshot,
         PassengerPhone = r.Payment != null && r.Payment.PurchaseGroup != null ? r.Payment.PurchaseGroup.ContactPhone ?? r.PassengerPhoneSnapshot : r.PassengerPhoneSnapshot,
         PassengerSnapshotSource = r.PassengerSnapshotSource, PassengerCapturedAt = r.PassengerCapturedAt,

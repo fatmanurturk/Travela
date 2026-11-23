@@ -5,7 +5,7 @@ import { dateTime, money } from "../reservations";
 import { isIssuedTicket, paymentLabel, refundLabel, refundMessage, safeCheckoutPath, statusTone } from "../payments";
 import { Details } from "./UiDetails";
 
-export default function TicketCard({ item, onCancel, busy = false, showCheckout = true, compact = false }: TicketCardProps & { compact?: boolean }) {
+export default function TicketCard({ item, onCancel, busy = false, showCheckout = true, compact = false, publicAccess = false }: TicketCardProps & { compact?: boolean }) {
   if (compact) return <CompactTicketCard item={item} onCancel={onCancel} busy={busy} showCheckout={showCheckout} />;
   const checkout = safeCheckoutPath(item.checkoutUrl);
   return <article className="reservation-card">
@@ -30,8 +30,8 @@ export default function TicketCard({ item, onCancel, busy = false, showCheckout 
     {item.lastError && <Details title="İşlem açıklaması"><p>{item.lastError}</p></Details>}
     {item.needsAttention && <p role="status">Bu işlem destek takibi gerektiriyor.</p>}
     <Link to={`/trips/${item.tripId}`} className="site-button secondary">Sefer detayı</Link>
-    {item.purchaseGroupId && <Link to={`/purchase/${item.purchaseGroupId}`} className="site-button secondary">Ortak sipariş</Link>}
-    {isIssuedTicket(item) && <Link to={`/tickets/${item.pnr}`} className="site-button primary">Bilet detayını gör</Link>}
+    {!publicAccess && item.purchaseGroupId && <Link to={`/purchase/${item.purchaseGroupId}`} className="site-button secondary">Ortak sipariş</Link>}
+    {!publicAccess && isIssuedTicket(item) && <Link to={`/tickets/${item.pnr}`} className="site-button primary">Bilet detayını gör</Link>}
     {showCheckout && checkout && <Link to={checkout} className="site-button primary">Ödemeye devam et</Link>}
     {onCancel && item.canCancel && <button className="site-button reservation-cancel" disabled={busy} onClick={() => onCancel(item)}>Bileti İptal Et</button>}
   </article>;

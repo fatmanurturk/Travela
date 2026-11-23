@@ -85,7 +85,7 @@ test("Koltuk onayı sözleşme olmadan sipariş oluşturmaz; seçim değişirse 
   await page.getByLabel("İletişim e-posta").fill("consent@example.test");
   await page.getByLabel("İletişim telefon").fill("+905321234567");
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
-  const submit = page.getByRole("button", { name: "Ödemeye geç", exact: true });
+  const submit = page.getByRole("button", { name: "Ödemeye devam et", exact: true });
   await expect(submit).toBeDisabled();
   expect(sent).toBeUndefined();
   await page.getByRole("checkbox", { name: salesLabel }).check();

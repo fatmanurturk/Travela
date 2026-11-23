@@ -170,7 +170,7 @@ public sealed class CampaignView
     public decimal MinimumSubtotal { get; set; }
     public decimal? MaximumDiscount { get; set; }
     public int? UsageLimit { get; set; }
-    public int PerUserLimit { get; set; }
+    public int? PerUserLimit { get; set; }
     public DateTime StartsAt { get; set; }
     public DateTime EndsAt { get; set; }
     public DateTime? DepartureFrom { get; set; }

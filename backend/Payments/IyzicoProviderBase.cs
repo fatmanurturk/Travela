@@ -118,7 +118,7 @@ public abstract class IyzicoProviderBase(
             enabledInstallments = new[] { 1 },
             buyer = new
             {
-                id = group.PassengerId.ToString(CultureInfo.InvariantCulture),
+                id = group.PassengerId?.ToString(CultureInfo.InvariantCulture) ?? "guest-" + group.Id.ToString("N"),
                 name = b.Name,
                 surname = b.Surname,
                 gsmNumber = b.Phone,

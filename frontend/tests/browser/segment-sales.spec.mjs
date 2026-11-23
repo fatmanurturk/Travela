@@ -38,18 +38,21 @@ for (const width of [390,1440]) test(`Terminal seçimi aramadan koltuk ve ödeme
   await page.getByRole("checkbox",{ name:/Mesafeli satış sözleşmesini ve ön bilgilendirme/ }).check();
   await page.screenshot({ path:`../tmp/segment-sales/checkout-${width}.png`,fullPage:true });
   const size = await page.evaluate(() => ({ width:document.documentElement.scrollWidth,viewport:innerWidth })); expect(size.width).toBeLessThanOrEqual(size.viewport+1);
-  await page.getByRole("button",{ name:"Ödemeye geç",exact:true }).click();
+  await page.getByRole("button",{ name:"Ödemeye devam et",exact:true }).click();
   await expect(page).toHaveURL(`/purchase/${id}`);
   expect(quoted.boardingStopOrder).toBe(4); expect(quoted.alightingStopOrder).toBe(5);
   expect(sent.boardingStopOrder).toBe(4); expect(sent.alightingStopOrder).toBe(5); expect(sent.expectedAmount).toBe(150);
 });
 
-test("Girişe yönlendirmede gerçek durak seçimi saklanır", async ({ page }) => {
+test("İsteğe bağlı giriş kapatılınca gerçek durak ve koltuk seçimi saklanır", async ({ page }) => {
   await setup(page,false);
   await page.goto("/trips/12?boardingStopOrder=4&alightingStopOrder=5");
   await chooseSeat(page,3);
-  await page.getByRole("button",{ name:"Giriş yap ve devam et" }).click();
-  await expect(page).toHaveURL(/\/login\?returnTo=%2Ftrips%2F12%3FboardingStopOrder%3D4%26alightingStopOrder%3D5/);
+  await page.getByRole("button",{ name:"Hesabınızla giriş yapın (isteğe bağlı)",exact:true }).click();
+  await expect(page.getByRole("dialog",{ name:"İsteğe bağlı hesap girişi" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/\/trips\/12\?boardingStopOrder=4&alightingStopOrder=5/);
+  await expect(page.getByRole("button",{ name:/^Koltuk 3,/ })).toHaveAttribute("aria-pressed","true");
 });
 
 test("Firma durak ve kesim fiyatlarını mobil sefer yönetiminden kaydeder", async ({ page }) => {
