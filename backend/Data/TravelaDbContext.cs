@@ -263,6 +263,7 @@ namespace Travela.Data
     modelBuilder.Entity<Trip>()
         .HasIndex(t => new { t.BusId, t.DepartureTime });
     modelBuilder.Entity<Trip>().HasIndex(t => new { t.CompanyId, t.DepartureTime });
+    modelBuilder.Entity<Trip>().HasIndex(t => t.CreatedAt);
 
     modelBuilder.Entity<Bus>()
         .Property(b => b.PlateNumber)

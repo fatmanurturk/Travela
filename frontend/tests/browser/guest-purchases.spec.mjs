@@ -70,6 +70,9 @@ test("İsteğe bağlı giriş formu ve koltukları korur; profil elle düzenlene
   const dialog = page.getByRole("dialog", { name: "İsteğe bağlı hesap girişi" }); await expect(dialog).toBeVisible();
   await dialog.getByLabel("E-posta", { exact: true }).fill("member@example.test"); await dialog.getByLabel("Şifre", { exact: true }).fill("TestPass123!");
   await dialog.getByRole("button", { name: "Giriş Yap", exact: true }).click(); await expect(dialog).toHaveCount(0);
+  const menu = page.getByRole("navigation", { name: "Ana menü", exact: true });
+  await expect(menu.getByRole("link", { name: "Biletlerim", exact: true })).toBeVisible();
+  await expect(menu.getByRole("link", { name: "Biletimi Sorgula", exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Ad soyad · Koltuk 2", { exact: true })).toHaveValue("Misafir Yolcu 2");
   await expect(page.getByLabel("Ad soyad · Koltuk 3", { exact: true })).toHaveValue("Misafir Yolcu 3");
   await expect(page.getByLabel("İletişim e-posta")).toHaveValue("guest@example.test");

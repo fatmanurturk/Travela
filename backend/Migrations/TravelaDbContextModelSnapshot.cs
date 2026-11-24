@@ -1403,7 +1403,7 @@ namespace Travela.API.Migrations
                     b.Property<int>("CompanyId")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("DepartureTerminalAddress")
@@ -1455,6 +1455,8 @@ namespace Travela.API.Migrations
                     b.HasIndex("ArrivalTerminalId");
 
                     b.HasIndex("CancelledByUserId");
+
+                    b.HasIndex("CreatedAt");
 
                     b.HasIndex("DepartureTerminalId");
 
@@ -1679,6 +1681,16 @@ namespace Travela.API.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("BaggageExperience")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("BaggageExperienceNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("CareerStartYear")
+                        .HasColumnType("int");
+
                     b.Property<int>("CompanyId")
                         .HasColumnType("int");
 
@@ -1686,6 +1698,21 @@ namespace Travela.API.Migrations
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("EmergencyContactName")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("EmergencyContactPhone")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("EmergencyContactRelationship")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateOnly?>("EmploymentStartDate")
+                        .HasColumnType("date");
 
                     b.Property<string>("FullName")
                         .IsRequired()
@@ -1695,9 +1722,41 @@ namespace Travela.API.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.PrimitiveCollection<string>("Languages")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValueSql("N'[]'");
+
+                    b.PrimitiveCollection<string>("LicenseClasses")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValueSql("N'[]'");
+
+                    b.Property<bool>("PassengerCommunicationExperience")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PassengerCommunicationExperienceNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<string>("Phone")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool>("ServiceExperience")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ServiceExperienceNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.PrimitiveCollection<string>("VehicleTypes")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValueSql("N'[]'");
 
                     b.HasKey("Id");
 
@@ -1773,6 +1832,98 @@ namespace Travela.API.Migrations
                         .IsUnique();
 
                     b.ToTable("RolePermissions");
+                });
+
+            modelBuilder.Entity("Travela.Models.StaffDocument", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateOnly?>("ExpiresOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("IsIndefinite")
+                        .HasColumnType("bit");
+
+                    b.Property<DateOnly>("IssuedOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<int>("Size")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StaffId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "ExpiresOn");
+
+                    b.HasIndex("StaffId", "CompanyId");
+
+                    b.ToTable("StaffDocuments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_StaffDocuments_Size", "[Size] > 0 AND [Size] <= 10485760 AND DATALENGTH([Data]) = [Size]");
+
+                            t.HasCheckConstraint("CK_StaffDocuments_Validity", "([IsIndefinite] = 1 AND [ExpiresOn] IS NULL) OR ([IsIndefinite] = 0 AND [ExpiresOn] IS NOT NULL AND [ExpiresOn] >= [IssuedOn])");
+                        });
+                });
+
+            modelBuilder.Entity("Travela.Models.StaffPhoto", b =>
+                {
+                    b.Property<int>("StaffId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.HasKey("StaffId");
+
+                    b.HasIndex("StaffId", "CompanyId")
+                        .IsUnique();
+
+                    b.ToTable("StaffPhotos", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_StaffPhotos_Size", "DATALENGTH([Data]) > 0 AND DATALENGTH([Data]) <= 5242880");
+                        });
                 });
 
             modelBuilder.Entity("Travela.Models.TripCrew", b =>
@@ -2302,6 +2453,28 @@ namespace Travela.API.Migrations
                     b.Navigation("Permission");
 
                     b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("Travela.Models.StaffDocument", b =>
+                {
+                    b.HasOne("Travela.Models.CompanyStaff", "Staff")
+                        .WithMany()
+                        .HasForeignKey("StaffId", "CompanyId")
+                        .HasPrincipalKey("Id", "CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Staff");
+                });
+
+            modelBuilder.Entity("Travela.Models.StaffPhoto", b =>
+                {
+                    b.HasOne("Travela.Models.CompanyStaff", null)
+                        .WithOne()
+                        .HasForeignKey("Travela.Models.StaffPhoto", "StaffId", "CompanyId")
+                        .HasPrincipalKey("Travela.Models.CompanyStaff", "Id", "CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Travela.Models.TripCrew", b =>

@@ -30,7 +30,7 @@ export default function CompanyAttention({ revision }: { revision: number }) {
    {data.groups.every(group => group.count === 0) ? <div className="attention-empty"><span aria-hidden="true">✓</span><p>Şu anda işlem gerektiren bir durum bulunmuyor.</p></div> : <div className="attention-grid">{data.groups.filter(group => group.count > 0).map(group => <section key={group.id} className={`attention-group attention-${group.id}`}>
     <h3>{group.title} <span className="attention-count">{group.count}</span></h3>
     <ul>{group.items.map(item => <li key={item.id}><Link to={item.href}>{item.title}</Link><p>{item.description}</p>{item.date && <time dateTime={item.date}>{dateTime.format(new Date(item.date))} (Türkiye)</time>}</li>)}</ul>
-    {group.count > group.items.length && <p>Öncelikli {group.items.length} / {group.count} kayıt gösteriliyor. <Link to={group.id === "refunds" ? "/company/reservations" : "/company/trips"}>İlgili listeyi aç</Link></p>}
+    {group.count > group.items.length && <p>Öncelikli {group.items.length} / {group.count} kayıt gösteriliyor. <Link to={group.id === "staff-documents" ? "/company/staff" : group.id === "refunds" ? "/company/reservations" : "/company/trips"}>İlgili listeyi aç</Link></p>}
    </section>)}</div>}
    <small>Son kontrol: {dateTime.format(new Date(data.generatedAt))} (Türkiye)</small>
   </>}

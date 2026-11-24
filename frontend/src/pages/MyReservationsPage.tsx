@@ -58,6 +58,7 @@ export default function MyReservationsPage() {
   };
   const target = confirming?.ticket ?? confirming?.legacy;
   return <div className="travela-site"><SiteHeader /><main className="trip-detail-page"><h1>Biletlerim</h1>
+    <p>Biletin burada görünmüyor mu? <Link to="/bilet-sorgula">PNR ile sorgula</Link></p>
     {success && <p className="reservation-success" role="status">{success}</p>}
     {error && !confirming && <p className="results-message error" role="alert">{error}</p>}
     <button className="site-button secondary" disabled={busy} onClick={() => setRevision(v => v + 1)}>Durumları yenile</button>

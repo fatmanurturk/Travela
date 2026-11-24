@@ -1,11 +1,13 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { SeatPosition } from "../seatPlans";
 import { isCoach41Plan, normalizeSeatPlan } from "../seatPlans";
 import { seatConflict } from "../seatCompatibility";
 import type { Gender, SeatOccupancy, SunExposure } from "../seatCompatibility";
+import SunExposureInfo from "./SunExposureInfo";
 import "./SeatMap.css";
 
-export default function SeatMap({ seats, layout, occupied = [], selected = null, mode = "select", disabled = false, onChoose, occupancies = [], genders = {}, selectionGender = "", sun, onIncompatible }: {
+export default function SeatMap({ seats, layout, occupied = [], selected = null, mode = "select", disabled = false, onChoose, occupancies = [], genders = {}, selectionGender = "", sun, onIncompatible, toolbarActions }: {
+  toolbarActions?: ReactNode;
   seats: SeatPosition[]; layout: string; occupied?: number[]; selected?: number | number[] | null; mode?: "select" | "block" | "readonly" | "edit"; disabled?: boolean; onChoose?: (number: number, anchor: HTMLButtonElement) => void;
   occupancies?: SeatOccupancy[]; genders?: Record<number, Gender | "">; selectionGender?: Gender | ""; sun?: SunExposure; onIncompatible?: (message: string) => void;
 }) {
@@ -51,7 +53,7 @@ export default function SeatMap({ seats, layout, occupied = [], selected = null,
             <span className="seat-selected-mark" aria-hidden="true">✓</span>}
         </button>;
       })}
-    </div></div><div className="physical-seat-legend"><span className="legend-available">□ Boş</span><span className="legend-male">♂ Dolu – Erkek</span><span className="legend-female">♀ Dolu – Kadın</span><span className="legend-selected">✓ Seçili</span><span className="legend-blocked">▧ Kapalı</span><span className="legend-held">◷ Geçici olarak ayrıldı</span>{mode === "block" && <span>Kapatmak veya açmak için koltuğa tıklayın.</span>}</div>
-    {sun && <div className="sun-exposure" role="status"><strong>{sun.side === "Night" ? "☾" : "☀"} {sun.message}</strong><p>Tahminidir. Yol geometrisi boyunca en fazla 5 dakikalık örneklem kullanılır; trafik, duraklamalar, hava ve gölgelenme hesaba katılmaz. Sol/sağ, otobüsün hareket yönüne göredir; ön taraf soldayken otobüsün solu ekranın altındadır.</p>{sun.side !== "Unknown" && <small>Sol: {sun.leftMinutes} dk · Sağ: {sun.rightMinutes} dk · Gece: {sun.nightMinutes} dk</small>}</div>}
+    </div></div><div className="seat-map-toolbar"><div className="physical-seat-legend"><span className="legend-available">□ Boş</span><span className="legend-male">♂ Dolu – Erkek</span><span className="legend-female">♀ Dolu – Kadın</span><span className="legend-selected">✓ Seçili</span><span className="legend-blocked">▧ Kapalı</span><span className="legend-held">◷ Geçici olarak ayrıldı</span>{mode === "block" && <span>Kapatmak veya açmak için koltuğa tıklayın.</span>}</div>{toolbarActions && <div className="seat-map-toolbar-actions">{toolbarActions}</div>}</div>
+    {(mode === "select" || sun) && <SunExposureInfo sun={sun} />}
   </div>;
 }

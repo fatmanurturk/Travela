@@ -121,7 +121,8 @@ for (const width of [390, 768, 1440]) for (const [role, paths] of [["Passenger",
       await verify(page, `${role}-${path.replace(/[^a-z0-9]/gi, "-")}`, width);
       expect(errors, path).toEqual([]);
       if (path === "/trips/1") {
-        await expect(page.locator(".booking-summary fieldset")).toHaveCount(0);
+        await expect(page.locator(".seat-booking > aside")).toHaveCount(0);
+        await expect(page.locator(".passenger-checkout-form fieldset")).toHaveCount(0);
         if (width === 1440) expect((await page.locator(".trip-summary-card").boundingBox()).height).toBeLessThan(240);
       }
       if (path === "/search?all=true" && width === 390) {

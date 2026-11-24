@@ -5,6 +5,7 @@ namespace Travela.DTOs
     public class TripListDto : JourneyDto
     {
         public int Id { get; set; }
+        public DateTime? CreatedAt { get; set; }
         public int CompanyId { get; set; }
         public string CompanyName { get; set; } = string.Empty;
         public int BusId { get; set; }
@@ -48,7 +49,6 @@ namespace Travela.DTOs
 
     public class TripDetailDto : TripListDto
     {
-        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public bool BusIsActive { get; set; }
         public bool CompanyIsActive { get; set; }

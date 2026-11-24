@@ -160,7 +160,7 @@ builder.Services.AddCors(options =>
                 (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing")) && uri.IsLoopback);
         })
         .AllowAnyHeader()
-        .AllowAnyMethod().AllowCredentials();
+        .AllowAnyMethod().WithExposedHeaders("Content-Disposition").AllowCredentials();
     });
 });
 

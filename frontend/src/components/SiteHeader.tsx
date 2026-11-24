@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 
 type StoredUser = {
   fullName?: string;
@@ -7,6 +7,7 @@ type StoredUser = {
 
 function SiteHeader() {
   const navigate = useNavigate();
+  const location = useLocation();
   const token = sessionStorage.getItem("travela_token");
   const storedUser = sessionStorage.getItem("travela_user");
 
@@ -21,6 +22,7 @@ function SiteHeader() {
   }
 
   const isLoggedIn = Boolean(token && user);
+  const isPassenger = isLoggedIn && user?.role === "Passenger";
   const firstName = user?.fullName?.trim().split(/\s+/)[0];
 
   const signOut = () => {
@@ -40,11 +42,12 @@ function SiteHeader() {
       </Link>
 
       <nav className="site-nav" aria-label="Ana menü">
-        <Link to="/">Ana Sayfa</Link>
-        <Link to="/#sefer-ara">Sefer Ara</Link>
-        <Link to="/bilet-sorgula">Biletimi Sorgula</Link>
-        <Link to="/campaigns">Kampanyalar</Link>
-        {isLoggedIn && user?.role === "Passenger" && <Link to="/tickets">Biletlerim</Link>}
+        <Link to="/" aria-current={location.pathname === "/" && !location.hash ? "page" : undefined}>Ana Sayfa</Link>
+        <Link to="/#sefer-ara" aria-current={location.pathname === "/" && location.hash === "#sefer-ara" ? "page" : undefined}>Sefer Ara</Link>
+        {isPassenger
+          ? <NavLink to="/tickets">Biletlerim</NavLink>
+          : <NavLink to="/bilet-sorgula">Biletimi Sorgula</NavLink>}
+        <NavLink to="/campaigns">Kampanyalar</NavLink>
       </nav>
 
       <div className="site-actions">

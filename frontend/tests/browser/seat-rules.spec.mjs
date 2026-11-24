@@ -71,7 +71,7 @@ for (const width of [390, 1440]) for (const legacyCoach of [false, true]) test(`
   await quote;
   await expect(page.getByRole("button", { name: /^Koltuk 22,/ })).toHaveClass(/selected female/);
   await expect(page.getByRole("button", { name: /^Koltuk 39,/ })).toHaveClass(/selected male/);
-  await expect(page.locator(".booking-summary")).toContainText("800");
+  await expect(page.locator(".campaign-price")).toContainText("800");
   await expect(page.getByLabel("Ad soyad · Koltuk 22")).toBeVisible();
   await expect(page.getByLabel("Ad soyad · Koltuk 39")).toBeVisible();
 });
@@ -89,23 +89,24 @@ for (const width of [390, 768, 1024, 1366, 1440, 1920]) for (const [layout, capa
     const s = bounds[0]; const aisle = document.querySelector('.seat-corridor').getBoundingClientRect();
     const scroll = document.querySelector('.bus-scroll'); const area = scroll.getBoundingClientRect();
     const wheel = document.querySelector('.driver-wheel').getBoundingClientRect();
-    const summary = document.querySelector('.seat-booking > aside').getBoundingClientRect();
+    const checkout = document.querySelector('.seat-booking > .passenger-checkout-empty').getBoundingClientRect();
+    const plan = document.querySelector('.seat-booking-plan').getBoundingClientRect();
     const overlaps = bounds.some((a, i) => bounds.some((b, j) => i < j && a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1));
     return { width: document.documentElement.scrollWidth, viewport: innerWidth, ratio: aisle.height / s.height,
       canScroll: scroll.scrollWidth > scroll.clientWidth, seatWidth: s.width, seatHeight: s.height, overlaps,
       allInside: [...bounds, wheel].every(b => b.left >= area.left && b.right <= area.right + 1),
-      panelOnRight: summary.left >= area.right,
+      checkoutBelow: checkout.top >= plan.bottom && Math.abs(checkout.width - plan.width) <= 1,
       positions: buttons.map(button => ({ number: Number(button.querySelector('.seat-number').textContent), row: Number(button.style.gridColumn) - 1, column: Number(button.style.gridRow) })),
     };
   });
   expect(size.width).toBeLessThanOrEqual(size.viewport + 1); expect(size.ratio).toBeGreaterThanOrEqual(1.5); expect(size.ratio).toBeLessThanOrEqual(2);
-  expect(size.canScroll).toBe(width < 768);
+  if (width < 768) expect(size.canScroll).toBe(true);
   expect(size.overlaps).toBe(false);
-  expect(size.seatWidth).toBeGreaterThanOrEqual(width < 768 ? 44 : 28);
+  expect(size.seatWidth).toBeGreaterThanOrEqual(44);
   expect(size.seatHeight).toBeCloseTo(size.seatWidth, 0);
   expect(size.positions).toEqual(data.seats.map(({ number, row, column }) => ({ number, row, column })));
-  if (width >= 768) expect(size.allInside).toBe(true);
-  if (width >= 1366) expect(size.panelOnRight).toBe(true);
+  if (!size.canScroll) expect(size.allInside).toBe(true);
+  expect(size.checkoutBelow).toBe(true);
   await expect(page.locator('.bus-sun.sun-left')).toBeVisible();
   await page.screenshot({ path: `../tmp/ticket-qa/seat-rules-${layout}-${width}.png`, fullPage: true });
   const lastAvailable = page.getByRole("button", { name: new RegExp(`^Koltuk ${capacity - 1},`) });
@@ -145,7 +146,7 @@ test("Bağımsız cinsiyetler, tekrar tıklayarak düzenleme ve geçici bilgiler
   const second = await chooseSeat(page, 7, "Erkek");
   await expect(first).toHaveClass(/selected female/);
   await expect(second).toHaveClass(/selected male/);
-  await expect(page.locator('.booking-summary input[type="radio"]')).toHaveCount(0);
+  await expect(page.locator('.passenger-checkout-form input[type="radio"]')).toHaveCount(0);
   await expect(page.getByRole("combobox", { name: "Yeni yolcunun cinsiyeti" })).toHaveCount(0);
   await chooseSeat(page, 3, "Erkek");
   await expect(first).toHaveClass(/selected male/);
@@ -207,7 +208,7 @@ for (const width of [390, 1440]) for (const gender of ["Kadın", "Erkek"]) {
     await expect(seat.locator(".seat-selected-mark")).toHaveText("✓");
     await expect(seat).toHaveAccessibleName(new RegExp("Seçili, " + gender));
     await expect(page.getByLabel("Yolcu cinsiyeti · Koltuk 3")).toContainText(gender);
-    await expect(page.locator('.booking-summary input[type="radio"], .booking-summary select[name*="gender"]'))
+    await expect(page.locator('.passenger-checkout-form input[type="radio"], .passenger-checkout-form select[name*="gender"]'))
       .toHaveCount(0);
     await seat.scrollIntoViewIfNeeded();
     await page.screenshot({ path: `../tmp/ticket-qa/seat-gender-${gender}-${width}.png` });

@@ -1,4 +1,4 @@
-.physical-seat-map { max-width: 100%; min-width: 0; margin: 20px 0; }
+.physical-seat-map { max-width: 100%; min-width: 0; margin: 12px 0 0; }
 .physical-seat-map > p { color: #526781; font-size: 13px; }
 .bus-scroll { container-type: inline-size; box-sizing: border-box; width: 100%; max-width: calc(128px + var(--seat-rows) * 62px); padding: 24px 3px; margin-inline: auto; }
 .physical-seat-grid {
@@ -54,12 +54,25 @@
 .physical-seat.available:hover { border-color: #2563eb; background: #eff6ff; }
 .physical-seat:focus-visible, .bus-scroll:focus-visible { outline: 3px solid #f59e0b; outline-offset: 3px; }
 .physical-seat:disabled { cursor: default; }
-.physical-seat-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; color: #475569; font-size: 12px; margin: 12px 0; }
-.physical-seat-legend > span { padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
+.seat-map-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin: 8px 0; }
+.seat-map-toolbar-actions { margin-left: auto; }
+.physical-seat-legend { display: flex; flex-wrap: wrap; gap: 6px 8px; color: #475569; font-size: 12px; margin: 0; }
+.physical-seat-legend > span { padding: 3px 5px; border-radius: 4px; }
 .legend-male { background: #dceeff; }.legend-female { background: #fce2ec; }.legend-selected { background: #dcfce7; }.legend-blocked { background: #e2e8f0; }
 .bus-sun { position: absolute; left: 50%; color: #d48a00; font-size: 28px; line-height: 1; }.sun-left { bottom: -23px; }.sun-right { top: -23px; }
-.sun-exposure { margin: 20px 0 8px; border: 1px solid #ecdba7; border-radius: 12px; background: #fffbef; padding: 14px; color: #6b551f; font-size: 13px; }
-.sun-exposure p { margin: 8px 0; font-size: 12px; line-height: 1.6; }
+.sun-exposure { margin: 4px 0 0; color: #6b551f; font-size: 13px; min-width: 0; }
+.sun-exposure > summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; min-height: 36px; padding: 6px 0; cursor: pointer; box-sizing: border-box; }
+.sun-exposure-toggle { color: #22558e; text-decoration: underline; font-size: 12px; }
+.sun-exposure > summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.sun-exposure-details { max-width: 780px; padding-bottom: 8px; }
+.sun-exposure p { margin: 4px 0 8px; font-size: 12px; line-height: 1.6; }
+.public-trip-detail-page .bus-scroll { overflow-x: auto; padding-block: 16px; }
+.public-trip-detail-page .bus-scroll:has(.bus-sun) { padding-block: 24px; }
+.public-trip-detail-page .physical-seat-grid.layout-known:not(.layout-coach41) {
+  --seat-size: clamp(44px, calc((100cqi - 11px - 2 * var(--bus-padding) - var(--front-size) - var(--tail-size) - (var(--seat-rows) + 1) * var(--seat-gap)) / var(--seat-rows)), 52px);
+  grid-template-columns: var(--front-size) repeat(var(--seat-rows), var(--seat-size)) var(--tail-size);
+  width: max-content; min-width: 0; margin-inline: auto;
+}
 .physical-seat-grid.layout-legacy { grid-template-columns: repeat(4, minmax(0, 48px)); grid-template-rows: auto; justify-content: center; }.layout-legacy .seat-front { grid-column: 1 / -1; grid-row: auto; }.layout-legacy .physical-seat { height: 48px; }
 /* The 41-seat coach keeps its geometry even inside a narrow booking panel. */
 .bus-scroll:has(.layout-coach41) { overflow-x: auto; max-width: 100%; }
@@ -222,5 +235,5 @@
   .seat-number { font-size: 14px; }
   .layout-known .physical-seat small { display: block; font-size: 8px; }
   .physical-seat-legend { gap: 6px; }
-  .physical-seat-legend > span { padding: 4px 6px; }
+  .sun-exposure > summary { min-height: 44px; }
 }

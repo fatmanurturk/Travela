@@ -1,4 +1,5 @@
 using Travela.Api.Payments;
+using Travela.Api.Trips;
 using System.Data;
 using Travela.Api.Security;
 using System.Security.Claims;
@@ -21,9 +22,12 @@ namespace Travela.Api.Controllers
         private readonly TravelaDbContext _context;
         private Travela.Api.Trips.TripSegmentService Segments => new(_context, TimeProvider.System);
 
-        public TripsController(TravelaDbContext context)
+        private readonly TimeProvider _clock;
+
+        public TripsController(TravelaDbContext context, TimeProvider clock)
         {
             _context = context;
+            _clock = clock;
         }
 
         [HttpGet("upcoming")]
@@ -121,177 +125,33 @@ namespace Travela.Api.Controllers
 
         [HttpGet]
         [Authorize(Policy = "trip.view")]
-        public async Task<IActionResult> GetTrips(
-            [FromQuery] string? search,
-            [FromQuery] int? companyId,
-            [FromQuery] string? departureCity,
-            [FromQuery] string? arrivalCity,
-            [FromQuery] DateTime? departureFrom,
-            [FromQuery] DateTime? departureTo,
-            [FromQuery] string? status,
-            [FromQuery] string? busPlate,
-            [FromQuery] decimal? minPrice,
-            [FromQuery] decimal? maxPrice,
-            [FromQuery] string? sortBy = "date",
-            [FromQuery] string? sortDirection = "asc",
-            [FromQuery] int pageNumber = 1,
-            [FromQuery] int pageSize = 10)
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+        public async Task<IActionResult> GetTrips([FromQuery] TripManagementFilters filters,
+            [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10, CancellationToken ct = default)
         {
-            if (pageNumber < 1 || pageSize < 1 || pageSize > 100)
-            {
-                return BadRequest(new { message = "Sayfa numarası 1 veya daha büyük, sayfa boyutu 1 ile 100 arasında olmalıdır." });
-            }
-
-            if (minPrice < 0 || maxPrice < 0 ||
-                (minPrice.HasValue && maxPrice.HasValue && minPrice > maxPrice))
-            {
-                return BadRequest(new { message = "Bilet fiyatı aralığı geçersiz." });
-            }
-
-            if (departureFrom.HasValue && departureTo.HasValue &&
-                AsUtc(departureFrom.Value).Date > AsUtc(departureTo.Value).Date)
-            {
-                return BadRequest(new { message = "Kalkış tarihi aralığı geçersiz." });
-            }
-
+            if (pageNumber < 1 || pageSize < 1 || pageSize > 100 || (long)(pageNumber - 1) * pageSize > int.MaxValue)
+                return BadRequest(new { message = "Sayfa numarası veya sayfa boyutu geçersiz. Sayfa boyutu 1 ile 100 arasında olmalıdır." });
             var user = await GetCurrentUserAsync();
-            if (user == null)
-            {
-                return Unauthorized(new { message = "Kullanıcı kimliği doğrulanamadı." });
-            }
-
-            if (user.Role is not ("Admin" or "Company"))
-            {
-                return Forbid();
-            }
-
-            var query = _context.Trips.AsNoTracking().AsQueryable();
-            if (user.Role == "Company")
-            {
-                if (!user.CompanyId.HasValue)
-                {
-                    return Forbid();
-                }
-
-                if (companyId.HasValue && companyId.Value != user.CompanyId.Value)
-                {
-                    return Forbid();
-                }
-
-                query = query.Where(trip => trip.CompanyId == user.CompanyId.Value);
-            }
-            else if (companyId.HasValue)
-            {
-                query = query.Where(trip => trip.CompanyId == companyId.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                var term = search.Trim();
-                var hasNumericId = int.TryParse(term, out var tripId);
-                query = query.Where(trip =>
-                    (hasNumericId && trip.Id == tripId) ||
-                    trip.Company.Name.Contains(term) ||
-                    trip.Bus.PlateNumber.Contains(term));
-            }
-
-            if (!string.IsNullOrWhiteSpace(departureCity))
-            {
-                var city = departureCity.Trim();
-                query = query.Where(trip => trip.Route.DepartureCity.Contains(city));
-            }
-
-            if (!string.IsNullOrWhiteSpace(arrivalCity))
-            {
-                var city = arrivalCity.Trim();
-                query = query.Where(trip => trip.Route.ArrivalCity.Contains(city));
-            }
-
-            if (departureFrom.HasValue)
-            {
-                query = query.Where(trip => trip.DepartureTime >= AsUtc(departureFrom.Value).Date);
-            }
-
-            if (departureTo.HasValue)
-            {
-                query = query.Where(trip => trip.DepartureTime < AsUtc(departureTo.Value).Date.AddDays(1));
-            }
-
-            if (!string.IsNullOrWhiteSpace(status))
-            {
-                var normalizedStatus = NormalizeStatus(status);
-                if (normalizedStatus == null)
-                {
-                    return BadRequest(new { message = "Geçersiz sefer durumu." });
-                }
-
-                var statusValue = normalizedStatus;
-                query = query.Where(trip => trip.Status == statusValue);
-            }
-
-            if (!string.IsNullOrWhiteSpace(busPlate))
-            {
-                var plate = busPlate.Trim();
-                query = query.Where(trip => trip.Bus.PlateNumber.Contains(plate));
-            }
-
-            if (minPrice.HasValue)
-            {
-                query = query.Where(trip => trip.Price >= minPrice.Value);
-            }
-
-            if (maxPrice.HasValue)
-            {
-                query = query.Where(trip => trip.Price <= maxPrice.Value);
-            }
-
-            var totalCount = await query.CountAsync();
-            var descending = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase);
-            query = sortBy?.ToLowerInvariant() switch
-            {
-                "price" => descending
-                    ? query.OrderByDescending(trip => trip.Price).ThenBy(trip => trip.Id)
-                    : query.OrderBy(trip => trip.Price).ThenBy(trip => trip.Id),
-                _ => descending
-                    ? query.OrderByDescending(trip => trip.DepartureTime).ThenBy(trip => trip.Id)
-                    : query.OrderBy(trip => trip.DepartureTime).ThenBy(trip => trip.Id)
-            };
-
-            var items = await query
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
-                .Select(trip => new TripListDto
-                {
-                    ChangeVersion = trip.ChangeVersion,
-                    Id = trip.Id,
-                    CompanyId = trip.CompanyId,
-                    CompanyName = trip.Company.Name,
-                    BusId = trip.BusId,
-                    BusPlateNumber = trip.Bus.PlateNumber,
-                    BusBrand = trip.Bus.Brand,
-                    BusModel = trip.Bus.Model,
-                    BusCapacity = trip.SeatCapacitySnapshot ?? trip.Bus.SeatCapacity, SeatLayout = trip.SeatLayout,
-                    SeatPlanJson = trip.SeatPlanJson, SellableSeatCount = trip.SellableSeatCount ?? trip.Bus.SeatCapacity,
-                    RouteId = trip.RouteId,
-                    DepartureCity = trip.Route.DepartureCity,
-                    ArrivalCity = trip.Route.ArrivalCity,
-                    DepartureTerminalId = trip.DepartureTerminalId, ArrivalTerminalId = trip.ArrivalTerminalId, DepartureTerminalName = trip.DepartureTerminalName, DepartureTerminalAddress = trip.DepartureTerminalAddress, ArrivalTerminalName = trip.ArrivalTerminalName, ArrivalTerminalAddress = trip.ArrivalTerminalAddress, BoardingInstructions = trip.BoardingInstructions,
-                    DepartureTime = trip.DepartureTime,
-                    ArrivalTime = trip.ArrivalTime,
-                    Price = trip.Price,
-                    AvailableSeats = trip.AvailableSeats,
-                    Status = trip.Status
-                })
-                .ToListAsync();
-
+            if (user == null) return Unauthorized(new { message = "Kullanıcı kimliği doğrulanamadı." });
+            var prepared = ManagementQuery(user, filters, _clock.GetUtcNow());
+            if (prepared.Error != null) return prepared.Error;
+            var query = prepared.Query!;
+            var totalCount = await query.CountAsync(ct);
+            var items = await TripManagementQuery.Rows(TripManagementQuery.Order(query, filters).Skip((pageNumber - 1) * pageSize).Take(pageSize)).ToListAsync(ct);
             SetUtcKinds(items);
-            return Ok(new TripListResponseDto
-            {
-                Items = items,
-                TotalCount = totalCount,
-                PageNumber = pageNumber,
-                PageSize = pageSize
-            });
+            return Ok(new TripListResponseDto { Items = items, TotalCount = totalCount, PageNumber = pageNumber, PageSize = pageSize });
+        }
+
+        private (IQueryable<Trip>? Query, IActionResult? Error) ManagementQuery(User user, TripManagementFilters filters, DateTimeOffset now)
+        {
+            if (user.Role is not ("Admin" or "Company")) return (null, Forbid());
+            var query = _context.Trips.AsNoTracking();
+            if (user.Role == "Company") {
+                if (!user.CompanyId.HasValue || filters.CompanyId.HasValue && filters.CompanyId != user.CompanyId) return (null, Forbid());
+                query = query.Where(t => t.CompanyId == user.CompanyId);
+            } else if (filters.CompanyId.HasValue) query = query.Where(t => t.CompanyId == filters.CompanyId);
+            try { return (TripManagementQuery.Filter(query, filters, TripManagementQuery.CreationWindow(filters, now)), null); }
+            catch (ArgumentException error) { return (null, BadRequest(new { message = error.Message })); }
         }
 
         [HttpGet("summary")]
@@ -834,6 +694,7 @@ namespace Travela.Api.Controllers
         {
             foreach (var trip in trips)
             {
+                if (trip.CreatedAt.HasValue) trip.CreatedAt = AsUtc(trip.CreatedAt.Value);
                 trip.DepartureTime = AsUtc(trip.DepartureTime);
                 trip.ArrivalTime = AsUtc(trip.ArrivalTime);
             }
@@ -843,7 +704,7 @@ namespace Travela.Api.Controllers
         {
             trip.DepartureTime = AsUtc(trip.DepartureTime);
             trip.ArrivalTime = AsUtc(trip.ArrivalTime);
-            trip.CreatedAt = AsUtc(trip.CreatedAt);
+            if (trip.CreatedAt.HasValue) trip.CreatedAt = AsUtc(trip.CreatedAt.Value);
             if (trip.UpdatedAt.HasValue) trip.UpdatedAt = AsUtc(trip.UpdatedAt.Value);
             if (trip.CancelledAt.HasValue) trip.CancelledAt = AsUtc(trip.CancelledAt.Value);
         }

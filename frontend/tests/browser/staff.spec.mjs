@@ -24,11 +24,14 @@ async function setup(page,{staff=initialStaff,assigned=[],conflict=false}={}) {
       const search=url.searchParams.get("search")?.toLocaleLowerCase("tr-TR"), duty=url.searchParams.get("duty"),active=url.searchParams.get("isActive");
       return r.fulfill({json:state.staff.filter(s=>(!search||s.fullName.toLocaleLowerCase("tr-TR").includes(search))&&(!duty||s.duty===duty)&&(!active||String(s.isActive)===active))});
     }
+    if(/^\/api\/company\/staff\/\d+$/.test(path)&&method==="GET") return r.fulfill({json:state.staff.find(s=>s.id===Number(path.split("/").at(-1)))});
     if(path.startsWith("/api/company/staff")&&method!=="GET") {
-      expect(method).not.toBe("DELETE"); const body=r.request().postDataJSON();
+      expect(method).not.toBe("DELETE"); const multipart=path.endsWith("/profile");
+      const body=multipart?JSON.parse(r.request().postData().match(/name="profile"\r\n\r\n([\s\S]*?)\r\n--/)[1]):r.request().postDataJSON();
       expect(body).not.toHaveProperty("companyId");expect(body).not.toHaveProperty("password");expect(body).not.toHaveProperty("identityNumber");
-      if(method==="POST")state.staff.push({...body,id:20});else Object.assign(state.staff.find(s=>s.id===Number(path.split("/").at(-1))),body);
-      return r.fulfill({status:method==="POST"?201:200,json:{message:"Personel kaydedildi."}});
+      const id=method==="POST"?20:Number(path.split("/").at(multipart?-2:-1));
+      if(method==="POST")state.staff.push({...body,id});else Object.assign(state.staff.find(s=>s.id===id),body);
+      return r.fulfill({status:method==="POST"?201:200,json:{id,message:"Personel kaydedildi."}});
     }
     if(path==="/api/buses")return r.fulfill({json:{items:[{id:4,companyId:1,plateNumber:"34 TEST 01",seatCapacity:6,isActive:true}]}});
     if(path==="/api/routes")return r.fulfill({json:[{id:3,departureCity:"İstanbul",arrivalCity:"Ankara",isActive:true}]});
@@ -65,7 +68,7 @@ for(const width of [390,1440])test(`Personel ekleme, düzenleme, pasife alma ve 
   await expect(page.getByRole("navigation",{name:"Firma menüsü"}).getByRole("link",{name:"Personeller",exact:true})).toHaveAttribute("href","/company/staff");
   await page.getByRole("button",{name:"Personel ekle",exact:true}).click();
   const form=page.getByRole("form",{name:"Personel kaydı"});await form.getByLabel("Ad soyad",{exact:true}).fill("Yeni Personel");
-  await form.getByLabel("Görev",{exact:true}).selectOption("Attendant");await form.getByLabel("Telefon",{exact:false}).fill("05321234567");
+  await form.getByLabel("Görev",{exact:true}).selectOption("Attendant");await form.getByLabel("Telefon (isteğe bağlı)",{exact:true}).fill("05321234567");
   await form.getByRole("button",{name:"Personeli kaydet"}).click();
   const card=page.locator(".staff-card").filter({has:page.getByRole("heading",{name:"Yeni Personel",exact:true})});await expect(card).toContainText("Muavin · Aktif");
   await card.getByRole("button",{name:"Düzenle",exact:true}).click();await form.getByLabel("Ad soyad",{exact:true}).fill("Yeni Personel Güncel");

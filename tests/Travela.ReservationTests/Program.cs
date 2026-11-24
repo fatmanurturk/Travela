@@ -22,6 +22,8 @@ if (args.Contains("--guest-unit")) { GuestPurchaseChecks.Unit(); return; }
 if (args.Contains("--identity-unit")) { IdentityNumberChecks.Run(); return; }
 if (args.Contains("--seat-unit")) { SeatRulesChecks.Unit(); return; }
 if (args.Contains("--test-db-unit")) { SqlTestDatabaseChecks.Run(); return; }
+if (args.Contains("--staff-profile-unit")) { StaffProfileChecks.Unit(); return; }
+if (args.Contains("--trip-export-unit")) { await TripExportChecks.Unit(); return; }
 if (args.Contains("--segment-tests")) { await SegmentInventoryChecks.Run(); return; }
 using var source = new TravelaDbContextFactory().CreateDbContext([]);
 if (args.Contains("--segment-readiness"))
@@ -68,7 +70,11 @@ var log = new System.Text.StringBuilder();
 var passed = 0;
 try
 {
+    if (args.Contains("--staff-profile-tests")) await StaffProfileChecks.BeforeMigration(db);
+    if (args.Contains("--trip-export-tests")) await TripExportChecks.BeforeMigration(db);
     await db.Database.MigrateAsync();
+    if (args.Contains("--staff-profile-tests")) await StaffProfileChecks.AfterMigration(db, Check);
+    if (args.Contains("--trip-export-tests")) await TripExportChecks.AfterMigration(db, Check);
     var company = new Company { Name = "Test Firma" };
     var otherCompany = new Company { Name = "Diğer Firma" };
     var bus = new Bus { Company = company, SeatCapacity = 20, PlateNumber = "34 TEST 001", NormalizedPlateNumber = "34TEST001" };
@@ -120,6 +126,21 @@ try
     var ready = false;
     for (var i = 0; i < 60; i++) { try { ready = (await http.GetAsync("/api/test")).IsSuccessStatusCode; if (ready) break; } catch (HttpRequestException) { } if (server.HasExited) throw new Exception(log.ToString()); await Task.Delay(200); }
     Check(ready, "Test API çalışıyor");
+    if (args.Contains("--trip-export-tests")) {
+        await TripExportChecks.Run(db, http, Check, admin, c1, u1);
+        Console.WriteLine($"Trip export checks: {passed} passed."); return;
+    }
+    if (args.Contains("--staff-profile-tests") || args.Contains("--staff-tests")) {
+        var companyRole = new Role { Name = "Company" };
+        foreach (var name in new[] { "trip.view", "trip.create", "trip.update" }) {
+            var permission = await db.Permissions.SingleOrDefaultAsync(p => p.Name == name) ?? new Permission { Name = name };
+            db.RolePermissions.Add(new RolePermission { Role = companyRole, Permission = permission });
+        }
+        await db.SaveChangesAsync();
+        if (args.Contains("--staff-profile-tests")) await StaffProfileChecks.Run(db, http, Check, c1, c2, u1);
+        else await StaffChecks.Run(db, http, Check);
+        Console.WriteLine($"Staff profile checks: {passed} passed."); return;
+    }
     if (args.Contains("--hold-rate")) {
         HttpResponseMessage? response = null;
         for (var i = 0; i < 21; i++) response = await http.PostAsJsonAsync("/api/seat-selections", new { id = Guid.Empty, token = "", tripId = 1 });

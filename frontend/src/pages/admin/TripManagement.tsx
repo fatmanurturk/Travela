@@ -42,10 +42,10 @@ type Trip = Journey & {
   price: number;
   availableSeats: number;
   status: string;
+  createdAt: string | null;
 };
 
 type TripDetail = Trip & {
-  createdAt: string;
   updatedAt: string | null;
   busIsActive: boolean;
   companyIsActive: boolean;
@@ -165,7 +165,8 @@ function statusLabel(status: string) {
 
 function toLocalInput(value: string) { return turkeyInput(value); }
 
-function formatDate(value: string) {
+function formatDate(value: string | null | undefined) {
+  if (!value) return "Bilinmiyor";
   return new Date(value).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" });
 }
 
@@ -173,6 +174,7 @@ function TripManagement() {
   const navigate = useNavigate();
   const currentUser = getSessionUser();
   const isAdmin = currentUser?.role === "Admin";
+  const canExport = isAdmin || currentUser?.role === "Company";
   const createEmptyTripForm = (): TripForm => ({
     ...emptyTripForm,
   });
@@ -194,6 +196,15 @@ function TripManagement() {
   const [arrivalCityFilter, setArrivalCityFilter] = useState("");
   const [departureFrom, setDepartureFrom] = useState("");
   const [departureTo, setDepartureTo] = useState("");
+  const [createdPeriod, setCreatedPeriod] = useState("all");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const exportingRef = useRef(false);
+  const [exportError, setExportError] = useState("");
+  const [loadedQuery, setLoadedQuery] = useState("");
+  const listGeneration = useRef(0);
+  const creationDateError = createdPeriod !== "custom" ? "" : !createdFrom || !createdTo ? "Özel tarih aralığı için başlangıç ve bitiş tarihlerini girin." : createdFrom > createdTo ? "Başlangıç tarihi bitiş tarihinden sonra olamaz." : "";
   const [statusFilter, setStatusFilter] = useState("");
   const [busPlateFilter, setBusPlateFilter] = useState("");
   const [minPrice, setMinPrice] = useState("");
@@ -305,25 +316,46 @@ function TripManagement() {
     }
   };
 
+  const filterParams = () => {
+    const params = new URLSearchParams({ sortBy, sortDirection, createdPeriod });
+    if (search.trim()) params.set("search", search.trim());
+    if (isAdmin && companyFilter) params.set("companyId", companyFilter);
+    if (departureCityFilter.trim()) params.set("departureCity", departureCityFilter.trim());
+    if (arrivalCityFilter.trim()) params.set("arrivalCity", arrivalCityFilter.trim());
+    if (departureFrom) params.set("departureFrom", `${departureFrom}T00:00:00Z`);
+    if (departureTo) params.set("departureTo", `${departureTo}T00:00:00Z`);
+    if (statusFilter) params.set("status", statusFilter);
+    if (busPlateFilter.trim()) params.set("busPlate", busPlateFilter.trim());
+    if (minPrice) params.set("minPrice", minPrice);
+    if (maxPrice) params.set("maxPrice", maxPrice);
+
+    if (createdPeriod === "custom") { params.set("createdFrom", createdFrom); params.set("createdTo", createdTo); }
+    return params;
+  };
+  const queryKey = filterParams().toString();
+  const exportTrips = async () => {
+    if (exportingRef.current || creationDateError || loading || totalCount === 0 || loadedQuery !== queryKey || !canExport) return;
+    exportingRef.current = true; setExporting(true); setExportError("");
+    try {
+      const response = await request(`${API_URL}/export?${filterParams()}`, { headers: requestHeaders() });
+      if (!response.ok) throw new Error(await readError(response, "Excel dosyası oluşturulamadı. Lütfen yeniden deneyin"));
+      const blob = await response.blob(); const url = URL.createObjectURL(blob);
+      try {
+        const header = response.headers.get("Content-Disposition") ?? "";
+        const filename = header.match(/filename\*=UTF-8''([^;]+)/i)?.[1] ?? header.match(/filename="?([^";]+)"?/i)?.[1];
+        const a = document.createElement("a"); a.href = url; a.download = filename ? decodeURIComponent(filename) : "seferler.xlsx";
+        document.body.appendChild(a); a.click(); a.remove(); setMessage("Excel dosyası indirildi.");
+      } finally { window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
+    } catch (cause) { setExportError(cause instanceof Error ? cause.message : "Excel aktarımı tamamlanamadı. Lütfen yeniden deneyin."); }
+    finally { exportingRef.current = false; setExporting(false); }
+  };
+
   const loadTrips = async (background = false) => {
+    const generation = ++listGeneration.current;
+    if (creationDateError) { setTrips([]); setTotalCount(0); setTotalPages(1); setLoading(false); setLoadedQuery(""); return; }
     if (!background) { setLoading(true); setError(""); }
     try {
-      const params = new URLSearchParams({
-        pageNumber: String(pageNumber),
-        pageSize: String(PAGE_SIZE),
-        sortBy,
-        sortDirection,
-      });
-      if (search.trim()) params.set("search", search.trim());
-      if (isAdmin && companyFilter) params.set("companyId", companyFilter);
-      if (departureCityFilter.trim()) params.set("departureCity", departureCityFilter.trim());
-      if (arrivalCityFilter.trim()) params.set("arrivalCity", arrivalCityFilter.trim());
-      if (departureFrom) params.set("departureFrom", `${departureFrom}T00:00:00Z`);
-      if (departureTo) params.set("departureTo", `${departureTo}T00:00:00Z`);
-      if (statusFilter) params.set("status", statusFilter);
-      if (busPlateFilter.trim()) params.set("busPlate", busPlateFilter.trim());
-      if (minPrice) params.set("minPrice", minPrice);
-      if (maxPrice) params.set("maxPrice", maxPrice);
+      const params = filterParams(); params.set("pageNumber", String(pageNumber)); params.set("pageSize", String(PAGE_SIZE));
 
       const response = await request(`${API_URL}?${params}`, { headers: requestHeaders() });
       if (!response.ok) throw new Error(await readError(response, "Seferler alınamadı"));
@@ -331,13 +363,15 @@ function TripManagement() {
       if (!Array.isArray(data.items) || typeof data.totalCount !== "number" || typeof data.totalPages !== "number") {
         throw new Error("Sefer listesi API yanıtı beklenen biçimde değil.");
       }
+      if (generation !== listGeneration.current) return;
+      setLoadedQuery(queryKey);
       setTrips(data.items);
       setTotalCount(data.totalCount);
       setTotalPages(Math.max(data.totalPages, 1));
     } catch (err) {
-      if (!background) setError(err instanceof Error ? err.message : "Seferler yüklenemedi.");
+      if (generation === listGeneration.current) { setLoadedQuery(""); if (!background) setError(err instanceof Error ? err.message : "Seferler yüklenemedi."); }
     } finally {
-      if (!background) setLoading(false);
+      if (generation === listGeneration.current) setLoading(false);
     }
   };
 
@@ -362,6 +396,9 @@ function TripManagement() {
     arrivalCityFilter,
     departureFrom,
     departureTo,
+    createdPeriod,
+    createdFrom,
+    createdTo,
     statusFilter,
     busPlateFilter,
     minPrice,
@@ -541,6 +578,7 @@ function TripManagement() {
     setArrivalCityFilter("");
     setDepartureFrom("");
     setDepartureTo("");
+    setCreatedPeriod("all"); setCreatedFrom(""); setCreatedTo(""); setExportError("");
     setStatusFilter("");
     setBusPlateFilter("");
     setMinPrice("");
@@ -780,10 +818,22 @@ function TripManagement() {
               <input type="number" min="0" step="0.01" value={maxPrice} onChange={(event) => { setMaxPrice(event.target.value); setPageNumber(1); }} />
             </label>
           </div>
+          <fieldset className="trip-created-filter"><legend>Oluşturma tarihi</legend><div className="trip-created-fields">
+            <label>Oluşturma tarihi seçimi<select aria-label="Oluşturma tarihi" value={createdPeriod} onChange={e => { setCreatedPeriod(e.target.value); setPageNumber(1); setExportError(""); }}>
+              <option value="all">Tüm tarihler</option><option value="today">Bugün</option><option value="yesterday">Dün</option><option value="last7days">Son 7 gün</option><option value="thismonth">Bu ay</option><option value="custom">Özel tarih aralığı</option>
+            </select></label>
+            {createdPeriod === "custom" && <><label>Oluşturma başlangıç tarihi<input required type="date" value={createdFrom} max={createdTo || undefined} aria-describedby="trip-created-error" onChange={e => { setCreatedFrom(e.target.value); setPageNumber(1); }} /></label><label>Oluşturma bitiş tarihi<input required type="date" value={createdTo} min={createdFrom || undefined} aria-describedby="trip-created-error" onChange={e => { setCreatedTo(e.target.value); setPageNumber(1); }} /></label></>}
+          </div><small>Tarihler Türkiye saatine göredir. Başlangıç ve bitiş günleri dahildir.</small>{creationDateError && <p id="trip-created-error" role="alert" className="error-message">{creationDateError}</p>}</fieldset>
           <div className="filter-actions">
+            <div className="trip-filter-totals">
             <span className="result-count">Toplam {totalCount} sefer</span>
+            {canExport && <span role="status">Aktarılacak: {loadedQuery === queryKey && !creationDateError ? totalCount : "—"} sefer</span>}
+            </div><div className="trip-filter-buttons">
             <button className="secondary-button" type="button" onClick={clearFilters}>Filtreleri Temizle</button>
+            {canExport && <button className="primary-button" type="button" disabled={exporting || loading || totalCount === 0 || !!creationDateError || loadedQuery !== queryKey} onClick={() => void exportTrips()}>{exporting ? "Excel hazırlanıyor…" : "Excel’e Aktar"}</button>}
+            </div>
           </div>
+          {exportError && <p className="error-message" role="alert">{exportError}</p>}
         </div>
 
         {loading ? <p className="empty-state">Seferler yükleniyor...</p> :
@@ -795,6 +845,7 @@ function TripManagement() {
                     <th>Sefer ID</th><th>Firma</th><th>Güzergâh</th><th>Otobüs</th>
                     <th><button className="sort-button" type="button" onClick={() => changeSort("date")}>Kalkış {sortBy === "date" ? (sortDirection === "asc" ? "↑" : "↓") : ""}</button></th>
                     <th>Varış</th>
+                    <th aria-sort={sortBy === "createdAt" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}><button className="sort-button" type="button" onClick={() => changeSort("createdAt")}>Oluşturulma {sortBy === "createdAt" ? (sortDirection === "asc" ? "↑" : "↓") : ""}</button></th>
                     <th><button className="sort-button" type="button" onClick={() => changeSort("price")}>Fiyat {sortBy === "price" ? (sortDirection === "asc" ? "↑" : "↓") : ""}</button></th>
                     <th>Boş Koltuk</th><th>Durum</th><th>İşlemler</th>
                   </tr>
@@ -808,6 +859,7 @@ function TripManagement() {
                       <td>{trip.busPlateNumber}</td>
                       <td>{formatDate(trip.departureTime)}</td>
                       <td>{formatDate(trip.arrivalTime)}</td>
+                      <td>{formatDate(trip.createdAt)}</td>
                       <td>{trip.price.toLocaleString("tr-TR", { style: "currency", currency: "TRY" })}</td>
                       <td>{trip.availableSeats} / {trip.busCapacity}</td>
                       <td><span className={`status-badge trip-status ${normalizeStatus(trip.status).toLowerCase()}`}>{statusLabel(trip.status)}</span></td>

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Travela.Api.Models;
 using Travela.Data;
 using Travela.Api.Security;
+using Travela.Api.Staff;
 
 namespace Travela.Api.Controllers;
 
@@ -13,7 +14,7 @@ public record CompanyAttentionGroup(string Id, string Title, int Count, List<Com
 public record CompanyAttentionResponse(DateTime GeneratedAt, List<CompanyAttentionGroup> Groups);
 
 [ApiController, Route("api/company/attention"), Authorize(Roles = "Company")]
-public sealed class CompanyAttentionController(TravelaDbContext db, TimeProvider clock) : ControllerBase
+public sealed class CompanyAttentionController(TravelaDbContext db, TimeProvider clock, IAuthorizationService authorization) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)
@@ -51,6 +52,19 @@ public sealed class CompanyAttentionController(TravelaDbContext db, TimeProvider
             $"{(p.RefundStatus == "Failed" ? "İade tamamlanamadı" : "İade sonucu bekleniyor")} · {p.RefundAmount:N2} TL",
             $"/company/reservations?orderId={p.Id}&tripId={p.TripId}",
             p.RefundRequestedAt.HasValue ? DateTime.SpecifyKind(p.RefundRequestedAt.Value, DateTimeKind.Utc) : null)).ToList()));
+        if ((await authorization.AuthorizeAsync(User, null, "trip.view")).Succeeded)
+        {
+            var today = StaffDates.Today(clock); var limit = today.AddDays(30);
+            var documents = db.StaffDocuments.AsNoTracking().Where(d => d.CompanyId == companyId && !d.IsIndefinite && d.ExpiresOn <= limit);
+            var total = await documents.CountAsync(ct);
+            var items = await documents.OrderBy(d => d.ExpiresOn).ThenBy(d => d.Id)
+                .Select(d => new { d.Id, d.StaffId, d.Staff.FullName, d.Name, d.ExpiresOn }).Take(10).ToListAsync(ct);
+            groups.Add(new("staff-documents", "Personel belge uyarıları", total, items.Select(d => {
+                var validity = StaffDates.Validity(d.ExpiresOn, false, today);
+                return new CompanyAttentionItem(d.Id.ToString(), $"{d.FullName} · {d.Name}",
+                    $"{validity.Label} · Son geçerlilik: {d.ExpiresOn:dd.MM.yyyy} · {validity.Message}", $"/company/staff?detail={d.StaffId}", null);
+            }).ToList()));
+        }
         return Ok(new CompanyAttentionResponse(now, groups));
     }
 }

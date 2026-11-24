@@ -65,7 +65,7 @@ test("Sunucu onayından önce seçili olmaz; cinsiyet/koltuk isteği sürerken i
   await expect(page.getByText("Koltuk seçiminiz sunucuda doğrulanıyor...",{exact:true})).toBeVisible();
   await expect(seat).toHaveAttribute("aria-pressed","false"); await expect(page.getByRole("dialog").getByRole("button",{name:"Kadın",exact:true})).toBeDisabled();
   expect(server.writes).toBe(1); release(); await expect(seat).toHaveAttribute("aria-pressed","true");
-  await expect(page.getByRole("timer")).toContainText("Koltuklarınız için kalan süre: 05:");
+  await expect(page.getByRole("timer")).toContainText("Kalan süre 05:");
 });
 for (const member of [false,true]) test(`${member ? "Üye" : "Misafir"}: bağımsız sekmeler tutmayı paylaşmaz, yenileme ve ek koltuk süreyi uzatmaz`, async ({ page, context }) => {
   const server = await setup(context,member); await page.goto("/trips/12"); await chooseSeat(page,1); const first = [...server.sessions.values()][0]; const expiry = first.expiresAt;

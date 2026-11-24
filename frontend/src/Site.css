@@ -49,6 +49,7 @@
 }
 
 .site-nav a:hover,
+.site-nav a[aria-current="page"],
 .footer-links a:hover {
   color: #2563eb;
 }
@@ -1476,11 +1477,11 @@
 }
 
 .public-trip-detail-page {
-  width: min(1600px, calc(100% - 48px));
+  width: min(1180px, calc(100% - 40px));
 }
 .seat-booking {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(320px, 25vw, 380px);
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(16px, 1.5vw, 24px);
   margin: var(--ui-section-gap) 0 0;
   padding: var(--ui-panel-space);

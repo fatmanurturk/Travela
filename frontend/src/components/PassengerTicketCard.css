@@ -1,0 +1,88 @@
+﻿.passenger-checkout-form { padding-top: 16px; border-top: 1px solid #e1e8f2; container-type: inline-size; }
+.passenger-checkout-heading { display: grid; gap: 2px; min-width: 0; }
+.passenger-heading-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; }
+.passenger-heading-row h3 { margin: 0; font-size: 20px; color: #173052; }
+.passenger-heading-row .hold-countdown-compact { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 0 auto; padding: 0; border: 0; border-radius: 0; background: none; color: #2159a4; font-size: 14px; white-space: nowrap; }
+.passenger-selection-summary { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.booking-help { color: #60718b; font-size: 12px; min-width: 0; }
+.booking-help > summary { width: fit-content; max-width: 100%; min-height: 32px; padding: 4px 0; cursor: pointer; box-sizing: border-box; }
+.booking-help > summary span { color: #22558e; text-decoration: underline; margin-left: 8px; }
+.booking-help > div { padding: 4px 0 8px; display: grid; gap: 8px; max-width: 780px; line-height: 1.6; }
+.booking-help > summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.passenger-ticket-list { display: grid; gap: 16px; min-width: 0; }
+.passenger-checkout-form .passenger-ticket-card { position: relative; display: block; padding: 0; min-width: 0; border: 1px solid #d5e1f0; border-radius: 12px; background: #fff; overflow: hidden; }
+.passenger-checkout-form .passenger-ticket-card > legend { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.passenger-ticket-body { display: grid; grid-template-columns: minmax(170px, .75fr) minmax(0, 1.8fr) 140px; min-width: 0; }
+.passenger-ticket-body > * { min-width: 0; }
+.passenger-ticket-journey { display: flex; flex-direction: column; gap: 6px; padding: 16px; background: #f8faff; border-right: 1px solid #e1e8f2; overflow-wrap: anywhere; }
+.passenger-ticket-company { color: #1c4b87; font-size: 16px; }
+.passenger-checkout-form .passenger-ticket-route { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0; font-weight: 750; font-size: 17px; color: #173052; }
+.passenger-ticket-route > span[aria-hidden] { color: #4d81c8; }
+.passenger-ticket-date-label { color: #60718b; font-size: 12px; }
+.passenger-ticket-journey time { font-size: 14px; line-height: 1.5; }
+.passenger-ticket-passenger { display: grid; align-content: start; gap: 8px; padding: 16px; }
+.passenger-ticket-heading h4 { margin: 0; color: #173052; font-size: 15px; }
+.passenger-ticket-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.passenger-ticket-inputs > label { min-width: 0; align-content: start; }
+.passenger-ticket-inputs input { background: #fff; color: #173052; min-height: 44px; }
+.passenger-ticket-inputs input:focus-visible, .passenger-ticket-actions button:focus-visible { outline: 3px solid #93baf5; outline-offset: 2px; }
+.passenger-ticket-inputs input[aria-invalid=true] { border-color: #b42335; }
+.passenger-field-error { color: #a82636; font-size: 12px; line-height: 1.5; }
+.passenger-gender-summary { font-size: 13px; }
+.passenger-gender-summary strong { display: inline-block; padding: 2px 7px; border-radius: 6px; background: #edf3fb; color: #245995; }
+.passenger-ticket-passenger > small { color: #60718b; font-size: 12px; }
+.passenger-ticket-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.passenger-ticket-actions .secondary-button { font: inherit; font-size: 12px; line-height: 1.5; padding: 8px 10px; min-height: 44px; max-width: 100%; white-space: normal; border: 1px solid #d4e0f0; border-radius: 8px; background: #f4f8fe; color: #22558e; cursor: pointer; }
+.passenger-ticket-actions .secondary-button:hover { background: #e8f0fc; }
+.passenger-ticket-actions .passenger-ticket-remove { color: #9c3742; background: white; }
+.passenger-ticket-actions button:disabled { opacity: .6; cursor: not-allowed; }
+.passenger-ticket-stub { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px 12px; border-left: 2px dashed #b7c9e3; background: #edf4ff; text-align: center; color: #1c4b87; }
+.passenger-ticket-stub::before, .passenger-ticket-stub::after { content: ""; position: absolute; left: -10px; width: 18px; height: 18px; border: 1px solid #d5e1f0; border-radius: 50%; background: white; }
+.passenger-ticket-stub::before { top: -10px; }
+.passenger-ticket-stub::after { bottom: -10px; }
+.passenger-ticket-stub > div { display: grid; gap: 4px; }
+.passenger-ticket-stub span { font-size: 12px; line-height: 1.5; }
+.passenger-ticket-seat { font-size: 36px; line-height: 1.1; }
+.passenger-ticket-fare strong { font-size: 21px; white-space: nowrap; }
+.passenger-checkout-columns { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); gap: 24px; align-items: start; margin-top: 8px; }
+.passenger-checkout-columns > * { min-width: 0; }
+.passenger-checkout-contact { display: grid; gap: 12px; container: booking-contact / inline-size; }
+.passenger-checkout-contact > p { font-size: 13px; }
+.passenger-checkout-contact > button { justify-self: start; }
+.passenger-checkout-contact .checkout-fields.checkout-contact { margin: 0; padding: 0; border: 0; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.passenger-checkout-contact .checkout-contact > p { grid-column: 1 / -1; }
+.passenger-checkout-payment { display: grid; gap: 16px; padding: 16px; border: 1px solid #dce5f1; border-radius: 12px; background: #f8faff; }
+.passenger-checkout-payment .coupon-checkout { margin: 0; padding: 0; border: 0; gap: 8px; }
+.passenger-checkout-total { display: grid; gap: 12px; min-width: 0; }
+.passenger-checkout-total h3 { margin: 0; font-size: 18px; }
+.passenger-checkout-total label.legal-consent, .passenger-checkout-total .checkout-confirmation { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; }
+.passenger-checkout-total .campaign-price { padding-top: 0; border-top: 0; }
+.passenger-checkout-total .legal-consent-block { margin: 0; }
+.passenger-checkout-total .legal-consent { margin: 0 0 8px; }
+.passenger-checkout-total > .site-button { width: 100%; min-width: 0; }
+.passenger-checkout-empty { display: grid; gap: 12px; padding-top: 16px; border-top: 1px solid #e1e8f2; }
+.passenger-checkout-empty > p { margin: 0; color: #526781; }
+.passenger-checkout-empty > button { justify-self: start; }
+.seat-selection-status { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin-top: 12px; }
+.seat-selection-status > p { margin: 0; line-height: 1.6; }
+@container booking-contact (min-width: 420px) { .passenger-checkout-contact .checkout-fields.checkout-contact { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1000px) {
+  .passenger-ticket-body { grid-template-columns: minmax(0, 1fr); }
+  .passenger-ticket-journey { border-right: 0; border-bottom: 1px solid #e1e8f2; gap: 4px; }
+  .passenger-ticket-stub { flex-direction: row; justify-content: space-between; gap: 12px; padding: 12px 16px; border-left: 0; border-top: 2px dashed #b7c9e3; text-align: left; }
+  .passenger-ticket-stub::before { top: -10px; left: -10px; }
+  .passenger-ticket-stub::after { top: -10px; left: auto; right: -10px; }
+  .passenger-ticket-stub > div:first-child { display: flex; align-items: center; gap: 12px; }
+  .passenger-ticket-seat { font-size: 32px; }
+  .passenger-ticket-fare { text-align: right; }
+}
+@media (max-width: 900px) { .passenger-checkout-columns { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
+@media (max-width: 640px) {
+  .passenger-ticket-inputs { grid-template-columns: minmax(0, 1fr); }
+  .passenger-heading-row h3 { font-size: 18px; }
+  .passenger-ticket-journey, .passenger-ticket-passenger { padding: 14px; }
+  .passenger-ticket-stub { padding: 12px 14px; }
+  .passenger-ticket-fare span { max-width: 145px; }
+  .passenger-checkout-payment { padding: 14px; }
+  .booking-help > summary { min-height: 44px; }
+}

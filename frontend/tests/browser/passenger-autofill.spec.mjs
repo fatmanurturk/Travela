@@ -136,7 +136,7 @@ test("İlk koltuk profil gelmeden kaldırılırsa başka koltuğa aktarılmaz", 
 for (const mode of ["missing", "failed"]) test(`Eksik veya alınamayan profil koltuk seçimini engellemez: ${mode}`, async ({ page }) => {
   const { calls } = await setup(page, { data: mode === "missing" ? { fullName: "Eksik Profil" } : {}, profileStatus: mode === "failed" ? 503 : 200 });
   await installSeatSelectionMock(page); await page.goto("/trips/12"); await chooseSeat(page, 8);
-  if (mode === "failed") await expect(page.getByText("Hesap bilgileri alınamadı. Yolcu ve iletişim bilgilerini elle doldurabilirsiniz.")).toBeVisible();
+  if (mode === "failed") await expect(page.getByText("Hesap bilgileri alınamadı. Bilgileri elle doldurun.")).toBeVisible();
   else await expect(name(page, 8)).toHaveValue("Eksik Profil");
   await expect(identity(page, 8)).toHaveValue(""); await expect(page.getByLabel("İletişim telefon")).toHaveValue("");
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();

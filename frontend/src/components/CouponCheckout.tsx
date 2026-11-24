@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiUrl } from "../api";
-import { money } from "../reservations";
+import CampaignPriceSummary from "./CampaignPriceSummary";
 import type { CampaignPrice } from "../campaigns";
 import "../campaigns.css";
 
-export default function CouponCheckout({ tripId, count, code, disabled, onCode, onQuote, boardingStopOrder, alightingStopOrder }: {
-  tripId: number; count: number; code: string; disabled: boolean;
+export default function CouponCheckout({ tripId, count, code, disabled, onCode, onQuote, boardingStopOrder, alightingStopOrder, showPrice = true }: {
+  tripId: number; count: number; code: string; disabled: boolean; showPrice?: boolean;
   boardingStopOrder?: number | null; alightingStopOrder?: number | null;
   onCode: (code: string) => void; onQuote: (price: CampaignPrice | null) => void;
 }) {
@@ -37,9 +37,6 @@ export default function CouponCheckout({ tripId, count, code, disabled, onCode, 
     <p className="campaign-muted">Kod girmezseniz uygun otomatik kampanyalardan en avantajlısı seçilir. İndirimler birleştirilmez. <Link to={`/campaigns?tripId=${tripId}`} target="_blank" rel="noopener noreferrer">Bu seferin kampanyalarını gör</Link></p>
     {loading && <p role="status">Güncel fiyat hesaplanıyor...</p>}
     {error && <p role="alert">{error} <button type="button" onClick={() => setRevision(v => v + 1)}>Tekrar dene</button></p>}
-    {price && <div className="campaign-price" aria-live="polite"><dl><div><dt>Biletler toplamı</dt><dd>{money.format(price.originalAmount)}</dd></div>
-      {price.discountAmount > 0 && <div className="campaign-saving"><dt>{price.campaignName}{price.couponCode && ` · ${price.couponCode}`}</dt><dd>−{money.format(price.discountAmount)}</dd></div>}
-      <div className="campaign-total"><dt>Ödenecek toplam</dt><dd>{money.format(price.amount)}</dd></div></dl>
-      <small>{price.discountAmount > 0 ? "İndirim sipariş oluşturulurken kesinleşir ve her bilete paylaştırılır. İadeler ödenen bilet tutarı üzerinden yapılır." : "Bu sepet için uygulanabilir otomatik indirim bulunmuyor."}</small></div>}
+    {price && showPrice && <CampaignPriceSummary price={price} />}
   </fieldset>;
 }

@@ -13,6 +13,7 @@ import type { Gender, SeatOccupancy, SunExposure } from "../seatCompatibility";
 import { tripStatusLabel } from "../reservations";
 import PassengerCheckoutForm from "../components/PassengerCheckoutForm";
 import HoldCountdown from "../components/HoldCountdown";
+import SunExposureInfo from "../components/SunExposureInfo";
 import { useSeatSelection } from "../seatSelection";
 
 type PublicTrip = Journey & {
@@ -277,45 +278,35 @@ function TripDetails({ id, segmentQuery }: { id: string | undefined; segmentQuer
             </section>
             <JourneyStops journey={trip} />
             <section className="seat-booking" aria-labelledby="seat-heading">
-              <div>
+              <div className="seat-booking-plan">
                 <h2 id="seat-heading">Koltuğunuzu seçin</h2>
                 <p>{trip.seatCapacity} koltuk · Sefer durumu: {tripStatusLabel(trip.status)}</p>
-                <p>Boş bir koltuğa tıklayıp yolcu cinsiyetini seçin. Cinsiyeti değiştirmek için seçili koltuğa
-                  tıklayın; bırakmak için yolcu formundaki “Koltuğu çıkar” düğmesini kullanın. Yan yana eş koltuklar aynı cinsiyette olmalıdır.</p>
+                <p>Boş bir koltuğa tıklayıp cinsiyet seçin. Yan yana eş koltuklarda cinsiyet uyumu uygulanır.</p>
                 {!trip.canReserve && <p role="status">{trip.departureHasPassed ? "Bu seferin kalkış zamanı geçtiği için bilet alınamaz." : tripStatusLabel(trip.status) === "İptal edildi" ? "Bu sefer iptal edildiği için bilet alınamaz." : !trip.seatPlanAvailable ? "Koltuk bilgileri kontrol ediliyor. Lütfen daha sonra deneyin." : trip.availableSeats === 0 ? "Bu seferde boş koltuk kalmadı." : "Bu sefer bilet satışına kapalı."}</p>}
                 {!trip.seatPlanAvailable && <p role="status">Koltuk planı bulunamıyor veya doğrulanmamış. Firma ya da yönetici fiziksel koltuk planını tanımlamalıdır.</p>}
                 {trip.seatPlanAvailable && <SeatMap
                   seats={trip.seats ?? []} layout={trip.seatLayout ?? "Unspecified"}
                   occupied={occupiedSeats} occupancies={occupancies} genders={genders}
+                  toolbarActions={<button type="button" className="site-button secondary" disabled={saving || refreshing} onClick={refresh}>Koltuk planını yenile</button>}
                   sun={trip.sunExposure} onIncompatible={setBookingError} selected={selectedSeats}
                   disabled={!trip.canReserve || saving || selection.busy || selection.state?.phase === "Payment" || refreshing || !!error} onChoose={openGenderPopover}
                 />}
-                {!trip.seatPlanAvailable && <p>{trip.sunExposure?.message ?? "Güneş yönü bilgisi hesaplanamadı."}</p>}
-                <button type="button" className="site-button secondary" disabled={saving || refreshing} onClick={refresh}>Koltuk planını yenile</button>
-              </div>
-              <aside className="booking-summary" aria-live="polite">
-                <h2>Sipariş özeti</h2>
-                {selection.state?.expiresAt && selection.state.phase === "Selection" && <HoldCountdown serverTime={selection.state.serverTime} expiresAt={selection.state.expiresAt} onExpired={selection.expire} />}
+                {!trip.seatPlanAvailable && <><button type="button" className="site-button secondary" disabled={saving || refreshing} onClick={refresh}>Koltuk planını yenile</button><SunExposureInfo sun={trip.sunExposure} /></>}
+                {(selection.busy || selection.state?.phase === "Payment" || selection.state?.canStartNewSelection) && <div className="seat-selection-status">
                 {selection.busy && <p role="status">Koltuk seçiminiz sunucuda doğrulanıyor...</p>}
                 {selection.state?.phase === "Payment" && <p role="status">Bu seçim ödeme aşamasında. <Link to={`/purchase/${selection.state.purchaseGroupId}`}>Mevcut ödemeye devam et</Link></p>}
                 {selection.state?.canStartNewSelection && <button type="button" className="site-button secondary" disabled={selection.busy} onClick={() => { selection.startNew(); setPurchaseRevision(value => value + 1); }}>Yeni bilet için koltuk seç</button>}
-                {selectedSeats.length > 0 ? <>
-                  <p>{trip.companyName} · Sefer #{trip.id}</p>
-                  <p>{trip.departureCity} → {trip.arrivalCity}</p>
-                  <p>{dateTimeFormatter.format(new Date(trip.departureTime))}</p>
-                  <p><strong>Koltuklar: {selectedSeats.join(", ")}</strong></p>
-                  <p>İndirim öncesi: <strong>{currencyFormatter.format(trip.price * selectedSeats.length)}</strong></p>
-                </> : <p>Devam etmek için boş bir koltuk seçiniz.</p>}
-                <p className="booking-notice">Koltuk ve cinsiyet seçiminiz onaylandığında koltuklarınız 5 dakika ayrılır. Ödemeye geçince bu tutma 10 dakikalık ödeme tutmasına dönüşür. Biletiniz ödeme doğrulandığında oluşur.</p>
-                <PassengerCheckoutForm
+                </div>}
+              </div>
+              <PassengerCheckoutForm
                   key={purchaseRevision}
-                  tripId={trip.id} boardingStopOrder={trip.boardingStopOrder} alightingStopOrder={trip.alightingStopOrder} seats={selectedSeats} genders={genders} seatErrors={seatErrors}
+                  selectionTimer={selectedSeats.length > 0 && selection.state?.expiresAt && selection.state.phase === "Selection" ? <HoldCountdown compact serverTime={selection.state.serverTime} expiresAt={selection.state.expiresAt} onExpired={selection.expire} /> : null}
+                  tripId={trip.id} journey={trip} boardingStopOrder={trip.boardingStopOrder} alightingStopOrder={trip.alightingStopOrder} seats={selectedSeats} genders={genders} seatErrors={seatErrors}
                   selectionSession={selection.capability} onSelectionExpired={() => { void selection.sync(); }}
                   selectionExpired={selection.state?.phase === "Expired"}
                   disabled={!trip.canReserve || saving || selection.busy || selection.state?.phase === "Payment" || refreshing || !!error} onBusy={setSaving} onError={setBookingError}
                   onConflict={() => setRevision(value => value + 1)} onRemove={removeSeat}
                 />
-              </aside>
             </section>
           </>
         ) : null}
