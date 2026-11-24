@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { buildSeats } from "../../src/seatPlans.ts";
-import { chooseSeat } from "./helpers/seat-selection.mjs";
+import { chooseSeat, installSeatSelectionMock } from "./helpers/seat-selection.mjs";
 
 const profile = { fullName: "Hesap Sahibi", identityNumber: "10000000146", email: "buyer@example.test", phoneNumber: "+905321234567" };
 const id = "12345678-1234-1234-1234-123456789012";
@@ -54,7 +54,7 @@ async function setup(page, { data = profile, delayed = false, profileStatus = 20
 
 for (const width of [390, 1440]) test(`İlk koltuk otomatik dolar; form düzenlenir, temizlenir ve onaylanan bilgiler gönderilir: ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 1000 });
-  const { calls } = await setup(page); await page.goto("/trips/12");
+  const { calls } = await setup(page); await installSeatSelectionMock(page); await page.goto("/trips/12");
   // Gender remains an explicit choice even when the complete account profile is loaded.
   await page.getByRole("button", { name: /^Koltuk 8,/ }).click();
   await expect(name(page, 8)).toHaveCount(0);
@@ -87,7 +87,7 @@ for (const width of [390, 1440]) test(`İlk koltuk otomatik dolar; form düzenle
 });
 
 test("Birden çok koltuk ve kaldırma, yolcu bilgisini başka koltuğa taşımaz; açık aktarım kullanılabilir", async ({ page }) => {
-  await setup(page); await page.goto("/trips/12");
+  await setup(page); await installSeatSelectionMock(page); await page.goto("/trips/12");
   await chooseSeat(page, 8); await expect(name(page, 8)).toHaveValue(profile.fullName);
   await chooseSeat(page, 2); await expect(name(page, 2)).toHaveValue(""); await expect(identity(page, 2)).toHaveValue("");
   await name(page, 2).fill("İkinci Yolcu"); await identity(page, 2).fill("12345678950");
@@ -105,7 +105,7 @@ test("Birden çok koltuk ve kaldırma, yolcu bilgisini başka koltuğa taşımaz
 });
 
 test("Geç profil yalnız dokunulmamış alanları doldurur; bilerek boş bırakılan alanı değiştirmez", async ({ page }) => {
-  const { release } = await setup(page, { delayed: true }); await page.goto("/trips/12");
+  const { release } = await setup(page, { delayed: true }); await installSeatSelectionMock(page); await page.goto("/trips/12");
   await chooseSeat(page, 8); await chooseSeat(page, 2);
   await name(page, 8).fill("Elle Girilen Yolcu");
   await page.getByLabel("İletişim e-posta").fill("sil@example.test"); await page.getByLabel("İletişim e-posta").fill("");
@@ -118,14 +118,14 @@ test("Geç profil yalnız dokunulmamış alanları doldurur; bilerek boş bırak
 });
 
 test("Profil gelmeden temizlenen veya kaldırılan ilk koltuk otomatik doldurulmaz", async ({ page }) => {
-  const { release } = await setup(page, { delayed: true }); await page.goto("/trips/12");
+  const { release } = await setup(page, { delayed: true }); await installSeatSelectionMock(page); await page.goto("/trips/12");
   await chooseSeat(page, 8); await clear(page, 8); release();
   await expect(page.getByLabel("İletişim e-posta")).toHaveValue(profile.email);
   await expect(name(page, 8)).toHaveValue(""); await expect(identity(page, 8)).toHaveValue("");
 });
 
 test("İlk koltuk profil gelmeden kaldırılırsa başka koltuğa aktarılmaz", async ({ page }) => {
-  const { release } = await setup(page, { delayed: true }); await page.goto("/trips/12");
+  const { release } = await setup(page, { delayed: true }); await installSeatSelectionMock(page); await page.goto("/trips/12");
   await chooseSeat(page, 8); await chooseSeat(page, 2);
   await page.getByRole("button", { name: "Koltuğu çıkar · 8", exact: true }).click(); release();
   await expect(page.getByLabel("İletişim e-posta")).toHaveValue(profile.email);
@@ -135,7 +135,7 @@ test("İlk koltuk profil gelmeden kaldırılırsa başka koltuğa aktarılmaz", 
 
 for (const mode of ["missing", "failed"]) test(`Eksik veya alınamayan profil koltuk seçimini engellemez: ${mode}`, async ({ page }) => {
   const { calls } = await setup(page, { data: mode === "missing" ? { fullName: "Eksik Profil" } : {}, profileStatus: mode === "failed" ? 503 : 200 });
-  await page.goto("/trips/12"); await chooseSeat(page, 8);
+  await installSeatSelectionMock(page); await page.goto("/trips/12"); await chooseSeat(page, 8);
   if (mode === "failed") await expect(page.getByText("Hesap bilgileri alınamadı. Yolcu ve iletişim bilgilerini elle doldurabilirsiniz.")).toBeVisible();
   else await expect(name(page, 8)).toHaveValue("Eksik Profil");
   await expect(identity(page, 8)).toHaveValue(""); await expect(page.getByLabel("İletişim telefon")).toHaveValue("");
@@ -148,8 +148,8 @@ for (const mode of ["missing", "failed"]) test(`Eksik veya alınamayan profil ko
   await expect(page).toHaveURL(`/purchase/${id}`); expect(calls.profileWrites).toBe(0);
 });
 
-test("Plan yenileme, yenileme hatası ve dolan koltuk mevcut formu korur; uygun olmayan koltukla ödeme engellenir", async ({ page }) => {
-  const { calls } = await setup(page); await page.goto("/trips/12"); await chooseSeat(page, 8);
+test("Plan yenileme ve ağ hatası formu korur; kişinin kendi sunucu tutması çakışma sayılmaz", async ({ page }) => {
+  const { calls } = await setup(page); await installSeatSelectionMock(page); await page.goto("/trips/12"); await chooseSeat(page, 8);
   await name(page, 8).fill("Düzenlenen Yolcu"); await identity(page, 8).fill("12345678950");
   await page.getByLabel("İletişim e-posta").fill("edited@example.test");
   const refresh = page.getByRole("button", { name: "Koltuk planını yenile", exact: true });
@@ -160,7 +160,8 @@ test("Plan yenileme, yenileme hatası ve dolan koltuk mevcut formu korur; uygun 
   await expect(name(page, 8)).toHaveValue("Düzenlenen Yolcu");
   await expect(page.getByRole("button", { name: "Ödemeye devam et", exact: true })).toBeDisabled();
   calls.failRefresh = false; calls.occupied = [8]; await refresh.click(); await expect(refresh).toBeEnabled();
-  await expect(page.getByText("Koltuk başka biri tarafından alınmış veya geçici olarak rezerve edilmiş. Koltuğu çıkarınız.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Koltuk 8,/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("Koltuk başka biri tarafından alınmış veya geçici olarak rezerve edilmiş. Koltuğu çıkarınız.")).toHaveCount(0);
   await expect(name(page, 8)).toHaveValue("Düzenlenen Yolcu");
   await expect(page.getByLabel("İletişim e-posta")).toHaveValue("edited@example.test");
   expect(calls.profileReads).toBeLessThanOrEqual(2); expect(calls.profileWrites).toBe(0);

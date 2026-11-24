@@ -120,6 +120,36 @@ try
     var ready = false;
     for (var i = 0; i < 60; i++) { try { ready = (await http.GetAsync("/api/test")).IsSuccessStatusCode; if (ready) break; } catch (HttpRequestException) { } if (server.HasExited) throw new Exception(log.ToString()); await Task.Delay(200); }
     Check(ready, "Test API çalışıyor");
+    if (args.Contains("--hold-rate")) {
+        HttpResponseMessage? response = null;
+        for (var i = 0; i < 21; i++) response = await http.PostAsJsonAsync("/api/seat-selections", new { id = Guid.Empty, token = "", tripId = 1 });
+        Check(response!.StatusCode == HttpStatusCode.TooManyRequests, "Koltuk oturumu oluşturma HTTP 429 sınırı uygulanır");
+        var missing = Guid.NewGuid();
+        for (var i = 0; i < 61; i++) response = await http.PutAsJsonAsync($"/api/seat-selections/{missing}/seats", new { seatNumber = 1, gender = "Female" });
+        Check(response!.StatusCode == HttpStatusCode.TooManyRequests, "Koltuk ayırma/değiştirme HTTP 429 sınırı uygulanır");
+        for (var i = 0; i < 241; i++) response = await http.GetAsync($"/api/seat-selections/{missing}");
+        Check(response!.StatusCode == HttpStatusCode.TooManyRequests, "Koltuk tutma sorgusu HTTP 429 sınırı uygulanır");
+        return;
+    }
+    if (args.Contains("--hold-tests")) {
+        async Task RestartHoldHost()
+        {
+            server!.Kill(true); await server.WaitForExitAsync(); server.Dispose(); server = Process.Start(start)!;
+            server.OutputDataReceived += (_, e) => { lock (log) log.AppendLine(e.Data); };
+            server.ErrorDataReceived += (_, e) => { lock (log) log.AppendLine(e.Data); };
+            server.BeginOutputReadLine(); server.BeginErrorReadLine();
+            for (var i = 0; i < 80; i++) { try { if ((await http.GetAsync("/api/test")).IsSuccessStatusCode) return; } catch (HttpRequestException) { } await Task.Delay(100); }
+            throw new Exception("Restarted hold test host did not become ready.");
+        }
+        await SeatSelectionChecks.Run(db, http, Check, RestartHoldHost);
+        var companyRole = await db.Roles.SingleOrDefaultAsync(r => r.Name == "Company") ?? new Role { Name = "Company" };
+        foreach (var name in new[] { "trip.view", "trip.create", "trip.update" }) {
+            var permission = await db.Permissions.SingleOrDefaultAsync(p => p.Name == name) ?? new Permission { Name = name };
+            db.RolePermissions.Add(new RolePermission { Role = companyRole, Permission = permission });
+        }
+        await db.SaveChangesAsync(); await StaffChecks.Run(db, http, Check);
+        Console.WriteLine($"Seat selection and regression checks: {passed} passed."); return;
+    }
     if (args.Contains("--guest-rate"))
     {
         for (var request = 0; request < 21; request++)

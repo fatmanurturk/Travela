@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { chooseSeat } from "./helpers/seat-selection.mjs";
+import { chooseSeat, installSeatSelectionMock } from "./helpers/seat-selection.mjs";
 
 async function setup(page) {
   await page.addInitScript(() => { sessionStorage.setItem("travela_token", "plan-manager"); sessionStorage.setItem("travela_user", JSON.stringify({ role: "Company", fullName: "Firma Test" })); });
@@ -22,7 +22,7 @@ async function setup(page) {
   });
   await page.route("**/api/trips/public/21", r => r.fulfill({ json: { id: 21, companyName: "Test Firma", departureCity: "İstanbul", arrivalCity: "Ankara", departureTime: "2099-11-10T13:00:00Z", arrivalTime: "2099-11-10T19:00:00Z", durationMinutes: 360, price: 400, availableSeats: 46, seatCapacity: 46, seatLayout: state.saved?.layout ?? "Unspecified", seats: state.saved?.seats ?? [], occupiedSeats: [], seatOccupancies: [], canReserve: !!state.saved, seatPlanAvailable: !!state.saved, status: "Scheduled" } }));
   await page.route("**/api/purchases/options", r => r.fulfill({ json: { provider: "LocalTest", requiresBuyer: false } }));
-  await page.goto("/company/buses"); await page.getByRole("button", { name: "Koltuk Planı Yönetimi", exact: true }).click();
+  await installSeatSelectionMock(page); await page.goto("/company/buses"); await page.getByRole("button", { name: "Koltuk Planı Yönetimi", exact: true }).click();
   return state;
 }
 

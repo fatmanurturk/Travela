@@ -1738,3 +1738,6 @@
   .trip-summary-actions .site-button { flex: 1 1 140px; }
 }
 .group-ticket-passenger { min-width: 0; overflow-wrap: anywhere; }
+
+.hold-countdown { padding: 12px; border: 1px solid #93c5fd; border-radius: 8px; background: #eff6ff; color: #173253; font-variant-numeric: tabular-nums; }
+.legend-held { color: #9a6700; }

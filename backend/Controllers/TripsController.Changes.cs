@@ -106,6 +106,8 @@ public partial class TripsController
             r.Status = "Cancelled"; r.CancelledAt = now; r.CancellationReason = "Sefer değişikliği nedeniyle ödeme tutması sonlandırıldı. Yeni sefer bilgileriyle tekrar seçim yapın.";
             if (r.Payment != null) { PaymentService.RequestRefund(r.Payment, now, _context); PaymentHistory.Record(_context, r.Payment, "HoldReleasedForTripChange", now, user.Id, user.FullName, change.Reason); }
         }
+        await _context.SeatSelectionSessions.Where(s => s.TripId == id && s.PurchaseGroupId == null && s.ExpiresAt > now)
+            .ExecuteUpdateAsync(update => update.SetProperty(s => s.ExpiresAt, (DateTime?)now), ct);
         foreach (var r in tickets)
         {
             r.TicketJourneyJson = after.Write(); r.ChangeCancellationUntil = departure;

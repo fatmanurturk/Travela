@@ -128,10 +128,10 @@ builder.Services.AddRateLimiter(options =>
         context.HttpContext.Response.Headers.RetryAfter = "60";
         await context.HttpContext.Response.WriteAsJsonAsync(new { message = "Çok fazla bağlantı isteği gönderildi. Bir dakika sonra tekrar deneyin." }, cancellationToken: ct);
     };
-    foreach (var (name, limit) in new[] { ("guest-checkout", 90), ("guest-create", 10), ("ticket-lookup", 20), ("ticket-code", 3), ("ticket-verify", 10) })
+    foreach (var (name, limit) in new[] { ("seat-selection-read", 240), ("seat-selection-write", 60), ("seat-selection-create", 20), ("guest-checkout", 90), ("guest-create", 10), ("ticket-lookup", 20), ("ticket-code", 3), ("ticket-verify", 10) })
         options.AddPolicy(name, context => RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions { PermitLimit = builder.Configuration.GetValue("GuestTickets:RateLimit:" + name, limit), Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = builder.Configuration.GetValue((name.StartsWith("seat-selection", StringComparison.Ordinal) ? "SeatSelection:RateLimit:" : "GuestTickets:RateLimit:") + name, limit), Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     options.AddPolicy("account-links", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = builder.Configuration.GetValue("AccountEmail:RequestLimitPerMinute", 20),
@@ -140,6 +140,7 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddScoped<Travela.Api.Security.SessionTokenService>();
 builder.Services.AddScoped<PaymentService>();
 builder.Services.AddScoped<GuestTicketAccess>();
+builder.Services.AddScoped<SeatSelectionService>();
 if (builder.Configuration["Payments:RecoveryEnabled"] != "false") builder.Services.AddHostedService<PaymentRecoveryWorker>();
 
 builder.Services.AddDbContext<TravelaDbContext>(options =>

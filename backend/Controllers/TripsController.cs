@@ -690,6 +690,8 @@ namespace Travela.Api.Controllers
             trip.UpdatedAt = DateTime.UtcNow;
             trip.ChangeVersion++;
             var activeReservations = await _context.Reservations.Include(r => r.Payment).Where(r => r.TripId == id && r.Status == "Active").ToListAsync();
+            await _context.SeatSelectionSessions.Where(s => s.TripId == id && s.PurchaseGroupId == null && s.ExpiresAt > trip.CancelledAt)
+                .ExecuteUpdateAsync(update => update.SetProperty(s => s.ExpiresAt, trip.CancelledAt));
             foreach (var reservation in activeReservations)
             {
                 if (reservation.Payment != null) PaymentService.RequestRefund(reservation.Payment, DateTime.UtcNow, _context);

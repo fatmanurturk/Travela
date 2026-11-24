@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { chooseSeat, releaseSeat } from "./helpers/seat-selection.mjs";
+import { chooseSeat, releaseSeat, installSeatSelectionMock } from "./helpers/seat-selection.mjs";
 import { buildSeats } from "../../src/seatPlans.ts";
 import { LEGAL_VERSION } from "../../src/legal.ts";
 
@@ -17,7 +17,7 @@ for (const [path, title] of [
   ["/cerez-politikasi", "Çerez Politikası"],
 ]) {
   test(`Taslak sayfa başlık, tarih ve inceleme notuyla açılır: ${path}`, async ({ page }) => {
-    await page.goto(path);
+    await installSeatSelectionMock(page); await page.goto(path);
     await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
     await expect(page.getByRole("note")).toContainText("Hukuki inceleme gerektirir");
     await expect(page.locator(".legal-page-meta")).toContainText(LEGAL_VERSION);
@@ -31,7 +31,7 @@ test("Kayıt iki onay olmadan ilerlemez; sürümlü onaylar isteğe eklenir", as
     sent = route.request().postDataJSON();
     return route.fulfill({ status: 201, json: { requiresActivation: true } });
   });
-  await page.goto("/register");
+  await installSeatSelectionMock(page); await page.goto("/register");
   await page.getByLabel("Ad soyad", { exact: true }).fill("Onay Test Yolcusu");
   await page.getByLabel("E-posta", { exact: true }).fill("consent@example.test");
   const testPassword = crypto.randomUUID() + "Aa1!";
@@ -78,7 +78,7 @@ test("Koltuk onayı sözleşme olmadan sipariş oluşturmaz; seçim değişirse 
     sent = r.request().postDataJSON();
     return r.fulfill({ status: 409, json: { message: "Test: istek alındı." } });
   });
-  await page.goto("/trips/12");
+  await installSeatSelectionMock(page); await page.goto("/trips/12");
   await chooseSeat(page, 2);
   await page.getByLabel("Ad soyad · Koltuk 2").fill("Onay Test Yolcusu");
   await page.getByLabel("T.C. Kimlik No · Koltuk 2").fill("10000000146");
@@ -116,7 +116,7 @@ test("Eski bekleyen sipariş ödeme bağlantısını açık onay kaydedilene kad
     accepted = true;
     return r.fulfill({ json: group() });
   });
-  await page.goto(`/purchase/${groupId}`);
+  await installSeatSelectionMock(page); await page.goto(`/purchase/${groupId}`);
   const paymentLink = page.getByRole("link", { name: "iyzico sandbox ödeme sayfasına git" });
   await expect(paymentLink).toHaveCount(0);
   const continueButton = page.getByRole("button", { name: "Onayla ve ödemeye devam et" });
@@ -127,7 +127,7 @@ test("Eski bekleyen sipariş ödeme bağlantısını açık onay kaydedilene kad
 });
 
 test("Eski iade URL'si güncel sayfaya yönlendirilir", async ({ page }) => {
-  await page.goto("/iade-ve-iptal-kosullari");
+  await installSeatSelectionMock(page); await page.goto("/iade-ve-iptal-kosullari");
   await expect(page).toHaveURL(/\/iade-ve-iptal$/);
   await expect(page.getByRole("heading", { name: "İade ve İptal Koşulları", exact: true })).toBeVisible();
 });

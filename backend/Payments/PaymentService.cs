@@ -10,7 +10,7 @@ using Travela.DTOs;
 
 namespace Travela.Api.Payments;
 
-public class PaymentFlowException(string message, int status = 409) : Exception(message) { public int Status { get; } = status; }
+public class PaymentFlowException(string message, int status = 409, string? code = null) : Exception(message) { public int Status { get; } = status; public string? Code { get; } = code; }
 
 public partial class PaymentService(TravelaDbContext db, IPaymentProvider provider, TimeProvider clock, PaymentProviderRegistry? registry = null, TripSegmentService? segmentService = null)
 {

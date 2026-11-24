@@ -11,11 +11,15 @@ import { legalAcceptances } from "../legal";
 import type { Gender } from "../seatCompatibility";
 import { isValidIdentityNumber } from "../identityNumber";
 import { initialPassengerDetails, passengerDetailsReducer } from "../passengerDetails";
+import type { SeatSession } from "../seatSelection";
 
 export default function PassengerCheckoutForm({
-  tripId, seats, disabled, onBusy, onError, onConflict, onRemove, genders = {}, seatErrors = {}, boardingStopOrder, alightingStopOrder,
+  tripId, seats, disabled, onBusy, onError, onConflict, onRemove, genders = {}, seatErrors = {}, boardingStopOrder, alightingStopOrder, selectionSession, onSelectionExpired, selectionExpired,
 }: {
   tripId: number;
+  selectionSession: SeatSession | null;
+  onSelectionExpired: () => void;
+  selectionExpired: boolean;
   boardingStopOrder?: number | null;
   alightingStopOrder?: number | null;
   seats: number[];
@@ -35,10 +39,10 @@ export default function PassengerCheckoutForm({
   const [buyer, setBuyer] = useState({ name: "", surname: "", identityNumber: "", address: "", city: "", country: "Türkiye", zipCode: "" });
   const [couponCode, setCouponCode] = useState(""); const [price, setPrice] = useState<CampaignPrice | null>(null);
   const [acceptedSelection, setAcceptedSelection] = useState<string | null>(null);
-  const selection = JSON.stringify({ tripId, boardingStopOrder, alightingStopOrder, seats: [...seats].sort((a, b) => a - b), amount: price?.amount, couponCode });
+  const selection = JSON.stringify({ tripId, selectionSessionId: selectionSession?.id, boardingStopOrder, alightingStopOrder, seats: [...seats].sort((a, b) => a - b), amount: price?.amount, couponCode });
   const salesAccepted = acceptedSelection === selection;
   const key = useRef({ fingerprint: "", value: crypto.randomUUID() }); const token = sessionStorage.getItem("travela_token"); const navigate = useNavigate();
-  useEffect(() => { dispatch({ type: "seats", seats }); }, [seats]);
+  useEffect(() => { dispatch({ type: "seats", seats, preserveRemoved: selectionExpired }); }, [seats, selectionExpired]);
   useEffect(() => { const abort = new AbortController(); fetch(apiUrl("/api/purchases/options"), { signal: abort.signal }).then(async response => { if (!response.ok) throw new Error("Ödeme seçenekleri alınamadı."); return response.json(); }).then(data => { if (!abort.signal.aborted) { setOptions(data); setError(""); } }).catch(cause => { if (!abort.signal.aborted) setError(cause.message); }); return () => abort.abort(); }, [revision]);
   useEffect(() => {
     if (!token || currentRole() !== "Passenger") return;
@@ -85,6 +89,7 @@ export default function PassengerCheckoutForm({
     setBusy(true); onBusy(true); onError("");
     const payload = {
       tripId,
+      selectionSessionId: selectionSession?.id,
       boardingStopOrder,
       alightingStopOrder,
       couponCode: couponCode || null,
@@ -106,8 +111,10 @@ export default function PassengerCheckoutForm({
         const session = await fetch(apiUrl("/api/guest/purchases/session"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: "{}" });
         if (!session.ok) throw new Error("Misafir oturumu başlatılamadı. Bir süre sonra tekrar deneyin.");
       }
-      const response = await fetch(apiUrl(token ? "/api/purchases" : "/api/guest/purchases"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ ...payload, requestKey: key.current.value }) });
+      if (!selectionSession) throw new Error("Önce koltuk seçiminizi sunucuda doğrulayın.");
+      const response = await fetch(apiUrl(token ? "/api/purchases" : "/api/guest/purchases"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-Seat-Token": selectionSession.token, ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ ...payload, requestKey: key.current.value }) });
       const data = await response.json().catch(() => null);
+      if (data?.code === "selection_expired" || data?.code === "selection_changed") onSelectionExpired();
       if (response.status === 401 && token) {
         sessionStorage.removeItem("travela_token"); sessionStorage.removeItem("travela_user"); setRevision(value => value + 1);
         onError("Oturumunuz sona erdi. Bilgileriniz korundu; misafir olarak devam edebilir veya yeniden giriş yapabilirsiniz."); return;
@@ -153,7 +160,7 @@ export default function PassengerCheckoutForm({
       />
     )}
     {!!seats.length && <label className="checkout-confirmation"><input type="checkbox" required disabled={busy} /><span>Yolcu bilgilerini kontrol ettim; bu kişiler adına bilet alıyorum.</span></label>}
-    <p>Koltuklardan biri alınamazsa hiçbir koltuk ayrılmaz. Ödeme tek sipariş içindir; iptal ve iade her bilet için ayrı yapılır.</p>
+    <p>Ödemeye geçerken koltuklardan biri doğrulanamazsa ödeme başlatılmaz. Ödeme tek sipariş içindir; iptal ve iade her bilet için ayrı yapılır.</p>
     <button
       type="submit"
       className="site-button primary"

@@ -971,6 +971,9 @@ namespace Travela.API.Migrations
                     b.Property<int>("SeatNumber")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("SelectionSessionId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -1002,6 +1005,8 @@ namespace Travela.API.Migrations
                     b.HasIndex("TripId", "BoardingStopOrder");
 
                     b.HasIndex("TripId", "SeatNumber");
+
+                    b.HasIndex("SelectionSessionId", "Status", "HoldExpiresAt");
 
                     b.HasIndex("TripId", "Kind", "Status");
 
@@ -1139,6 +1144,58 @@ namespace Travela.API.Migrations
                         {
                             t.HasCheckConstraint("CK_RouteStops_OrderTime", "[StopOrder] >= 1 AND [ArrivalOffsetMinutes] >= 0 AND [DepartureOffsetMinutes] >= [ArrivalOffsetMinutes] AND ([DistanceFromStartKm] IS NULL OR [DistanceFromStartKm] >= 0)");
                         });
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.SeatSelectionSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AlightingStopOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BoardingStopOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("IpHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid?>("PurchaseGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("TripId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PurchaseGroupId")
+                        .IsUnique()
+                        .HasFilter("[PurchaseGroupId] IS NOT NULL");
+
+                    b.HasIndex("TripId");
+
+                    b.HasIndex("IpHash", "ExpiresAt");
+
+                    b.HasIndex("UserId", "ExpiresAt");
+
+                    b.ToTable("SeatSelectionSessions");
                 });
 
             modelBuilder.Entity("Travela.Api.Models.Terminal", b =>
@@ -1989,6 +2046,11 @@ namespace Travela.API.Migrations
                         .HasForeignKey("PassengerId")
                         .OnDelete(DeleteBehavior.NoAction);
 
+                    b.HasOne("Travela.Api.Models.SeatSelectionSession", null)
+                        .WithMany()
+                        .HasForeignKey("SelectionSessionId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("Travela.Api.Models.Trip", "Trip")
                         .WithMany()
                         .HasForeignKey("TripId")
@@ -2040,6 +2102,20 @@ namespace Travela.API.Migrations
                         .WithMany()
                         .HasForeignKey("TerminalId")
                         .OnDelete(DeleteBehavior.NoAction);
+                });
+
+            modelBuilder.Entity("Travela.Api.Models.SeatSelectionSession", b =>
+                {
+                    b.HasOne("Travela.Api.Models.PurchaseGroup", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseGroupId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Travela.Api.Models.Trip", null)
+                        .WithMany()
+                        .HasForeignKey("TripId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Travela.Api.Models.TicketCancellationChallenge", b =>

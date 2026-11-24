@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { buildSeats } from "../../src/seatPlans.ts";
-import { chooseSeat } from "./helpers/seat-selection.mjs";
+import { chooseSeat, installSeatSelectionMock } from "./helpers/seat-selection.mjs";
 
 async function session(page, role) {
   await page.addInitScript(role => {
@@ -18,7 +18,7 @@ for (const width of [390, 1440]) test(`Yolcu gerçek plandan seçer ve terminal 
   await page.route("**/api/trips/public/12", r => r.fulfill({ json: trip }));
   let sent;
   await page.route("**/api/purchases", async r => { sent = r.request().postDataJSON(); await r.fulfill({ status: 409, json: { message: "Test sırasında koltuk tutuldu." } }); });
-  await page.goto("/trips/12");
+  await installSeatSelectionMock(page); await page.goto("/trips/12");
   const plan = page.getByRole("group", { name: "Numaralı koltuk planı" });
   await expect(plan.getByRole("button", { name: /^Koltuk 1,/ })).toBeDisabled();
   await expect(plan.getByRole("button", { name: /^Koltuk 3,/ })).toBeDisabled();
@@ -44,7 +44,7 @@ test("Firma otobüs formunda 2+1 planını ve satışa kapalı koltukları kayde
   await page.route("**/api/buses?*", r => r.fulfill({ json: { items: [], totalCount: 0 } }));
   let sent;
   await page.route("**/api/buses", async r => { sent = r.request().postDataJSON(); await r.fulfill({ status: 201, json: { message: "Otobüs kaydedildi." } }); });
-  await page.goto("/company/buses"); await page.getByRole("button", { name: /Yeni Otobüs Ekle/ }).click();
+  await installSeatSelectionMock(page); await page.goto("/company/buses"); await page.getByRole("button", { name: /Yeni Otobüs Ekle/ }).click();
   await page.getByLabel("Plaka", { exact: false }).first().fill("34 TEST 123");
   await page.getByLabel("Fiziksel Koltuk Kapasitesi", { exact: false }).fill("9");
   await page.getByLabel("Koltuk düzeni", { exact: true }).selectOption("2+1");
@@ -59,7 +59,7 @@ test("Yönetici terminal ekler ve firma menüsünden bağımsız katalogda düze
   await session(page, "Admin"); let sent; let terminals = [];
   await page.route("**/api/terminals?includeInactive=true", r => r.fulfill({ json: terminals }));
   await page.route("**/api/terminals", async r => { sent = r.request().postDataJSON(); terminals = [{ ...sent, id: 1 }]; await r.fulfill({ status: 201, json: { message: "Terminal oluşturuldu." } }); });
-  await page.goto("/admin/terminals"); await page.getByLabel("Terminal adı", { exact: true }).fill("Esenler Otogarı");
+  await installSeatSelectionMock(page); await page.goto("/admin/terminals"); await page.getByLabel("Terminal adı", { exact: true }).fill("Esenler Otogarı");
   await page.getByLabel("Şehir", { exact: true }).fill("İstanbul"); await page.getByLabel("Açık adres", { exact: true }).fill("Altıntepsi Mahallesi");
   await page.getByRole("button", { name: "Terminali kaydet" }).click();
   await expect(page.getByRole("table")).toContainText("Esenler Otogarı"); expect(sent.isActive).toBe(true);

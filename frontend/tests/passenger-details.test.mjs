@@ -6,6 +6,16 @@ const profile = { fullName: "Hesap Sahibi", identityNumber: "10000000146", email
 const select = (state, seats) => reduce(state, { type: "seats", seats });
 const load = (state, value = profile) => reduce(state, { type: "profile", profile: value });
 
+test("Süre dolunca bilgiler koltuk anahtarında korunur; başka koltuğa aktarılmaz", () => {
+  let state = select(initialPassengerDetails(), [1]);
+  state = reduce(state, { type: "passenger", seat: 1, field: "fullName", value: "Korunan Yolcu" });
+  state = reduce(state, { type: "contact", field: "email", value: "kept@example.test" });
+  state = reduce(state, { type: "seats", seats: [], preserveRemoved: true });
+  state = select(state, [2]); assert.equal(state.passengers[2].fullName, "");
+  state = select(state, [2,1]); assert.equal(state.passengers[1].fullName, "Korunan Yolcu");
+  assert.equal(state.contact.email, "kept@example.test");
+});
+
 test("Profil önce veya sonra gelse de yalnız ilk seçilen koltuk otomatik dolar", () => {
   for (const state of [select(load(initialPassengerDetails()), [8]), load(select(initialPassengerDetails(), [8]))]) {
     const next = select(state, [2, 8]);

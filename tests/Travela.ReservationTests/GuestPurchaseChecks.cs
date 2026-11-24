@@ -66,27 +66,45 @@ internal static class GuestPurchaseChecks
             Passengers = seats.Select(s => new TicketPassengerDto { SeatNumber = s, FullName = "Misafir Yolcu " + s, IdentityNumber = "10000000146", Gender = "Female" }).ToList(), LegalAcceptances = GroupPurchaseChecks.SalesConsent() };
         async Task<JsonElement> Pay(Guid id, string outcome = "Succeeded") => await Json(await guest.PostAsJsonAsync($"/api/guest/purchases/{id}/local-complete", new { outcome }));
         async Task<JsonElement> Lookup(string pnr, string contact = "05321234567", HttpClient? client = null) => await Json(await (client ?? guest).PostAsJsonAsync("/api/ticket-lookup", new { pnr, contact }));
-        check((await guest.PostAsJsonAsync("/api/guest/purchases", Cart(1))).StatusCode == HttpStatusCode.Unauthorized, "Misafir siparişi önce güvenli oturum ister");
+        var selectionTokens = new Dictionary<Guid,string>();
+        async Task<string> Prepare(StartGroupPurchaseDto cart, HttpClient client)
+        {
+            if (cart.SelectionSessionId is { } existing) return selectionTokens[existing];
+            var id = Guid.NewGuid(); var token = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N"); cart.SelectionSessionId = id; selectionTokens[id] = token;
+            await Json(await client.PostAsJsonAsync("/api/seat-selections", new { id, token, cart.TripId, cart.BoardingStopOrder, cart.AlightingStopOrder }));
+            foreach (var p in cart.Passengers)
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Put,$"/api/seat-selections/{id}/seats") { Content = JsonContent.Create(new { p.SeatNumber, p.Gender }) };
+                req.Headers.Add("X-Seat-Token",token); await Json(await client.SendAsync(req));
+            }
+            return token;
+        }
+        async Task<HttpResponseMessage> PostGroup(HttpClient client, string path, StartGroupPurchaseDto cart)
+        {
+            var token = await Prepare(cart,client); using var req = new HttpRequestMessage(HttpMethod.Post,path) { Content = JsonContent.Create(cart) };
+            req.Headers.Add("X-Seat-Token",token); return await client.SendAsync(req);
+        }
+        check((await guest.PostAsJsonAsync("/api/guest/purchases", Cart(1))).StatusCode == HttpStatusCode.BadRequest, "Misafir siparişi önce güvenli koltuk seçimi ister");
         var session = await guest.PostAsJsonAsync("/api/guest/purchases/session", new { }); await Json(session);
         check(session.Headers.GetValues("Set-Cookie").Any(c => c.Contains("httponly", StringComparison.OrdinalIgnoreCase)), "Misafir erişimi yalnızca HttpOnly cookie ile kurulur");
-        var cart = Cart(1, 2); var order = await Json(await guest.PostAsJsonAsync("/api/guest/purchases", cart)); var id = order.GetProperty("id").GetGuid();
+        var cart = Cart(1, 2); var order = await Json(await PostGroup(guest, "/api/guest/purchases", cart)); var id = order.GetProperty("id").GetGuid();
         check(order.GetProperty("amount").GetDecimal() == 1000 && order.GetProperty("tickets").GetArrayLength() == 2, "Misafir çoklu yolcu sunucu fiyatıyla tek sipariş oluşturur");
         check(order.GetProperty("tickets").EnumerateArray().All(t => t.GetProperty("pnr").ValueKind == JsonValueKind.Null), "Ödeme öncesi hiçbir PNR oluşmaz");
         check(await db.Users.CountAsync() == userCount && await db.PurchaseGroups.AnyAsync(g => g.Id == id && g.PassengerId == null && g.GuestSessionId != null && g.ContactPhone == "+905321234567" && g.ContactEmail == "guest@example.com"), "Misafir hesap oluşturmaz; sahiplik ve normalize iletişim ayrıdır");
         check(await db.Reservations.CountAsync(r => r.Payment!.PurchaseGroupId == id && r.PassengerId == null && r.PassengerIdentityNumberSnapshot == "10000000146" && r.PassengerEmailSnapshot == null) == 2, "Yolcu anlık kayıtları koltuk bazındadır; iletişim ortak siparişte tutulur");
-        var again = await Json(await guest.PostAsJsonAsync("/api/guest/purchases", cart)); check(again.GetProperty("id").GetGuid() == id, "Yanıt kaybından sonra aynı anahtar mevcut siparişi döndürür");
+        var again = await Json(await PostGroup(guest, "/api/guest/purchases", cart)); check(again.GetProperty("id").GetGuid() == id, "Yanıt kaybından sonra aynı anahtar mevcut siparişi döndürür");
         var resumed = await Json(await guest.GetAsync("/api/guest/purchases/resume")); check(resumed.GetProperty("id").GetGuid() == id, "Sayfa yenilemede misafir siparişi güvenli oturumla bulunur");
         check((await stranger.GetAsync($"/api/guest/purchases/{id}")).StatusCode == HttpStatusCode.NotFound && (await stranger.PostAsJsonAsync($"/api/guest/purchases/{id}/local-complete", new { outcome = "Succeeded" })).StatusCode == HttpStatusCode.NotFound, "Sipariş numarası tek başına okuma veya ödeme yetkisi vermez");
         await Json(await stranger.PostAsJsonAsync("/api/guest/purchases/session", new { }));
         check((await stranger.GetAsync($"/api/guest/purchases/{id}")).StatusCode == HttpStatusCode.NotFound, "Başka misafir oturumu siparişi açamaz");
         var bad = Cart(3); bad.ExpectedAmount = 1;
-        check((await guest.PostAsJsonAsync("/api/guest/purchases", bad)).StatusCode == HttpStatusCode.Conflict && !await db.Reservations.AnyAsync(r => r.TripId == trip.Id && r.SeatNumber == 3), "İstemci fiyatı kabul edilmez; hata kısmi tutma bırakmaz");
+        check((await PostGroup(guest, "/api/guest/purchases", bad)).StatusCode == HttpStatusCode.Conflict && !await db.PaymentOrders.AnyAsync(p => p.Reservation.TripId == trip.Id && p.Reservation.SeatNumber == 3), "İstemci fiyatı kabul edilmez; hata kısmi ödeme dönüşümü bırakmaz");
         check((await guest.PostAsJsonAsync("/api/purchases", Cart(3))).StatusCode == HttpStatusCode.Unauthorized, "Mevcut üye satın alma servisi giriş zorunluluğunu korur");
         check((await stranger.PostAsJsonAsync("/api/ticket-lookup", new { pnr = id.ToString("N"), contact = "guest@example.com" })).StatusCode == HttpStatusCode.NotFound, "Sipariş kimliği PNR yerine kullanılamaz");
         order = await Pay(id); var tickets = order.GetProperty("tickets").EnumerateArray().ToArray();
         var pnr = tickets[0].GetProperty("pnr").GetString()!; var secondPnr = tickets[1].GetProperty("pnr").GetString()!; var lineId = tickets[0].GetProperty("id").GetGuid();
         check(pnr != secondPnr && tickets.All(t => t.GetProperty("kind").GetString() == "Ticket"), "Doğrulanmış tek ödeme iki yolcuya ayrı PNR üretir");
-        await Pay(id); await Json(await guest.PostAsJsonAsync("/api/guest/purchases", cart));
+        await Pay(id); await Json(await PostGroup(guest, "/api/guest/purchases", cart));
         check(await db.PaymentOrders.CountAsync(p => p.PurchaseGroupId == id) == 2 && await db.LocalPaymentRecords.CountAsync(p => p.Id == id) == 1, "Tekrarlanan ödeme ve sipariş ikinci tahsilat veya bilet oluşturmaz");
         check(await db.TravelNotifications.CountAsync(n => n.Reservation.Payment!.PurchaseGroupId == id && n.Type == "Purchase") == 4, "Misafir bildirimleri mevcut altyapıda ortak iletişime kuyruğa alınır");
         check((await stranger.GetAsync("/api/ticket-lookup/pdf")).StatusCode == HttpStatusCode.Unauthorized, "PNR veya sipariş numarası doğrudan PDF erişimi sağlamaz");
@@ -151,6 +169,7 @@ internal static class GuestPurchaseChecks
         async Task<HttpResponseMessage> Member(string method, string path, object? body = null)
         {
             using var req = new HttpRequestMessage(new HttpMethod(method), path); req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            if (method == "POST" && path == "/api/purchases" && body is StartGroupPurchaseDto cart) req.Headers.Add("X-Seat-Token",await Prepare(cart,server));
             if (body != null) req.Content = JsonContent.Create(body); return await server.SendAsync(req);
         }
         var memberCart = Cart(5); var memberOrder = await Json(await Member("POST", "/api/purchases", memberCart)); var memberId = memberOrder.GetProperty("id").GetGuid();
@@ -161,7 +180,7 @@ internal static class GuestPurchaseChecks
         check(memberLookup.GetProperty("ticket").GetProperty("passengerName").GetString() == "Misafir Yolcu 5", "Üye bileti profil değişse de satın alma iletişimi ve yolcu kaydıyla sorgulanır");
         var mine = await Json(await Member("GET", "/api/tickets/mine")); check(mine.EnumerateArray().All(t => t.GetProperty("purchaseGroupId").GetGuid() != id) && mine.GetArrayLength() == 1, "Üye Biletlerim yalnızca hesap sahipliğini gösterir; aynı iletişim misafir biletini bağlamaz");
         check((await Member("GET", $"/api/purchases/{id}")).StatusCode == HttpStatusCode.NotFound, "Üye sahipliği denetimi misafir siparişini açmaz");
-        var failedOrder = await Json(await guest.PostAsJsonAsync("/api/guest/purchases", Cart(7))); var failedId = failedOrder.GetProperty("id").GetGuid();
+        var failedOrder = await Json(await PostGroup(guest, "/api/guest/purchases", Cart(7))); var failedId = failedOrder.GetProperty("id").GetGuid();
         var pending = await Json(await guest.PostAsJsonAsync($"/api/guest/purchases/{failedId}/refresh", new { }));
         check(pending.GetProperty("paymentStatus").GetString() == "Pending" && pending.GetProperty("tickets")[0].GetProperty("pnr").ValueKind == JsonValueKind.Null, "Bekleyen ödeme açık durumda kalır ve bilet üretmez");
         var failed = await Pay(failedId, "Failed"); check(failed.GetProperty("paymentStatus").GetString() == "Failed" && failed.GetProperty("tickets")[0].GetProperty("pnr").ValueKind == JsonValueKind.Null, "Başarısız ödeme bilet üretmez ve durumu korunur");
@@ -169,12 +188,18 @@ internal static class GuestPurchaseChecks
         var unrestricted = new Campaign { CompanyId = company.Id, Name = "Herkese", Code = "GUEST10", Value = 10, PerUserLimit = null, StartsAt = restricted.StartsAt, EndsAt = restricted.EndsAt };
         db.AddRange(restricted, unrestricted); await db.SaveChangesAsync();
         var coupon = Cart(9); coupon.CouponCode = "MEMBER10";
-        check((await guest.PostAsJsonAsync("/api/guest/purchases", coupon)).StatusCode == HttpStatusCode.BadRequest && !await db.Reservations.AnyAsync(r => r.TripId == trip.Id && r.SeatNumber == 9), "Hesap limitli kampanya misafirle aşılamaz; reddetme koltuk tutmaz");
-        coupon.CouponCode = "GUEST10"; var discounted = await Json(await guest.PostAsJsonAsync("/api/guest/purchases", coupon));
+        check((await PostGroup(guest, "/api/guest/purchases", coupon)).StatusCode == HttpStatusCode.BadRequest && !await db.PaymentOrders.AnyAsync(p => p.Reservation.TripId == trip.Id && p.Reservation.SeatNumber == 9), "Hesap limitli kampanya misafirle aşılamaz; reddetme ödeme dönüşümü yapmaz");
+        coupon.CouponCode = "GUEST10"; var discounted = await Json(await PostGroup(guest, "/api/guest/purchases", coupon));
         check(discounted.GetProperty("amount").GetDecimal() == 450, "Hesap limiti olmayan kampanya misafir satın almada uygulanır");
-        var concurrent = Cart(11); var replies = await Task.WhenAll(guest.PostAsJsonAsync("/api/guest/purchases", concurrent), guest.PostAsJsonAsync("/api/guest/purchases", concurrent));
+        var concurrent = Cart(11); await Prepare(concurrent,guest); var replies = await Task.WhenAll(PostGroup(guest, "/api/guest/purchases", concurrent), PostGroup(guest, "/api/guest/purchases", concurrent));
         check(replies.All(r => r.IsSuccessStatusCode) && (await Json(replies[0])).GetProperty("id").GetGuid() == (await Json(replies[1])).GetProperty("id").GetGuid(), "Eş zamanlı tekrar aynı misafir siparişini döndürür");
-        var legacyOrder = await Json(await Member("POST", "/api/tickets/checkout", new { tripId = trip.Id, seatNumber = 13, gender = "Female", requestKey = Guid.NewGuid(), legalAcceptances = GroupPurchaseChecks.SalesConsent() }));
+        JsonElement legacyOrder;
+        await using (var historical = new TravelaDbContext(new DbContextOptionsBuilder<TravelaDbContext>().UseSqlServer(db.Database.GetConnectionString()).Options))
+        {
+            var provider = new LocalTestPaymentProvider(historical,new LocalWebhookKey(),TimeProvider.System);
+            var historicalOrder = await new PaymentService(historical,provider,TimeProvider.System).Start(user.Id,trip.Id,13,Guid.NewGuid(),default,GroupPurchaseChecks.SalesConsent(),"127.0.0.1","Female");
+            legacyOrder = JsonSerializer.SerializeToElement(new { id = historicalOrder.Id });
+        }
         var legacyId = legacyOrder.GetProperty("id").GetGuid();
         legacyOrder = await Json(await Member("POST", $"/api/tickets/local/{legacyId}/complete", new { outcome = "Succeeded" }));
         var legacyPnr = legacyOrder.GetProperty("pnr").GetString()!;
@@ -185,6 +210,17 @@ internal static class GuestPurchaseChecks
         check((await guest.PostAsJsonAsync("/api/ticket-lookup", new { pnr = legacyPnr, contact = "guest@example.com" })).StatusCode == HttpStatusCode.NotFound &&
             (await Member("GET", $"/api/tickets/{legacyPnr}")).IsSuccessStatusCode, "İletişim kaydı olmayan eski bilet güncel profille açılmaz; üye sahiplik erişimi korunur");
         check(await db.Users.CountAsync() == userCount, "Tüm misafir satın alma, sorgulama ve iptal işlemleri kullanıcı hesabı oluşturmaz");
+        var historicalCart = Cart(15); Guid historicalId; DateTime historicalExpiry;
+        await using (var historical = new TravelaDbContext(new DbContextOptionsBuilder<TravelaDbContext>().UseSqlServer(db.Database.GetConnectionString()).Options))
+        {
+            var guestSession = await historical.PurchaseGroups.Where(g => g.Id == id).Select(g => g.GuestSessionId).SingleAsync();
+            var provider = new LocalTestPaymentProvider(historical,new LocalWebhookKey(),TimeProvider.System);
+            var previous = await new PaymentService(historical,provider,TimeProvider.System).StartGroup(null,historicalCart,null,default,"127.0.0.1",guestSession);
+            historicalId = previous.Id; historicalExpiry = previous.HoldExpiresAt;
+        }
+        var restoredHistorical = await Json(await guest.PostAsJsonAsync("/api/guest/purchases",historicalCart));
+        check(restoredHistorical.GetProperty("id").GetGuid() == historicalId && restoredHistorical.GetProperty("holdExpiresAt").GetDateTime() == historicalExpiry,
+            "Geçiş öncesi siparişin eski anahtarla tekrarı yeni sipariş veya ek süre oluşturmaz");
     }
     private sealed class MutableClock : TimeProvider { public DateTimeOffset Now = DateTimeOffset.UtcNow; public override DateTimeOffset GetUtcNow() => Now; }
     private sealed class TestEnvironment : IWebHostEnvironment

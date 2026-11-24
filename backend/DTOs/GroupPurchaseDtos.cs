@@ -24,6 +24,7 @@ public class CheckoutBuyerDto
 }
 public class StartGroupPurchaseDto
 {
+    public Guid? SelectionSessionId { get; set; }
     public int? BoardingStopOrder { get; set; }
     public int? AlightingStopOrder { get; set; }
     [Required(ErrorMessage = "E-posta zorunludur."), EmailAddress(ErrorMessage = "Geçerli bir e-posta giriniz."), MaxLength(320)]

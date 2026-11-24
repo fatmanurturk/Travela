@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { buildSeats } from "../../src/seatPlans.ts";
-import { chooseSeat } from "./helpers/seat-selection.mjs";
+import { chooseSeat, installSeatSelectionMock } from "./helpers/seat-selection.mjs";
 const id = "12345678-1234-1234-1234-123456789012";
 async function setup(page, provider = "LocalTest", width = 1440) {
   await page.setViewportSize({ width, height: 1000 });
@@ -18,7 +18,7 @@ const group = { id, amount: 666.66, currency: "TRY", provider: "LocalTest", isTe
 for (const width of [390,1440]) test(`İki yolcu kendi bilgileriyle ortak siparişe geçer: ${width}px`, async ({ page }) => {
   await setup(page, "LocalTest", width); let sent;
   await page.route("**/api/purchases", async r => { sent = r.request().postDataJSON(); await r.fulfill({ json: group }); }); await page.route(`**/api/purchases/${id}`, r => r.fulfill({ json: group }));
-  await page.goto("/trips/12");
+  await installSeatSelectionMock(page); await page.goto("/trips/12");
   await chooseSeat(page, 2, "Kadın");
   await chooseSeat(page, 3, "Erkek");
   for (const [seat, name] of [[2, "Başka Yolcu"], [3, "İkinci Yolcu"]]) {
@@ -47,7 +47,7 @@ for (const width of [390,1440]) test(`İki yolcu kendi bilgileriyle ortak sipari
 test("iyzico sandbox akışı alıcı bilgilerini toplar ve yalnızca sağlayıcıya yönlendirir", async ({ page }) => {
   await setup(page, "IyzicoSandbox"); let sent; const sandboxGroup = { ...group, provider: "IyzicoSandbox", checkoutUrl: "https://sandbox-cpp.iyzipay.com/?token=test-sandbox" };
   await page.route("**/api/purchases", async r => { sent = r.request().postDataJSON(); await r.fulfill({ json: sandboxGroup }); }); await page.route(`**/api/purchases/${id}`, r => r.fulfill({ json: sandboxGroup }));
-  await page.goto("/trips/12");
+  await installSeatSelectionMock(page); await page.goto("/trips/12");
   await chooseSeat(page, 2);
   await page.getByRole("button", { name: "Hesap bilgilerimi kullan · Koltuk 2" }).click();
   for (const [field,value] of Object.entries({ name:"Alıcı", surname:"Test", identityNumber:"11111111111", address:"Sandbox adresi", city:"İzmir", country:"Türkiye", zipCode:"35000" })) await page.getByLabel(`Alıcı ${field}`, { exact: true }).fill(value);
@@ -62,7 +62,7 @@ test("iyzico sandbox akışı alıcı bilgilerini toplar ve yalnızca sağlayıc
 
 test("Koltuk ekleme, cinsiyet değiştirme ve çıkarma diğer yolcuyu ve ortak iletişimi korur", async ({ page }) => {
   await setup(page);
-  await page.goto("/trips/12");
+  await installSeatSelectionMock(page); await page.goto("/trips/12");
   await chooseSeat(page, 2);
   await page.getByRole("button", { name: "Hesap bilgilerimi kullan · Koltuk 2" }).click();
   await expect(page.getByLabel("T.C. Kimlik No · Koltuk 2")).toHaveValue("10000000146");
@@ -92,7 +92,7 @@ test("Tek yolcuda eksik/geçersiz bilgiler gönderilmez; düzeltilen bilgilerle 
   await page.route("**/api/purchases", r => { sent = r.request().postDataJSON(); return r.fulfill({ json: single }); });
   await page.route(`**/api/purchases/${id}`, r => r.fulfill({ json: single }));
   await page.route(`**/api/purchases/${id}/local-complete`, r => r.fulfill({ json: { ...single, paymentStatus: "Paid", tickets: [{ ...ticket, kind: "Ticket", pnr: "A".repeat(32), paymentStatus: "Paid" }] } }));
-  await page.goto("/trips/12");
+  await installSeatSelectionMock(page); await page.goto("/trips/12");
   await chooseSeat(page, 2);
   await page.getByRole("button", { name: "Başka yolcu için bilgileri temizle · Koltuk 2", exact: true }).click();
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
@@ -125,7 +125,7 @@ test("Geç gelen profil ortak iletişim düzenlemelerini ezmez; kayıtlı kimlik
   let release;
   const gate = new Promise(resolve => { release = resolve; });
   await page.route("**/api/profile", async r => { await gate; await r.fulfill({ json: { fullName: "Hesap Sahibi", email: "buyer@example.com", phoneNumber: "+905321234567" } }); });
-  await page.goto("/trips/12");
+  await installSeatSelectionMock(page); await page.goto("/trips/12");
   await chooseSeat(page, 2);
   await page.getByLabel("İletişim e-posta").fill("typed@example.com");
   await page.getByLabel("İletişim telefon").fill("+905551112233");

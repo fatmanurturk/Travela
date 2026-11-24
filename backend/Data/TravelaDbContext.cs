@@ -42,6 +42,7 @@ namespace Travela.Data
     ConfigureSegments(modelBuilder);
     ConfigureStaff(modelBuilder);
     ConfigureGuestCheckout(modelBuilder);
+    ConfigureSelections(modelBuilder);
     modelBuilder.Entity<LegalAcceptance>(entity =>
     {
         entity.Property(a => a.DocumentType).HasMaxLength(40);

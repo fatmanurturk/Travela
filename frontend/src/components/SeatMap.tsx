@@ -33,7 +33,7 @@ export default function SeatMap({ seats, layout, occupied = [], selected = null,
         const chosen = Array.isArray(selected) ? selected.includes(seat.number) : selected === seat.number;
         const chosenGender = chosen && !taken && !seat.isBlocked ? genders[seat.number] : "";
         const conflict = mode === "select" ? seatConflict(seats, seat.number, chosen ? genders[seat.number] : selectionGender, occupancies, genders) : "";
-        const status = taken ? occupancy?.kind === "Hold" ? "Geçici" : occupancy?.gender === "Female" ? "Kadın" : occupancy?.gender === "Male" ? "Erkek" : "Dolu" : seat.isBlocked ? "Kapalı" : chosen ? "Seçili" : conflict ? "Uyumsuz" : "Boş";
+        const status = taken ? occupancy?.kind === "Hold" ? "Geçici olarak ayrıldı" : occupancy?.gender === "Female" ? "Kadın" : occupancy?.gender === "Male" ? "Erkek" : "Dolu" : seat.isBlocked ? "Kapalı" : chosen ? "Seçili" : conflict ? "Uyumsuz" : "Boş";
         const position = [seat.isWindow ? "pencere" : "", seat.isAisle ? "koridor yanı" : ""].filter(Boolean).join(", ");
         const genderLabel = chosenGender === "Female" ? ", Kadın" : chosenGender === "Male" ? ", Erkek" : "";
         const label = "Koltuk " + seat.number + ", " + status + genderLabel +
@@ -46,12 +46,12 @@ export default function SeatMap({ seats, layout, occupied = [], selected = null,
         return <button type="button" key={seat.number} style={known ? { gridColumn: seat.row + 1, gridRow: seat.column } : undefined} title={label} aria-label={label} aria-pressed={mode === "block" ? seat.isBlocked : chosen}
           className={"physical-seat " + seatClass} aria-haspopup={mode === "select" ? "dialog" : undefined}
           disabled={disabled || mode === "readonly" || taken || (mode === "select" && seat.isBlocked)} onClick={event => { if (conflict && !chosen) onIncompatible?.(conflict); else onChoose?.(seat.number, event.currentTarget); }}>
-          <span className="seat-number">{seat.number}</span><small>{status}</small>
+          <span className="seat-number">{seat.number}</span><small>{taken && occupancy?.kind === "Hold" ? "Ayrıldı" : status}</small>
           {mode === "select" && chosen && !taken && !seat.isBlocked &&
             <span className="seat-selected-mark" aria-hidden="true">✓</span>}
         </button>;
       })}
-    </div></div><div className="physical-seat-legend"><span className="legend-available">□ Boş</span><span className="legend-male">♂ Dolu – Erkek</span><span className="legend-female">♀ Dolu – Kadın</span><span className="legend-selected">✓ Seçili</span><span className="legend-blocked">▧ Kapalı / Geçici</span>{mode === "block" && <span>Kapatmak veya açmak için koltuğa tıklayın.</span>}</div>
+    </div></div><div className="physical-seat-legend"><span className="legend-available">□ Boş</span><span className="legend-male">♂ Dolu – Erkek</span><span className="legend-female">♀ Dolu – Kadın</span><span className="legend-selected">✓ Seçili</span><span className="legend-blocked">▧ Kapalı</span><span className="legend-held">◷ Geçici olarak ayrıldı</span>{mode === "block" && <span>Kapatmak veya açmak için koltuğa tıklayın.</span>}</div>
     {sun && <div className="sun-exposure" role="status"><strong>{sun.side === "Night" ? "☾" : "☀"} {sun.message}</strong><p>Tahminidir. Yol geometrisi boyunca en fazla 5 dakikalık örneklem kullanılır; trafik, duraklamalar, hava ve gölgelenme hesaba katılmaz. Sol/sağ, otobüsün hareket yönüne göredir; ön taraf soldayken otobüsün solu ekranın altındadır.</p>{sun.side !== "Unknown" && <small>Sol: {sun.leftMinutes} dk · Sağ: {sun.rightMinutes} dk · Gece: {sun.nightMinutes} dk</small>}</div>}
   </div>;
 }

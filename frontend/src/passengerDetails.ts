@@ -9,9 +9,10 @@ export type PassengerDetailsState = {
   profile: CheckoutProfile | null;
   autoFillClaimed: boolean;
   autoFillSeat: number | null;
+  preserveRemoved?: boolean;
 };
 type Action =
-  | { type: "seats"; seats: number[] }
+  | { type: "seats"; seats: number[]; preserveRemoved?: boolean }
   | { type: "profile"; profile: CheckoutProfile }
   | { type: "passenger"; seat: number; field: keyof PassengerDetails; value: string }
   | { type: "contact"; field: keyof Contact; value: string }
@@ -40,7 +41,8 @@ export function passengerDetailsReducer(state: PassengerDetailsState, action: Ac
     case "seats": {
       const firstSelection = !state.autoFillClaimed && action.seats.length > 0;
       return autoFill({ ...state,
-        passengers: Object.fromEntries(action.seats.map(seat => [seat, state.passengers[seat] ?? blankPassenger()])),
+        ...(state.preserveRemoved || action.preserveRemoved ? { preserveRemoved: true } : {}),
+        passengers: { ...(state.preserveRemoved || action.preserveRemoved ? state.passengers : {}), ...Object.fromEntries(action.seats.map(seat => [seat, state.passengers[seat] ?? blankPassenger()])) },
         autoFillClaimed: state.autoFillClaimed || firstSelection,
         autoFillSeat: firstSelection ? action.seats[0]
           : state.autoFillSeat !== null && action.seats.includes(state.autoFillSeat) ? state.autoFillSeat : null,

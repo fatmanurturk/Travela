@@ -59,11 +59,10 @@ public partial class TripsController
     }
 
     [HttpGet("public/{id:int}"), AllowAnonymous, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-    public async Task<IActionResult> GetPublicTripById(int id, [FromServices] PaymentService payments,
+    public async Task<IActionResult> GetPublicTripById(int id, [FromServices] TimeProvider clock,
         [FromQuery] int? boardingStopOrder = null, [FromQuery] int? alightingStopOrder = null)
     {
         var ct = HttpContext.RequestAborted;
-        await payments.ExpireHolds(ct);
         var trip = await _context.Trips.AsNoTracking().Include(t => t.Company).Include(t => t.Bus).Include(t => t.Route).SingleOrDefaultAsync(t => t.Id == id, ct);
         if (trip == null) return NotFound(new { message = "Sefer bulunamadı." });
         try {
@@ -77,6 +76,7 @@ public partial class TripsController
             catch (ArgumentException) { seats = []; }
             var valid = seats.Count == (trip.SeatCapacitySnapshot ?? trip.Bus.SeatCapacity) && seats.Count(s => !s.IsBlocked) == (trip.SellableSeatCount ?? trip.Bus.SeatCapacity);
             return Ok(new PublicTripDetailDto {
+                ServerTime = clock.GetUtcNow().UtcDateTime,
                 Id = id, CompanyId = trip.CompanyId, CompanyName = j.CompanyName, BoardingStopOrder = segment.From.StopOrder, AlightingStopOrder = segment.To.StopOrder,
                 MainDepartureCity = trip.Route.DepartureCity, MainArrivalCity = trip.Route.ArrivalCity,
                 DepartureCity = j.DepartureCity, ArrivalCity = j.ArrivalCity, DepartureTime = j.DepartureTime, ArrivalTime = j.ArrivalTime,
@@ -86,7 +86,7 @@ public partial class TripsController
                 SeatCapacity = trip.SeatCapacitySnapshot ?? trip.Bus.SeatCapacity, SellableSeatCount = trip.SellableSeatCount ?? trip.Bus.SeatCapacity,
                 SeatLayout = trip.SeatLayout, SeatPlanJson = trip.SeatPlanJson, Seats = seats, OccupiedSeats = occupied.Select(s => s.SeatNumber).Distinct().ToList(), SeatOccupancies = occupied,
                 Status = trip.Status, SeatPlanAvailable = valid, DepartureHasPassed = j.DepartureTime <= DateTime.UtcNow,
-                CanReserve = valid && available.Count > 0 && await Segments.CanSell(trip, segment, ct),
+                CanReserve = valid && await Segments.CanSell(trip, segment, ct),
                 SunExposure = segment.From.StopOrder == 1 && segment.To.StopOrder == await _context.TripStops.CountAsync(s => s.TripId == id, ct)
                     ? SunExposure.Calculate(new(j.DepartureTime), new(j.ArrivalTime), trip.Route.GeometryJson) : SunExposure.Unknown()
             });

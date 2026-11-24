@@ -25,16 +25,19 @@ public class PurchasesController(TravelaDbContext db, PaymentService payments, I
     {
         var user = await Current(ct); if (user == null) return Unauthorized();
         try { return await action(user); }
-        catch (PaymentFlowException e) { return StatusCode(e.Status, new { message = e.Message }); }
+        catch (PaymentFlowException e) { return StatusCode(e.Status, new { e.Code, message = e.Message }); }
         catch (Exception e) when (e is SqlException { Number: 1205 or 2601 or 2627 or 51011 or 51012 } || e is DbUpdateException { InnerException: SqlException { Number: 1205 or 2601 or 2627 or 51011 or 51012 } })
         { return Conflict(new { message = "Eş zamanlı koltuk işlemi var. Siparişlerinizi kontrol edip aynı işlem anahtarıyla tekrar deneyin." }); }
     }
     [HttpPost]
     public Task<IActionResult> Start(StartGroupPurchaseDto dto, CancellationToken ct) => Run(async user =>
     {
+        if (dto.SelectionSessionId == null && !await db.PurchaseGroups.AnyAsync(g => g.PassengerId == user.Id && g.RequestKey == dto.RequestKey &&
+            !db.SeatSelectionSessions.Any(s => s.PurchaseGroupId == g.Id), ct))
+            return BadRequest(new { code = "selection_required", message = "Önce koltuk seçiminizi sunucuda onaylayın." });
         var protectedBuyer = dto.Buyer == null ? null : protection.CreateProtector("Travela.IyzicoBuyer.v1").Protect(JsonSerializer.Serialize(new IyzicoBuyer(dto.Buyer, dto.ContactEmail.Trim(), HttpContext.Connection.RemoteIpAddress?.ToString() ?? throw new PaymentFlowException("İstemci adresi alınamadı.")), new JsonSerializerOptions(JsonSerializerDefaults.Web)));
         var group = await payments.StartGroup(
-            user.Id, dto, protectedBuyer, ct, HttpContext.Connection.RemoteIpAddress?.ToString());
+            user.Id, dto, protectedBuyer, ct, HttpContext.Connection.RemoteIpAddress?.ToString(), selectionToken: Request.Headers["X-Seat-Token"].FirstOrDefault());
         return Ok(await Detail(group.Id, user.Id, ct));
     }, ct);
     [HttpGet("{id:guid}")]
@@ -68,12 +71,12 @@ public class PurchasesController(TravelaDbContext db, PaymentService payments, I
     private Task<bool> Owns(Guid id, int userId, CancellationToken ct) => db.PurchaseGroups.AnyAsync(g => g.Id == id && g.PassengerId == userId, ct);
     private async Task<object> Detail(Guid id, int userId, CancellationToken ct)
     {
-        var group = await db.PurchaseGroups.AsNoTracking().Include(g => g.Items).SingleAsync(g => g.Id == id && g.PassengerId == userId, ct);
+        var group = await db.PurchaseGroups.AsNoTracking().Include(g => g.Items).ThenInclude(p => p.Reservation).SingleAsync(g => g.Id == id && g.PassengerId == userId, ct);
         var legalAccepted = await payments.HasLegalAcceptance(userId, id, true, ct);
         var tickets = new List<PurchaseDto>(); foreach (var item in group.Items.OrderBy(p => p.ReservationId)) tickets.Add(await PurchasePresentation.Detail(db, userId, item.Id, clock, ct));
-        return new { group.Id, group.Amount, group.OriginalAmount, group.DiscountAmount, group.CampaignName, group.CouponCode, group.Currency, group.Provider, group.IsTest, group.PaymentStatus, group.CheckoutState, group.LastError, group.NeedsAttention,
+        return new { serverTime = clock.GetUtcNow().UtcDateTime, group.Id, group.Amount, group.OriginalAmount, group.DiscountAmount, group.CampaignName, group.CouponCode, group.Currency, group.Provider, group.IsTest, group.PaymentStatus, group.CheckoutState, group.LastError, group.NeedsAttention,
             legalAccepted, group.ContactEmail, group.ContactPhone, group.BoardingStopOrder, group.AlightingStopOrder,
-            holdExpiresAt = DateTime.SpecifyKind(group.HoldExpiresAt, DateTimeKind.Utc), checkoutUrl = legalAccepted && group.PaymentStatus == "Pending" && group.HoldExpiresAt > clock.GetUtcNow().UtcDateTime && group.CheckoutState == "Ready" ? group.CheckoutUrl : null,
+            holdExpiresAt = DateTime.SpecifyKind(group.HoldExpiresAt, DateTimeKind.Utc), checkoutUrl = legalAccepted && group.PaymentStatus == "Pending" && group.HoldExpiresAt > clock.GetUtcNow().UtcDateTime && group.CheckoutState == "Ready" && group.Items.All(p => p.Reservation.Status == "Active" && p.Reservation.Kind == "Hold" && p.Reservation.HoldExpiresAt > clock.GetUtcNow().UtcDateTime) ? group.CheckoutUrl : null,
             refundRequested = group.Items.Sum(p => p.RefundAmount), refunded = group.Items.Where(p => p.RefundStatus == "Succeeded").Sum(p => p.RefundAmount), tickets };
     }
 }

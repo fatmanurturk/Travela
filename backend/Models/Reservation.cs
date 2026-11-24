@@ -6,6 +6,7 @@ public class Reservation
 {
     public int Id { get; set; }
     public string ReservationNumber { get; set; } = Guid.NewGuid().ToString("N").ToUpperInvariant();
+    public Guid? SelectionSessionId { get; set; }
     public int TripId { get; set; }
     public int? PassengerId { get; set; }
     public string? PassengerNameSnapshot { get; set; }

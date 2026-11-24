@@ -30,9 +30,11 @@ public class TicketsController(TravelaDbContext db, PaymentService payments, Loc
     [HttpPost("checkout")]
     public Task<IActionResult> Start(StartPurchaseDto dto, CancellationToken ct) => Run(async () =>
     {
-        var order = await payments.Start(UserId, dto.TripId, dto.SeatNumber, dto.RequestKey, ct,
-            dto.LegalAcceptances, HttpContext.Connection.RemoteIpAddress?.ToString(), dto.Gender);
-        return Ok(await Detail(order.Id, ct));
+        // Historical orders remain readable/payable. New purchases must use the scoped selection transition.
+        var existing = await db.PaymentOrders.AsNoTracking().Include(p => p.Reservation).SingleOrDefaultAsync(p => p.PassengerId == UserId && p.RequestKey == dto.RequestKey, ct);
+        if (existing != null && (existing.Reservation.TripId != dto.TripId || existing.Reservation.SeatNumber != dto.SeatNumber))
+            return Conflict(new { message = "İşlem anahtarı farklı bir sipariş için kullanılmış." });
+        return existing != null ? Ok(await Detail(existing.Id, ct)) : BadRequest(new { code = "selection_required", message = "Yeni bilet için koltuk seçimi ve yolcu bilgileri formundan devam edin." });
     }, ct);
     [HttpPost("orders/{id:guid}/legal-acceptance")]
     public Task<IActionResult> AcceptLegal(Guid id, AcceptPurchaseLegalDto dto, CancellationToken ct) => Run(async () =>

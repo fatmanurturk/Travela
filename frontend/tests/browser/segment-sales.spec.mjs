@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { cities } from "../helpers/cities.mjs";
 import { buildSeats } from "../../src/seatPlans.ts";
-import { chooseSeat } from "./helpers/seat-selection.mjs";
+import { chooseSeat, installSeatSelectionMock } from "./helpers/seat-selection.mjs";
 
 const id = "12345678-1234-1234-1234-123456789012";
 const base = { id: 12, companyId: 1, companyName: "Kesim Firması", departureCity: "Ankara", arrivalCity: "İstanbul", mainDepartureCity: "Diyarbakır", mainArrivalCity: "İstanbul", departureTime: "2099-12-17T06:00:00Z", arrivalTime: "2099-12-17T12:00:00Z", departureTerminalName: "Ankara AŞTİ", arrivalTerminalName: "İstanbul Esenler", price: 200, availableSeats: 6, durationMinutes: 360, boardingStopOrder: 3, alightingStopOrder: 5 };
@@ -24,7 +24,7 @@ for (const width of [390,1440]) test(`Terminal seçimi aramadan koltuk ve ödeme
   const group = { id, amount:150, originalAmount:150,discountAmount:0, provider:"LocalTest",isTest:true,legalAccepted:true,paymentStatus:"Pending",checkoutState:"Ready",checkoutUrl:`/purchase/${id}`,holdExpiresAt:"2099-12-17T06:59:00Z",refundRequested:0,refunded:0,tickets:[] };
   await page.route("**/api/purchases",r => { sent=r.request().postDataJSON(); return r.fulfill({ json:group }); });
   await page.route(`**/api/purchases/${id}`,r => r.fulfill({ json:group }));
-  await page.goto("/search?from=Ankara&to=İstanbul&fromId=7&toId=42&date=2099-12-17&passengers=1");
+  await installSeatSelectionMock(page); await page.goto("/search?from=Ankara&to=İstanbul&fromId=7&toId=42&date=2099-12-17&passengers=1");
   await expect(page.locator(".result-card")).toHaveCount(1);
   await page.getByLabel("Biniş ve iniş noktaları · Sefer 12").selectOption("?boardingStopOrder=4&alightingStopOrder=5");
   await expect(page.locator(".result-card-price")).toContainText("150");
@@ -46,7 +46,7 @@ for (const width of [390,1440]) test(`Terminal seçimi aramadan koltuk ve ödeme
 
 test("İsteğe bağlı giriş kapatılınca gerçek durak ve koltuk seçimi saklanır", async ({ page }) => {
   await setup(page,false);
-  await page.goto("/trips/12?boardingStopOrder=4&alightingStopOrder=5");
+  await installSeatSelectionMock(page); await page.goto("/trips/12?boardingStopOrder=4&alightingStopOrder=5");
   await chooseSeat(page,3);
   await page.getByRole("button",{ name:"Hesabınızla giriş yapın (isteğe bağlı)",exact:true }).click();
   await expect(page.getByRole("dialog",{ name:"İsteğe bağlı hesap girişi" })).toBeVisible();
@@ -74,7 +74,7 @@ test("Firma durak ve kesim fiyatlarını mobil sefer yönetiminden kaydeder", as
   const data = { stops:[{ cityId:1,terminalId:1,arrivalTime:trip.departureTime,departureTime:trip.departureTime,canBoard:true,canAlight:false },{ cityId:3,terminalId:3,arrivalTime:trip.arrivalTime,departureTime:trip.arrivalTime,canBoard:false,canAlight:true }],fares:[{ fromStopOrder:1,toStopOrder:2,amount:500,isApproved:true }],changeVersion:0,topologyLocked:false };
   let sent;
   await page.route("**/api/trips/21/stops",r => { if (r.request().method() === "PUT") { sent=r.request().postDataJSON(); data.stops=sent.stops; data.fares=sent.fares; data.changeVersion++; return r.fulfill({ json:{ message:"Duraklar kaydedildi." } }); } return r.fulfill({ json:data }); });
-  await page.goto("/company/trips?detail=21");
+  await installSeatSelectionMock(page); await page.goto("/company/trips?detail=21");
   const panel = page.locator(".trip-stops-panel").filter({ hasText:"Duraklar ve kesim fiyatları" });
   await panel.locator("summary").click();
   await panel.getByRole("button",{ name:"+ Ara durak ekle",exact:true }).click();

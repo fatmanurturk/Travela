@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { buildSeats } from "../../src/seatPlans.ts";
-import { chooseSeat } from "./helpers/seat-selection.mjs";
+import { chooseSeat, installSeatSelectionMock } from "./helpers/seat-selection.mjs";
 
 const id = "12345678-1234-1234-1234-123456789012";
 const ticket = { id, purchaseGroupId: null, pnr: "A".repeat(32), kind: "Ticket", tripId: 12, seatNumber: 2,
@@ -46,7 +46,7 @@ async function fill(page, seats = [2]) {
   await page.getByRole("checkbox", { name: /Yolcu bilgilerini kontrol ettim/ }).check();
 }
 for (const width of [1440, 390]) test(`Misafir ${width === 390 ? "çoklu" : "tek"} yolcu satın alma, sonuç ve PDF · ${width}px`, async ({ page }) => {
-  const calls = await setup(page, width); await page.goto("/trips/12"); await fill(page, width === 390 ? [2, 3] : [2]);
+  const calls = await setup(page, width); await installSeatSelectionMock(page); await page.goto("/trips/12"); await fill(page, width === 390 ? [2, 3] : [2]);
   await expect(page.getByRole("button", { name: "Giriş yap ve devam et" })).toHaveCount(0);
   await page.getByRole("button", { name: "Ödemeye devam et", exact: true }).click();
   await expect(page).toHaveURL(`/purchase/${id}`); expect(calls.orders).toHaveLength(1); expect(calls.memberOrders).toBe(0);
@@ -65,7 +65,7 @@ for (const width of [1440, 390]) test(`Misafir ${width === 390 ? "çoklu" : "tek
   await page.reload(); await expect(page.getByRole("heading", { name: /Ortak sipariş/ })).toBeVisible(); expect(calls.orders).toHaveLength(1);
 });
 test("İsteğe bağlı giriş formu ve koltukları korur; profil elle düzenlenen alanları ezmez", async ({ page }) => {
-  const calls = await setup(page, 390); await page.goto("/trips/12"); await fill(page, [2, 3]);
+  const calls = await setup(page, 390); await installSeatSelectionMock(page); await page.goto("/trips/12"); await fill(page, [2, 3]);
   await page.getByRole("button", { name: "Hesabınızla giriş yapın (isteğe bağlı)", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "İsteğe bağlı hesap girişi" }); await expect(dialog).toBeVisible();
   await dialog.getByLabel("E-posta", { exact: true }).fill("member@example.test"); await dialog.getByLabel("Şifre", { exact: true }).fill("TestPass123!");
@@ -77,7 +77,7 @@ test("İsteğe bağlı giriş formu ve koltukları korur; profil elle düzenlene
   await expect(page.getByRole("button", { name: "Hesap bilgilerimi kullan · Koltuk 2", exact: true })).toBeVisible(); expect(calls.profileWrites).toBe(0);
 });
 test("Bağlantı kopunca aynı bilgilerle tekrar gönderim aynı işlem anahtarını kullanır", async ({ page }) => {
-  const calls = await setup(page); calls.dropNext = true; await page.goto("/trips/12"); await fill(page);
+  const calls = await setup(page); calls.dropNext = true; await installSeatSelectionMock(page); await page.goto("/trips/12"); await fill(page);
   await page.getByRole("button", { name: "Ödemeye devam et", exact: true }).click(); await expect(page.getByRole("alert")).toContainText("Sunucu yanıtı alınamadı");
   await page.getByRole("button", { name: "Ödemeye devam et", exact: true }).click(); await expect(page).toHaveURL(`/purchase/${id}`);
   expect(calls.orders).toHaveLength(2); expect(calls.orders[0].requestKey).toBe(calls.orders[1].requestKey);
@@ -87,7 +87,7 @@ test("Mobil sorgu eşleşmeyen bilgiyi açıklamaz; maskeli sonuç, PDF ve kodla
   await page.route("**/api/ticket-lookup", route => { lookups++; return route.fulfill(lookups === 1 ? { status: 404, json: { message: "Girdiğiniz bilgilerle eşleşen bilet bulunamadı." } } : { json: { ticket } }); });
   await page.route("**/api/ticket-lookup/cancellation-code", route => { codes++; return route.fulfill(codes === 1 ? { status: 503, json: { message: "İptal doğrulama kodu gönderimi şu anda kullanılamıyor." } } : { json: { challengeId: id, destination: "g***@example.test", message: "Doğrulama kodu kabul edildi." } }); });
   await page.route("**/api/ticket-lookup/cancel", route => route.fulfill({ json: { ticket: { ...ticket, canCancel: false, ticketStatus: "Cancelled", refundStatus: "Pending", refundAmount: 300 } } }));
-  await page.goto("/bilet-sorgula"); await expect(page.getByRole("navigation", { name: "Ana menü" }).getByRole("link", { name: "Biletimi Sorgula" })).toBeVisible();
+  await installSeatSelectionMock(page); await page.goto("/bilet-sorgula"); await expect(page.getByRole("navigation", { name: "Ana menü" }).getByRole("link", { name: "Biletimi Sorgula" })).toBeVisible();
   await page.getByLabel("PNR numarası", { exact: true }).fill(ticket.pnr); await page.getByLabel("Cep telefonu veya e-posta", { exact: true }).fill("05321234567");
   await page.getByRole("button", { name: "Biletimi Sorgula", exact: true }).click(); await expect(page.getByRole("alert")).toHaveText("Girdiğiniz bilgilerle eşleşen bilet bulunamadı.");
   await page.getByRole("button", { name: "Biletimi Sorgula", exact: true }).click(); await expect(page.getByRole("heading", { name: "Misafir Yolcu", exact: true })).toBeVisible();

@@ -2,6 +2,7 @@ namespace Travela.DTOs
 {
     public class PublicTripDetailDto : PublicTripDto
     {
+        public DateTime ServerTime { get; set; }
         public int SeatCapacity { get; set; }
         public int SellableSeatCount { get; set; }
         public string SeatLayout { get; set; } = "Unspecified";

@@ -12,6 +12,8 @@ import type { Gender, SeatOccupancy, SunExposure } from "../seatCompatibility";
 
 import { tripStatusLabel } from "../reservations";
 import PassengerCheckoutForm from "../components/PassengerCheckoutForm";
+import HoldCountdown from "../components/HoldCountdown";
+import { useSeatSelection } from "../seatSelection";
 
 type PublicTrip = Journey & {
   boardingStopOrder?: number;
@@ -64,48 +66,50 @@ function TripDetails({ id, segmentQuery }: { id: string | undefined; segmentQuer
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
-  const [genders, setGenders] = useState<Record<number, Gender | "">>({});
+  const [bookingError, setBookingError] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [purchaseRevision, setPurchaseRevision] = useState(0);
+  const parameters = new URLSearchParams(segmentQuery);
+  const selection = useSeatSelection(Number(id), parameters.has("boardingStopOrder") ? Number(parameters.get("boardingStopOrder")) : null,
+    parameters.has("alightingStopOrder") ? Number(parameters.get("alightingStopOrder")) : null, setBookingError, () => setRevision(value => value + 1));
+  const selectedSeats = selection.state?.seats.map(seat => seat.seatNumber) ?? [];
+  const genders = Object.fromEntries(selection.state?.seats.map(seat => [seat.seatNumber, seat.gender]) ?? []) as Record<number, Gender>;
+  const occupiedSeats = trip?.occupiedSeats.filter(seat => !selectedSeats.includes(seat)) ?? [];
+  const occupancies = trip?.seatOccupancies?.filter(seat => !selectedSeats.includes(seat.seatNumber)) ?? [];
   const [pendingSeat, setPendingSeat] = useState<number | null>(null);
   const genderPopover = useRef<HTMLDivElement>(null);
   const seatAnchor = useRef<HTMLButtonElement | null>(null);
+  const focusOnClose = useRef(false);
   const removeSeat = (seat: number) => {
-    setSelectedSeats(current => current.filter(number => number !== seat));
-    setGenders(current => {
-      const next = { ...current };
-      delete next[seat];
-      return next;
-    });
+    void selection.remove(seat);
   };
   const seatErrors = Object.fromEntries(selectedSeats.map(seat => {
-    const occupied = trip?.occupiedSeats.includes(seat) || trip?.seatOccupancies?.some(item => item.seatNumber === seat);
+    const occupied = occupiedSeats.includes(seat) || occupancies.some(item => item.seatNumber === seat);
     const position = trip?.seats?.find(position => position.number === seat);
     return [seat, !position || position.isBlocked ? "Koltuk güncel planda seçilemiyor. Koltuğu çıkarınız." : occupied
       ? "Koltuk başka biri tarafından alınmış veya geçici olarak rezerve edilmiş. Koltuğu çıkarınız."
-      : seatConflict(trip?.seats ?? [], seat, genders[seat], trip?.seatOccupancies ?? [], genders)];
+      : seatConflict(trip?.seats ?? [], seat, genders[seat], occupancies, genders)];
   }));
   const [saving, setSaving] = useState(false);
-  const [bookingError, setBookingError] = useState("");
-  const [revision, setRevision] = useState(0);
   const genderOptions = ([['Female', 'Kadın'], ['Male', 'Erkek']] as const).map(([value, label]) => ({
     value, label,
     conflict: pendingSeat === null ? "" : seatConflict(
-      trip?.seats ?? [], pendingSeat, value, trip?.seatOccupancies ?? [], genders
+      trip?.seats ?? [], pendingSeat, value, occupancies, genders
     ),
   }));
   const closeGenderPopover = () => {
+    focusOnClose.current = true;
     seatAnchor.current?.focus({ preventScroll: true });
     setPendingSeat(null);
   };
   const cancelGenderSelection = () => {
-    if (pendingSeat !== null) removeSeat(pendingSeat);
     closeGenderPopover();
   };
   const openGenderPopover = (seatNumber: number, anchor: HTMLButtonElement) => {
-    if (!trip?.canReserve || saving || refreshing || error) return;
+    if (!trip?.canReserve || saving || selection.busy || selection.state?.phase === "Payment" || refreshing || error) return;
     const seat = trip.seats?.find(item => item.number === seatNumber);
-    if (!seat || seat.isBlocked || trip.occupiedSeats.includes(seatNumber) ||
-      trip.seatOccupancies?.some(item => item.seatNumber === seatNumber)) return;
+    if (!seat || seat.isBlocked || occupiedSeats.includes(seatNumber) ||
+      occupancies.some(item => item.seatNumber === seatNumber)) return;
     if (!selectedSeats.includes(seatNumber) && selectedSeats.length >= 10) {
       setBookingError("En fazla 10 koltuk seçebilirsiniz.");
       return;
@@ -118,31 +122,38 @@ function TripDetails({ id, segmentQuery }: { id: string | undefined; segmentQuer
     setBookingError("");
     setPendingSeat(seatNumber);
   };
-  const chooseGender = (gender: Gender) => {
-    if (pendingSeat === null || !trip?.canReserve || saving || refreshing || error) return;
+  const chooseGender = async (gender: Gender) => {
+    if (pendingSeat === null || !trip?.canReserve || saving || selection.busy || refreshing || error) return;
     const seat = trip.seats?.find(item => item.number === pendingSeat);
-    if (!seat || seat.isBlocked || trip.occupiedSeats.includes(pendingSeat) ||
-      trip.seatOccupancies?.some(item => item.seatNumber === pendingSeat)) {
+    if (!seat || seat.isBlocked || occupiedSeats.includes(pendingSeat) ||
+      occupancies.some(item => item.seatNumber === pendingSeat)) {
       setBookingError("Koltuk artık seçilemiyor. Lütfen koltuk planını yenileyiniz.");
       cancelGenderSelection();
       return;
     }
-    const conflict = seatConflict(trip.seats ?? [], pendingSeat, gender, trip.seatOccupancies ?? [], genders);
+    const conflict = seatConflict(trip.seats ?? [], pendingSeat, gender, occupancies, genders);
     if (conflict) return;
     if (!selectedSeats.includes(pendingSeat) && selectedSeats.length >= 10) {
       setBookingError("En fazla 10 koltuk seçebilirsiniz.");
       closeGenderPopover();
       return;
     }
-    setGenders(current => ({ ...current, [pendingSeat]: gender }));
-    setSelectedSeats(current => current.includes(pendingSeat) ? current : [...current, pendingSeat]);
-    setBookingError("");
+    await selection.select(pendingSeat, gender);
     closeGenderPopover();
   };
   const refresh = () => {
     closeGenderPopover();
+    void selection.sync();
+    setRefreshing(true);
     setError(""); setRevision(v => v + 1);
   };
+
+  useLayoutEffect(() => {
+    const anchor = seatAnchor.current;
+    if (!focusOnClose.current || pendingSeat !== null || selection.busy || refreshing || saving || !anchor || anchor.disabled) return;
+    if (document.activeElement === document.body || document.activeElement === anchor) anchor.focus({ preventScroll: true });
+    focusOnClose.current = false;
+  }, [pendingSeat, selection.busy, refreshing, saving]);
 
   useLayoutEffect(() => {
     const popover = genderPopover.current;
@@ -175,7 +186,7 @@ function TripDetails({ id, segmentQuery }: { id: string | undefined; segmentQuer
     const currentChoice = popover.querySelector<HTMLButtonElement>('[data-gender][aria-pressed="true"]:not(:disabled)');
     const firstChoice = popover.querySelector<HTMLButtonElement>('[data-gender]:not(:disabled)');
     (currentChoice ?? firstChoice)?.focus({ preventScroll: true });
-    const dismiss = () => { removeSeat(pendingSeat); setPendingSeat(null); };
+    const dismiss = () => { setPendingSeat(null); };
     const outside = (event: PointerEvent) => {
       if (event.target instanceof Node && !popover.contains(event.target) && !anchor.contains(event.target)) dismiss();
     };
@@ -210,11 +221,11 @@ function TripDetails({ id, segmentQuery }: { id: string | undefined; segmentQuer
 
   useEffect(() => {
     const controller = new AbortController();
-    const loadTrip = async () => {
-      setRefreshing(true);
+    const loadTrip = async (foreground = false) => {
+      if (foreground) setRefreshing(true);
       setError("");
       try {
-        const response = await fetch(apiUrl(`/api/trips/public/${id}${segmentQuery}`), { signal: controller.signal });
+        const response = await fetch(apiUrl(`/api/trips/public/${id}${segmentQuery}`), { signal: controller.signal, cache: "no-store" });
         if (!response.ok) {
           if (response.status === 404) throw new Error("Sefer bulunamadı.");
           throw new Error("Sefer bilgileri şu anda alınamıyor.");
@@ -232,7 +243,8 @@ function TripDetails({ id, segmentQuery }: { id: string | undefined; segmentQuer
       }
     };
     void loadTrip();
-    return () => controller.abort();
+    const timer = setInterval(() => { if (!document.hidden) void loadTrip(); }, 5000);
+    return () => { controller.abort(); clearInterval(timer); };
   }, [id, segmentQuery, revision]);
 
   return (
@@ -268,21 +280,25 @@ function TripDetails({ id, segmentQuery }: { id: string | undefined; segmentQuer
               <div>
                 <h2 id="seat-heading">Koltuğunuzu seçin</h2>
                 <p>{trip.seatCapacity} koltuk · Sefer durumu: {tripStatusLabel(trip.status)}</p>
-                <p>Boş bir koltuğa tıklayıp yolcu cinsiyetini seçin. Değiştirmek veya koltuğu bırakmak için
-                  seçili koltuğa tekrar tıklayın. Yan yana eş koltuklar aynı cinsiyette olmalıdır.</p>
+                <p>Boş bir koltuğa tıklayıp yolcu cinsiyetini seçin. Cinsiyeti değiştirmek için seçili koltuğa
+                  tıklayın; bırakmak için yolcu formundaki “Koltuğu çıkar” düğmesini kullanın. Yan yana eş koltuklar aynı cinsiyette olmalıdır.</p>
                 {!trip.canReserve && <p role="status">{trip.departureHasPassed ? "Bu seferin kalkış zamanı geçtiği için bilet alınamaz." : tripStatusLabel(trip.status) === "İptal edildi" ? "Bu sefer iptal edildiği için bilet alınamaz." : !trip.seatPlanAvailable ? "Koltuk bilgileri kontrol ediliyor. Lütfen daha sonra deneyin." : trip.availableSeats === 0 ? "Bu seferde boş koltuk kalmadı." : "Bu sefer bilet satışına kapalı."}</p>}
                 {!trip.seatPlanAvailable && <p role="status">Koltuk planı bulunamıyor veya doğrulanmamış. Firma ya da yönetici fiziksel koltuk planını tanımlamalıdır.</p>}
                 {trip.seatPlanAvailable && <SeatMap
                   seats={trip.seats ?? []} layout={trip.seatLayout ?? "Unspecified"}
-                  occupied={trip.occupiedSeats} occupancies={trip.seatOccupancies} genders={genders}
+                  occupied={occupiedSeats} occupancies={occupancies} genders={genders}
                   sun={trip.sunExposure} onIncompatible={setBookingError} selected={selectedSeats}
-                  disabled={!trip.canReserve || saving || refreshing || !!error} onChoose={openGenderPopover}
+                  disabled={!trip.canReserve || saving || selection.busy || selection.state?.phase === "Payment" || refreshing || !!error} onChoose={openGenderPopover}
                 />}
                 {!trip.seatPlanAvailable && <p>{trip.sunExposure?.message ?? "Güneş yönü bilgisi hesaplanamadı."}</p>}
                 <button type="button" className="site-button secondary" disabled={saving || refreshing} onClick={refresh}>Koltuk planını yenile</button>
               </div>
               <aside className="booking-summary" aria-live="polite">
                 <h2>Sipariş özeti</h2>
+                {selection.state?.expiresAt && selection.state.phase === "Selection" && <HoldCountdown serverTime={selection.state.serverTime} expiresAt={selection.state.expiresAt} onExpired={selection.expire} />}
+                {selection.busy && <p role="status">Koltuk seçiminiz sunucuda doğrulanıyor...</p>}
+                {selection.state?.phase === "Payment" && <p role="status">Bu seçim ödeme aşamasında. <Link to={`/purchase/${selection.state.purchaseGroupId}`}>Mevcut ödemeye devam et</Link></p>}
+                {selection.state?.canStartNewSelection && <button type="button" className="site-button secondary" disabled={selection.busy} onClick={() => { selection.startNew(); setPurchaseRevision(value => value + 1); }}>Yeni bilet için koltuk seç</button>}
                 {selectedSeats.length > 0 ? <>
                   <p>{trip.companyName} · Sefer #{trip.id}</p>
                   <p>{trip.departureCity} → {trip.arrivalCity}</p>
@@ -290,10 +306,13 @@ function TripDetails({ id, segmentQuery }: { id: string | undefined; segmentQuer
                   <p><strong>Koltuklar: {selectedSeats.join(", ")}</strong></p>
                   <p>İndirim öncesi: <strong>{currencyFormatter.format(trip.price * selectedSeats.length)}</strong></p>
                 </> : <p>Devam etmek için boş bir koltuk seçiniz.</p>}
-                <p className="booking-notice">Biletiniz ödeme tamamlandığında oluşur. Koltuğunuz ödeme adımında 10 dakika ayrılır.</p>
+                <p className="booking-notice">Koltuk ve cinsiyet seçiminiz onaylandığında koltuklarınız 5 dakika ayrılır. Ödemeye geçince bu tutma 10 dakikalık ödeme tutmasına dönüşür. Biletiniz ödeme doğrulandığında oluşur.</p>
                 <PassengerCheckoutForm
+                  key={purchaseRevision}
                   tripId={trip.id} boardingStopOrder={trip.boardingStopOrder} alightingStopOrder={trip.alightingStopOrder} seats={selectedSeats} genders={genders} seatErrors={seatErrors}
-                  disabled={!trip.canReserve || saving || refreshing || !!error} onBusy={setSaving} onError={setBookingError}
+                  selectionSession={selection.capability} onSelectionExpired={() => { void selection.sync(); }}
+                  selectionExpired={selection.state?.phase === "Expired"}
+                  disabled={!trip.canReserve || saving || selection.busy || selection.state?.phase === "Payment" || refreshing || !!error} onBusy={setSaving} onError={setBookingError}
                   onConflict={() => setRevision(value => value + 1)} onRemove={removeSeat}
                 />
               </aside>
@@ -327,7 +346,7 @@ function TripDetails({ id, segmentQuery }: { id: string | undefined; segmentQuer
             aria-label={option.label} aria-pressed={genders[pendingSeat] === option.value}
             aria-describedby={option.conflict ? "seat-gender-restriction" : undefined}
             title={option.conflict || undefined}
-            disabled={!!option.conflict || saving || !trip?.canReserve}
+            disabled={!!option.conflict || saving || selection.busy || !trip?.canReserve}
             onClick={() => chooseGender(option.value)}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">

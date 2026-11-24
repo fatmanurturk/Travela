@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { buildSeats } from "../../src/seatPlans.ts";
-import { chooseSeat, releaseSeat } from "./helpers/seat-selection.mjs";
+import { chooseSeat, releaseSeat, installSeatSelectionMock } from "./helpers/seat-selection.mjs";
 
 async function setup(page, layout = "2+2", capacity = 40, legacyCoach = false) {
   await page.addInitScript(() => { sessionStorage.setItem("travela_token", "seat-test"); sessionStorage.setItem("travela_user", JSON.stringify({ role: "Passenger", fullName: "Hesap Yolcusu" })); });
@@ -16,7 +16,7 @@ async function setup(page, layout = "2+2", capacity = 40, legacyCoach = false) {
   if (layout === "Custom") [seats[1].number, seats[capacity - 2].number] = [seats[capacity - 2].number, seats[1].number];
   const data = { id: 21, companyName: "Travela Test", departureCity: "İstanbul", arrivalCity: "Ankara", departureTime: "2099-06-21T06:00:00Z", arrivalTime: "2099-06-21T12:00:00Z", durationMinutes: 360, price: 400, availableSeats: capacity - 4, seatCapacity: capacity, seatLayout: layout, seats, occupiedSeats: [1, 5, 9], seatOccupancies: [{ seatNumber: 1, gender: "Female", kind: "Ticket", expiresAt: null }, { seatNumber: 5, gender: "Male", kind: "Ticket", expiresAt: null }, { seatNumber: 9, gender: "Female", kind: "Hold", expiresAt: "2099-06-21T05:00:00Z" }], canReserve: true, seatPlanAvailable: true, status: "Scheduled", sunExposure: { side: "Left", message: "Bu seferde güneşin çoğunlukla otobüsün sol tarafından gelmesi bekleniyor.", leftMinutes: 300, rightMinutes: 20, nightMinutes: 40 } };
   await page.route("**/api/trips/public/21", r => r.fulfill({ json: data }));
-  await page.goto("/trips/21");
+  await installSeatSelectionMock(page); await page.goto("/trips/21");
   return data;
 }
 
@@ -160,8 +160,8 @@ test("Bağımsız cinsiyetler, tekrar tıklayarak düzenleme ve geçici bilgiler
   await expect(first).toHaveClass(/selected female/);
   await first.click();
   await page.keyboard.press("Escape");
-  await expect(first).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByLabel("Ad soyad · Koltuk 3")).toHaveCount(0);
+  await expect(first).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByLabel("Ad soyad · Koltuk 3")).toBeVisible();
   await expect(second).toHaveClass(/selected male/);
 });
 

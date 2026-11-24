@@ -22,6 +22,7 @@
 .physical-seat { position: relative; box-sizing: border-box; min-width: 0; width: 100%; height: 100%; padding: 2px; border: 1.5px solid #9baec6; border-left: clamp(3px, .55cqi, 7px) solid #9baec6; border-radius: 9px 5px 5px 9px; background: white; color: #173352; cursor: pointer; touch-action: manipulation; box-shadow: inset 0 3px #dce5f0, inset 0 -3px #dce5f0; font: inherit; }
 .seat-number { display: block; font-size: clamp(12px, 1.65cqi, 16px); line-height: 1.2; font-weight: 750; }
 .physical-seat small { display: block; font-size: clamp(7px, .9cqi, 9px); line-height: 1.3; }
+.physical-seat.occupied.held, .legend-held { background: #fef3c7; border-color: #f59e0b; color: #78350f; }
 .physical-seat.blocked, .physical-seat.occupied, .physical-seat.incompatible { background: #e2e8f0; border-color: #94a3b8; color: #475569; box-shadow: none; }
 .physical-seat.occupied.male { background: #dceeff; border-color: #7dafe0; color: #254f7b; }
 .physical-seat.occupied.female { background: #fce2ec; border-color: #d89ab3; color: #7d3553; }
