@@ -16,6 +16,7 @@ public decimal Value { get; set; }
 
 [Range(typeof(decimal), "0", "99999999",
     ParseLimitsInInvariantCulture = true)]
+    
 public decimal MinimumSubtotal { get; set; }
 
 [Range(typeof(decimal), "0.01", "99999999",

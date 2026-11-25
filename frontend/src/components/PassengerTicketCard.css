@@ -14,7 +14,9 @@
 .passenger-checkout-form .passenger-ticket-card > legend { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .passenger-ticket-body { display: grid; grid-template-columns: minmax(170px, .75fr) minmax(0, 1.8fr) 140px; min-width: 0; }
 .passenger-ticket-body > * { min-width: 0; }
-.passenger-ticket-journey { display: flex; flex-direction: column; gap: 6px; padding: 16px; background: #f8faff; border-right: 1px solid #e1e8f2; overflow-wrap: anywhere; }
+.passenger-ticket-journey { display: flex; flex-direction: column; gap: 16px; background: #f8faff; border-right: 1px solid #e1e8f2; overflow: hidden; overflow-wrap: anywhere; }
+.passenger-ticket-journey-info { display: flex; flex-direction: column; gap: 6px; padding: 16px 16px 0; }
+.passenger-ticket-panorama { display: block; flex-shrink: 0; align-self: center; width: calc(100% - 20px); height: auto; margin-top: auto; object-fit: contain; }
 .passenger-ticket-company { color: #1c4b87; font-size: 16px; }
 .passenger-checkout-form .passenger-ticket-route { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0; font-weight: 750; font-size: 17px; color: #173052; }
 .passenger-ticket-route > span[aria-hidden] { color: #4d81c8; }
@@ -68,7 +70,8 @@
 @container booking-contact (min-width: 420px) { .passenger-checkout-contact .checkout-fields.checkout-contact { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 1000px) {
   .passenger-ticket-body { grid-template-columns: minmax(0, 1fr); }
-  .passenger-ticket-journey { border-right: 0; border-bottom: 1px solid #e1e8f2; gap: 4px; }
+  .passenger-ticket-journey { border-right: 0; border-bottom: 1px solid #e1e8f2; }
+  .passenger-ticket-journey-info { gap: 4px; }
   .passenger-ticket-stub { flex-direction: row; justify-content: space-between; gap: 12px; padding: 12px 16px; border-left: 0; border-top: 2px dashed #b7c9e3; text-align: left; }
   .passenger-ticket-stub::before { top: -10px; left: -10px; }
   .passenger-ticket-stub::after { top: -10px; left: auto; right: -10px; }
@@ -80,7 +83,8 @@
 @media (max-width: 640px) {
   .passenger-ticket-inputs { grid-template-columns: minmax(0, 1fr); }
   .passenger-heading-row h3 { font-size: 18px; }
-  .passenger-ticket-journey, .passenger-ticket-passenger { padding: 14px; }
+  .passenger-ticket-journey-info { padding: 14px 14px 0; }
+  .passenger-ticket-passenger { padding: 14px; }
   .passenger-ticket-stub { padding: 12px 14px; }
   .passenger-ticket-fare span { max-width: 145px; }
   .passenger-checkout-payment { padding: 14px; }

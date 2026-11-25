@@ -21,9 +21,12 @@ export default function PassengerTicketCard({ seat, journey, passenger, gender, 
   return <fieldset className="passenger-ticket-card" disabled={busy} data-seat={seat}><legend>Yolcu Bilgileri — Koltuk {seat}</legend>
     <div className="passenger-ticket-body">
       <div className="passenger-ticket-journey">
-        <strong className="passenger-ticket-company">{journey.companyName}</strong>
-        <p className="passenger-ticket-route"><span>{journey.departureCity}</span><span aria-hidden="true">→</span><span>{journey.arrivalCity}</span></p>
-        <span className="passenger-ticket-date-label">Kalkış · Türkiye saati</span><time dateTime={journey.departureTime}>{departure.format(new Date(journey.departureTime))}</time>
+        <div className="passenger-ticket-journey-info">
+          <strong className="passenger-ticket-company">{journey.companyName}</strong>
+          <p className="passenger-ticket-route"><span>{journey.departureCity}</span><span aria-hidden="true">→</span><span>{journey.arrivalCity}</span></p>
+          <span className="passenger-ticket-date-label">Kalkış · Türkiye saati</span><time dateTime={journey.departureTime}>{departure.format(new Date(journey.departureTime))}</time>
+        </div>
+        <img className="passenger-ticket-panorama" src="/images/turkiye-panorama.png" alt="" width={1726} height={911} />
       </div>
       <div className="passenger-ticket-passenger"><div className="passenger-ticket-heading"><h4>Yolcu formu</h4></div>
         <div className="passenger-ticket-inputs">

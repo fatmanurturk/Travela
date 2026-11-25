@@ -25,6 +25,8 @@
     <EmbeddedResource Include="../frontend/src/pages/legal/documents.v1.json"
                       LogicalName="Travela.Legal.documents.v1.json" />
     <EmbeddedResource Include="Assets/Fonts/*.ttf" />
+    <EmbeddedResource Include="../frontend/public/images/turkiye-panorama.png"
+                      LogicalName="Travela.TicketPanorama.png" />
     <None Update="Assets/Fonts/OFL.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -9,6 +9,7 @@ const executable = name => process.env.POPPLER_BIN
   ? path.join(process.env.POPPLER_BIN, name + (process.platform === "win32" ? ".exe" : "")) : name;
 const run = (name, args) => execFileSync(executable(name), args, { encoding: "utf8" });
 const normalize = value => value.replace(/\u00ad/g, "").replace(/-\s*\r?\n\s*/g, "").replace(/\s+/g, " ").trim();
+const containsText = (text, value) => text.replace(/\s/g, "").includes(normalize(value).replace(/\s/g, ""));
 const turkeyTime = value => {
   const parts = new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(value));
   const part = name => parts.find(p => p.type === name)?.value;
@@ -23,9 +24,9 @@ const cases = [
 for (const [state, relative] of cases) {
   const expected = JSON.parse(readFileSync(path.join(root, "tmp/ticket-qa", state + ".json"), "utf8"));
   const pdf = path.join(root, relative);
-  const text = normalize(run("pdftotext", ["-layout", "-enc", "UTF-8", pdf, "-"]));
+  const text = normalize(run("pdftotext", ["-raw", "-enc", "UTF-8", pdf, "-"]));
   for (const value of [expected.pnr, expected.passengerName, expected.companyName, expected.departureCity, expected.arrivalCity, expected.refundDescription]) {
-    assert.ok(text.includes(normalize(value)), `${state}: PDF içeriği API ile eşleşmiyor: ${value}`);
+    assert.ok(containsText(text, value), `${state}: PDF içeriği API ile eşleşmiyor: ${value}`);
   }
   assert.ok(!text.includes("TEST BİLETİ"));
   assert.equal(text.includes("İPTAL EDİLDİ"), state !== "active");
